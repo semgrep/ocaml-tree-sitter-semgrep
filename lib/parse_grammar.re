@@ -12,9 +12,21 @@
  * file license.txt for more details.
  */
 open Common;
-module J = Json_type;
+open Core;
+module Y = Yojson;
+module G = Grammar_j;
+module G_t = Grammar_t;
 
 /*****************************************************************************/
 /* Entrypoint */
 /*****************************************************************************/
-let parse = _file => raise(Todo);
+let parse = (filename) => {
+  let json = In_channel.read_all(filename);
+  let _grammar = G.grammar_of_string(json);
+  /* let message =
+    switch (grammar) {
+    | _ => "adai"
+    };
+  print_endline(message); */
+  raise(Todo);
+};

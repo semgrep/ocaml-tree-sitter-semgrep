@@ -1,0 +1,16 @@
+type ident = string;
+
+/* TODO: add rule body */
+type rule = ident;
+
+type rules = rule list option;
+
+type grammar = {
+  name: ident;
+  rules: rules;
+  extras: rules;
+  exteras: rules;
+  inline: list string;
+  conflicts: list list string;
+  word: string;
+}
