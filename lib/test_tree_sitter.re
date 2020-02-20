@@ -395,11 +395,6 @@ let test_codegen_jsonreader = file => {
   print_string("\n")
 }
 
-let test_parse_cst = file => {
-  let _ast = Json_reader.parse(file);
-  print_string("");
-}
-
 /*****************************************************************************/
 /* Main entry for Arg */
 /*****************************************************************************/
@@ -411,5 +406,4 @@ let actions = () => [
   ("-test_codegen", "   <file>", Common.mk_action_0_arg(test_codegen)),
   ("-codegen_types", "   <file>", Common.mk_action_1_arg(test_codegen_types)),
   ("-codegen_jsonreader", "   <file>", Common.mk_action_1_arg(test_codegen_jsonreader)),
-  ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)),
 ];
