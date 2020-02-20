@@ -367,13 +367,13 @@ and ex1_rule =
 and intermediate1 =
  | Intermediate_type3(b)
  | Intermediate_type4(c);
-type _node =
+type cst_node =
  | A(a)
  | B(b)
  | C(c)
  | Ex1_rule(ex1_rule)
  | Intermediate1(intermediate1)
-type ex1_grammar_cst = list(_node)"
+type ex1_grammar_cst = list(cst_node)"
   _test_code(nast, expected);
 }
 
