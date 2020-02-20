@@ -1,0 +1,20 @@
+("program",
+ [("assignment_statement",
+   (SIMPLE (SEQ [(SYMBOL "variable"); TOKEN; (SYMBOL "expression"); TOKEN])));
+   ("comment", (SIMPLE (ATOM TOKEN)));
+   ("expression",
+    (CHOICE
+       [(ATOM (SYMBOL "variable")); (ATOM (SYMBOL "number"));
+         (SEQ [(SYMBOL "expression"); TOKEN; (SYMBOL "expression")]);
+         (SEQ [(SYMBOL "expression"); TOKEN; (SYMBOL "expression")]);
+         (SEQ [(SYMBOL "expression"); TOKEN; (SYMBOL "expression")]);
+         (SEQ [(SYMBOL "expression"); TOKEN; (SYMBOL "expression")]);
+         (SEQ [(SYMBOL "expression"); TOKEN; (SYMBOL "expression")])]));
+   ("expression_statement", (SIMPLE (SEQ [(SYMBOL "expression"); TOKEN])));
+   ("intermediate1",
+    (CHOICE
+       [(ATOM (SYMBOL "assignment_statement"));
+         (ATOM (SYMBOL "expression_statement"))]));
+   ("number", (SIMPLE (ATOM TOKEN)));
+   ("program", (REPEAT (ATOM (SYMBOL "intermediate1"))));
+   ("variable", (SIMPLE (ATOM TOKEN)))])
