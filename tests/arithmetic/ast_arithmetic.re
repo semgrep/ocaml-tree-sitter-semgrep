@@ -16,7 +16,7 @@ and expression =
 and expression_statement = (expression, string)
 and assignment_statement = (variable, string, expression, string)
 and program = list(intermediate1);
-type _node =
+type cst_node = 
  | Comment(comment)
  | Number(number)
  | Variable(variable)
@@ -25,4 +25,4 @@ type _node =
  | Expression_statement(expression_statement)
  | Assignment_statement(assignment_statement)
  | Program(program)
-type program_cst = list(_node)
+type program_cst = list(cst_node)

@@ -6,13 +6,26 @@ let gen_intermediate_constructor = () => {
   "Intermediate_type" ++ string_of_int(counter^);
 }
 
-let wrap_ident= (ident:string) : string => {
+let wrap_ident = (ident:string) : string => {
    if (ident == "true" || ident == "false") {
       ident ++ "_bool"
    } else {
       ident
    }
 }
+let name_to_constructor = (name: string): string => {
+   if (name.[0] == '_') {
+      /*
+         For intermediate types like _a_type
+         convert to constructor name like A_type_
+       */
+      String.capitalize_ascii(String.sub(name, 1, String.length(name) - 1) ++ "_")
+   } else {
+      String.capitalize_ascii(name)
+   }
+}
+
+
 let codegen_atom = (atom: B.atom): string => {
    switch(atom) {
    | B.TOKEN(None) => "string" /* tokens are empty */
@@ -90,10 +103,13 @@ let codegen_rule_bodies = (rules: list(B.rule)): list((B.ident, string)) => {
 }
 
 let codegen_rule_constructor = (rule_names: list(string)): string => {
-   "type _node = \n" ++
+   "type cst_node = \n" ++
       String.concat("\n",
          List.map(
-            (name: string) => " | " ++ String.capitalize_ascii(name) ++ "(" ++ name ++ ")",
+            (name: string) => {
+               let name_wrap = wrap_ident(name);
+               " | " ++ name_to_constructor(name_wrap) ++ "(" ++ name_wrap ++ ")"
+            },
             rule_names
          )
       ) ++ "\n"
@@ -107,6 +123,6 @@ let codegen = ((program_name, rules): B.grammar): (string) => {
   let rule_types = List.map(snd, rule_strs);
   let type_defs = "type " ++ String.concat("\nand ", rule_types) ++ ";\n";
   let type_constructors = codegen_rule_constructor(rule_names);
-  let final = "type " ++ program_name ++ "_cst" ++ " = list(_node)";
+  let final = "type " ++ program_name ++ "_cst" ++ " = list(cst_node)";
   code_header ++ type_defs ++ type_constructors ++ final;
 }
