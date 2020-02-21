@@ -370,6 +370,7 @@ let test_codegen_1 = _ => {
     " | Intermediate_type4(c);"
 
   _test_code(nast, expected);
+  ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)),
 }
 
 let test_codegen = _ => {
