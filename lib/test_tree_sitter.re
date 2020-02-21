@@ -32,7 +32,7 @@ let test_normalize = file => {
 }
 
 let _test_code = (nast, expected_str) => {
-  let generated_code =  Codegen_types.codegen(nast);
+  let (_, generated_code) =  Codegen_types.codegen(nast);
   if (generated_code == expected_str) {
     print_string("PASSED codegen\n");
   } else {
@@ -379,14 +379,16 @@ let test_codegen = _ => {
 let test_codegen_types = file => {
   let ast = Parse_grammar.parse(file);
   let nast = Normalize_grammar.normalize(ast);
-  print_string (Codegen_types.codegen(nast));
+  let (_, codegen_types) = Codegen_types.codegen(nast);
+  print_string (codegen_types);
   print_string ("\n");
 }
 
 let test_codegen_jsonreader = file => {
   let ast = Parse_grammar.parse(file);
   let nast = Normalize_grammar.normalize(ast);
-  print_string (Codegen_json_reader.codegen(nast));
+  let (rule_name_and_types, _) = Codegen_types.codegen(nast);
+  print_string (Codegen_json_reader.codegen(nast, rule_name_and_types));
   print_string("\n")
 }
 
