@@ -37,10 +37,3 @@ type grammar = (ident /* entry point, first rule */, rules);
 [@deriving show]
 /* alias */
 type t = grammar;
-
-let get_rule_body_str = (rule_body: rule_body): string => {
-  switch(rule_body) {
-  | SIMPLE(ATOM(TOKEN)) => "LEAF"
-  | _ => "NON-LEAF"
-  }
-}
