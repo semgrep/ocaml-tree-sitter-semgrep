@@ -396,10 +396,10 @@ let test_codegen_jsonreader = file => {
   print_string("\n")
 }
 
-/* let test_parse_cst = file => {
-  let program = Json_reader.parse(file);
+let test_parse_cst = file => {
+  let program = Arith_cst_json_reader.parse(file);
   print_string(CST.show_program_cst(program));
-} */
+}
 
 /*****************************************************************************/
 /* Main entry for Arg */
@@ -412,5 +412,5 @@ let actions = () => [
   ("-test_codegen", "   <file>", Common.mk_action_0_arg(test_codegen)),
   ("-codegen_types", "   <file>", Common.mk_action_1_arg(test_codegen_types)),
   ("-codegen_jsonreader", "<file>", Common.mk_action_1_arg(test_codegen_jsonreader)),
-  /* ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)), */
+  ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)),
 ];
