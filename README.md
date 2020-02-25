@@ -64,22 +64,10 @@ code .
 
 ## Debugging code
 
-Set the OCAMLRUNPARAM environment variable to 'b' for backtrace.
+Set the OCAMLRUNPARAM environment variable to 'b' for backtrace. 
 You will get better backtrace information when an exception is thrown.
 
 ```bash
 export OCAMLRUNPARAM=b
 ```
 
-### Tesing codegen
-
-Note `arith_cst_json_reader` is hard coded at the moment
-1. Create a parser file
-  ```bash
-   `/_build/default/bin/main_codegen.exe -codegen_jsonreader tests/arithmetic/grammar.json > lib/arith_cst_json_reader.re
-   ```
-2. Create CST json dump for the language based on [Tree-sitter JSON example](tests/arithmetic/README.md)
-3. Parse CST based on the parser generated in step 1
-  ```bash
-  ./_build/default/bin/main_codegen.exe -parse_cst tests/arithmetic/test.arith.cst.json
-  ```
