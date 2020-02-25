@@ -16,13 +16,3 @@ and expression =
 and expression_statement =(expression, string)
 and assignment_statement =(variable, string, expression, string)
 and program =list(intermediate1);
-type cst_node =
- | Comment(comment)
- | Number(number)
- | Variable(variable)
- | Intermediate1(intermediate1)
- | Expression(expression)
- | Expression_statement(expression_statement)
- | Assignment_statement(assignment_statement)
- | Program(program)
-type program_cst = list(cst_node)
