@@ -1,3 +1,4 @@
+open Common;
 module B = Ast_grammar_normalized;
 
 let counter = ref(0);
@@ -17,7 +18,7 @@ let wrap_ident = (ident:string) : string => {
 let codegen_atom = (atom: B.atom): string => {
    switch(atom) {
    | B.TOKEN(None) => "string" /* tokens are empty */
-   | B.TOKEN(Some(name)) => wrap_ident(name)
+   | B.TOKEN(Some(name)) => spf("\"%s\"", wrap_ident(name))
    | B.SYMBOL(name) => wrap_ident(name)
    }
 }

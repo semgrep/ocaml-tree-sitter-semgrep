@@ -370,7 +370,6 @@ let test_codegen_1 = _ => {
     " | Intermediate_type4(c);"
 
   _test_code(nast, expected);
-  ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)),
 }
 
 let test_codegen = _ => {
@@ -412,5 +411,5 @@ let actions = () => [
   ("-test_codegen", "   <file>", Common.mk_action_0_arg(test_codegen)),
   ("-codegen_types", "   <file>", Common.mk_action_1_arg(test_codegen_types)),
   ("-codegen_jsonreader", "<file>", Common.mk_action_1_arg(test_codegen_jsonreader)),
-  ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)),
+  /* ("-parse_cst", "   <file>", Common.mk_action_1_arg(test_parse_cst)), */
 ];

@@ -2,18 +2,17 @@ open Common;
 module B = Ast_grammar_normalized;
 
 /* let generate_recursive_parser_atom = (body: B.atom): string => {
-   | B.TOKEN => ""
+   | B.TOKEN(None) => ""
    | B.SYMBOL(name) => name
 } */
 let generate_recursive_parser_simple = ((name, body): B.rule): string => {
    switch(body) {
-   | B.SIMPLE(B.ATOM(B.TOKEN)) => {
+   | B.SIMPLE(B.ATOM(B.TOKEN(None))) => {
          /* Leaf node */
          spf("
       | J.Object([(\"type\", J.String(\"%s\")),
-                  (\"children\", _)]) => %s(\"%s\")",
+                  (\"children\", _)]) => \"%s\"",
          name,
-         Codegen_types.name_to_constructor(name),
          name)
       }
    /* | B.SIMPLE(B.SEQ(ls)) => {
@@ -32,7 +31,7 @@ let generate_recursive_parser_simple = ((name, body): B.rule): string => {
 let generate_parser_func = (rules): string => {
    let simple_rules = List.filter(((_, rule_body)) => {
       switch(rule_body) {
-      | B.SIMPLE(B.ATOM(B.TOKEN)) => true
+      | B.SIMPLE(B.ATOM(B.TOKEN(None))) => true
       | B.SIMPLE(B.SEQ(_)) => true
       | _ => false
       }
