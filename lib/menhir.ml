@@ -6,6 +6,17 @@ type env = {
   start: string;
 }
 
+let arity simple =
+  match simple with
+  | ATOM _ | REPEAT _ | REPEAT1 _  | OPTION _ -> 1
+  | SEQ(xs) -> List.length xs
+
+let arity_str simple =
+  let n = arity simple in
+  if n = 1
+  then ""
+  else spf "%d" n
+
 let is_token env s = 
   Hashtbl.mem env.tokens s
 
@@ -32,15 +43,48 @@ let rec simple env = function
           simple env x;
           pr " ";
     )
-  | REPEAT x -> pr "list("; simple env x; pr ")"
-  | REPEAT1 x -> pr "nonempty_list("; simple env x; pr ")"
-  | OPTION x -> pr "option("; simple env x; pr ")"
+  | REPEAT x -> 
+      pr (spf "list%s(" (arity_str x)); 
+      simple_argument env x; 
+      pr ")"
+  | REPEAT1 x -> 
+      pr (spf "nonempty_list%s(" (arity_str x)); 
+      simple_argument env x; 
+      pr ")"
+  | OPTION x -> pr (spf "option%s(" (arity_str x)) ; 
+      simple_argument env x; 
+      pr ")"
 
-let rule_body id env = function
+and simple_argument env x =
+  match x with
+  | ATOM _ | REPEAT _ | REPEAT1 _  | OPTION _ -> simple env x
+  | SEQ(xs) -> 
+      let rec aux = function
+        | [] -> ()
+        | [x] -> 
+            if arity x = 1
+            then simple env x
+            else begin
+              pr (spf "seq%s(" (arity_str x)); 
+              simple env x; 
+              pr ")"
+            end
+        | x::xs -> simple env x; pr ", "; aux xs
+      in
+      aux xs
+
+
+let rule_body id env x =
+  match id with
+  | "block" ->  pr "XXX { }"
+  | "string" ->  pr "YYY { }"
+  | _ -> 
+  (match x with
   | SIMPLE x -> 
-      simple env x; 
+      simple env x;
       if id = env.start 
       then pr " EOF";
+
       pr " { } "
   | CHOICE xs ->
     pr "\n";
@@ -49,6 +93,7 @@ let rule_body id env = function
       simple env x; pr " { } ";
       pr "\n";
     )
+  )
 
 let generate_menhir_grammar (start, rules) =
   pr "%{\n";
@@ -74,18 +119,51 @@ let generate_menhir_grammar (start, rules) =
   } in
 
   pr "%token <unit> EOF\n";
+  pr "%token <unit> XXX\n";
+  pr "%token <unit> YYY\n";
+  pr "%token <unit> ZZZ\n";
   tokens |> List.iter (fun id ->
     pr (spf "%%token <unit> %s\n" (id_to_token id))
   );
   strings |> List.iter (fun s ->
-      incr counter;
-      pr (spf "%%token <unit> %s \"%s\"\n"
-           (spf "X%d" !counter) s);
+      let tok =
+        match s with
+        | _ when s =~ "^[a-z]+$" -> "K" ^ s
+        | "+" -> "XPLUS" | "-" -> "XMINUS"
+        | "*" -> "XMUL" | "/" -> "XDIV"
+        | "!" -> "XBANG" | "$" -> "XDOLLAR"
+        | "(" -> "XLPAR" | ")" -> "XRPAR"
+        | "[" -> "XLBRACKET" | "]" -> "XRBRACKET"
+        | "{" -> "XLBRACE" | "}" -> "XRBRACE"
+        | "," -> "XCOMMA" | ";" -> "XSEMI"
+        | "." -> "XDOT" | ":" -> "XCOLON"
+        | "=" -> "XEQ"
+        | "_" -> "XUNDERSCORE"
+        | "|" -> "XPIPE" | "~" -> "XTILDE" | "@" -> "XAT"
+        | _ -> 
+           incr counter;
+           spf "X%d" !counter
+      in
+      pr (spf "%%token <unit> %s \"%s\"\n" tok s);
   );
-
   pr "\n";
   pr (spf "%%start <unit> %s\n" start);
   pr "%%\n\n";
+
+  pr "
+%inline
+option2(a,b):
+ | { }
+ | a b { }
+%inline
+list2(a,b): list(pair(a,b)) { }
+%inline
+nonempty_list2(a,b): nonempty_list(pair(a,b)) { }
+";
+pr "
+_automatic_semicolon: ZZZ { }
+";
+  pr "\n";
 
   rules |> List.iter (fun (id, body) ->
    if is_token env id
