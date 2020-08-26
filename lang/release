@@ -3,7 +3,7 @@
 # Place the generated files into their own repo, to be used by an external
 # repo as a submodule.
 #
-set -eu
+set -eu -o pipefail
 
 error() {
   echo "Error: $*" >&2
@@ -29,6 +29,37 @@ fi
 
 repo="ocaml-tree-sitter-lang"
 
+# Copy interesting files, such as the original grammar or the license.
+#
+# Assumptions:
+# - current folder is the language's destination folder.
+# - the files to copy are found in file 'fyi.list' and must exist.
+# - the destination for these files is 'fyi/'.
+# - the source path for these files is relative to ocaml-tree-sitter's
+#   'lang' folder.
+#
+# e.g.:
+#   $ cat lang/go/fyi.list
+#   semgrep-grammars/src/tree-sitter-go/grammar.js
+#   semgrep-grammars/src/tree-sitter-go/LICENSE
+#   semgrep-grammars/src/semgrep-go/grammar.js
+#
+copy_fyi_files() {
+  if [[ -e fyi.list ]]; then
+    paths=$(cat fyi.list | grep -v '^ *#' | grep -v '^ *$')
+    for path in $paths; do
+      src=../$path
+      dst=fyi/$path
+      if [[ ! -e "$src" ]]; then
+        error "[$(pwd)] Missing file specified in fyi.list: $src"
+      fi
+      mkdir -p $(dirname "$dst")
+      cp "$src" "$dst"
+      git add "$dst"
+    done
+  fi
+}
+
 # Copy the files that we find.
 #
 for lang in "${langs[@]}"; do
@@ -39,6 +70,8 @@ for lang in "${langs[@]}"; do
     mkdir -p "$dst"
     cp -a "$lang"/ocaml-src/lib "$dst"
     cp -a "$lang"/ocaml-src/bin "$dst"
+
+    # legacy
     if [[ -d "$lang"/orig ]]; then
       mkdir -p "$dst"/orig
     fi
@@ -48,6 +81,9 @@ for lang in "${langs[@]}"; do
     if [[ -f "$lang"/orig/LICENSE ]]; then
       cp -a "$lang"/orig/LICENSE "$dst"/orig
     fi
+
+    # new way of copying interesting files
+    copy_fyi_files
   else
     error "Missing folder $lang/ocaml-src"
   fi
