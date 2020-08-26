@@ -48,8 +48,8 @@ copy_fyi_files() {
   if [[ -e fyi.list ]]; then
     paths=$(cat fyi.list | grep -v '^ *#' | grep -v '^ *$')
     for path in $paths; do
-      src=../$path
-      dst=fyi/$path
+      local src=../$path
+      local dst=fyi/$path
       if [[ ! -e "$src" ]]; then
         error "[$(pwd)] Missing file specified in fyi.list: $src"
       fi
@@ -83,7 +83,10 @@ for lang in "${langs[@]}"; do
     fi
 
     # new way of copying interesting files
-    copy_fyi_files
+    (
+      cd "$dst"
+      copy_fyi_files
+    )
   else
     error "Missing folder $lang/ocaml-src"
   fi
