@@ -3,7 +3,7 @@ How to upgrade the grammar for a language
 
 Let's call our language "X".
 
-Heres's the chain of relevant git repositories, in dependency order:
+Here's the chain of relevant git repositories, in dependency order:
 
 * tree-sitter-X e.g.,
   [tree-sitter-ruby](https://github.com/tree-sitter/tree-sitter-ruby):
@@ -34,20 +34,20 @@ proceeding further.
 Before upgrading
 --
 
-Make sure that the `grammar.js` file or equivalent source files
+Make sure the `grammar.js` file or equivalent source files
 defining the grammar are included in the `fyi.list` file in
 `ocaml-tree-sitter/lang/X`.
 
-Why: It is important to track and _understand_ the changes made at the
+Why: It is important for tracking and _understanding_ the changes made at the
 source.
 
 How: See [How to add support for a new language](adding-a-language.md).
 
-Upgrade submodule in semgrep-grammars
+Upgrade the submodule in semgrep-grammars
 --
 
-So you want to upgrade (or downgrade) tree-sitter-X from some old
-commit, to commit `602f12b`. This uses the git submodule way, without
+Say you want to upgrade (or downgrade) tree-sitter-X from some old
+commit to commit `602f12b`. This uses the git submodule way, without
 anything weird. Go to a copy of the `semgrep-grammars` repo and change
 the commit of the `tree-sitter-X` submodule to `602f12b`. The commands
 might be something like this:
@@ -65,12 +65,12 @@ cd semgrep-grammars
   git push origin master
 ```
 
-Upgrade submodule in ocaml-tree-sitter
+Upgrade the submodule in ocaml-tree-sitter
 --
 
 Since semgrep-grammars itself is a submodule of ocaml-tree-sitter and
 we just pushed a commit to it, we need to update it as well. Again,
-this is ordinary use of a submodule. Commands would looks like this:
+this is ordinary use of a submodule. Commands would look like this:
 
 ```
 git clone https://github.com/returntocorp/ocaml-tree-sitter
@@ -86,7 +86,8 @@ Testing
 --
 
 First, build and install ocaml-tree-sitter normally, based on the
-instructions found in the main README or in the Dockerfile.
+instructions found in the [main README](../README.md) or in the
+[Dockerfile](../Dockerfile).
 
 ```
 ./configure
@@ -123,7 +124,7 @@ cd lang
 ```
 
 If something goes wrong for a particular language, it is faster to
-call the `release` script directly:
+call the `release` script directly, only for the specific language X:
 
 ```
 cd lang
@@ -133,8 +134,8 @@ cd lang
 Using the parsers
 --
 
-From the semgrep repository, point the latest ocaml-tree-sitter-lang
-and see what changes. If the source `grammar.js` is included, `git
+From the semgrep repository, point to the latest ocaml-tree-sitter-lang
+and see what changes. If the source `grammar.js` was included, `git
 diff` should help figure out the changes since the last version.
 
 Conclusion
