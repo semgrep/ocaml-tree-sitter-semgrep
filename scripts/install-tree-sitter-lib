@@ -74,15 +74,7 @@ EOF
   (
     cd "$src_dir"
     make
-
-    # When building from source on homebrew sudo is not allowed
-    # but also not needed
-    if [[ -z "${HOMEBREW_SYSTEM+x}" ]]; then
-      sudo make install
-    else
-      # brew is present
-      make install
-    fi
+    sudo make install
 
     # Ensure libtree-sitter is found at linking time.
     # MacOS doesn't have ldconfig. Maybe it works without it?
