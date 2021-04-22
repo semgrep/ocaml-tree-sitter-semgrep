@@ -25,6 +25,7 @@ depends: [
   "ppx_sexp_conv"
   "sexplib"
   "tsort" {>= "2.0"}
+  "conf-tree-sitter"
 ]
 
 synopsis: "Code generator for parsing the output of tree-sitter parsers"
