@@ -110,6 +110,7 @@ workflows:
             branches:
               only:
                 - master
+                - main
     jobs:
       - stat:
           # Run only on these branches (each pushing different images)
@@ -117,6 +118,7 @@ workflows:
             branches:
               only:
                 - master
+                - main
 
   # This is for testing or for forcing a stats job. Requires pushing
   # to a branch named 'stats'.
