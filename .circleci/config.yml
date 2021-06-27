@@ -55,11 +55,11 @@ jobs:
     steps:
       - checkout
       - run:
-          name: set up node
-          command: ./core/scripts/setup-node
-      - run:
           name: fetch submodules
           command: git submodule update --init --recursive --depth 1
+      - run:
+          name: set up node
+          command: ./core/scripts/setup-node
       - run:
           name: install tree-sitter lib
           command: ./core/scripts/install-tree-sitter-lib
