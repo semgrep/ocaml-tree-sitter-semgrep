@@ -22,22 +22,16 @@ jobs:
       - checkout
       - run:
           name: set up node
-          command: ./scripts/setup-node
+          command: ./core/scripts/setup-node
       - run:
           name: fetch submodules
           command: git submodule update --init --recursive --depth 1
       - run:
           name: install tree-sitter lib
-          command: ./scripts/install-tree-sitter-lib
-      - run:
-          name: configure
-          command: ./configure
+          command: ./core/scripts/install-tree-sitter-lib
       - run:
           name: install dependencies
           command: opam exec -- make setup
-      - run:
-          name: check code formatting
-          command: ./scripts/lint
       - run:
           name: build
           command: opam exec -- make
@@ -45,11 +39,8 @@ jobs:
           name: install
           command: opam exec -- make install
       - run:
-          name: unit tests
-          command: opam exec -- make unit
-      - run:
-          name: end-to-end tests
-          command: opam exec -- make e2e
+          name: core tests
+          command: opam exec -- make -C core test
       - run:
           name: test languages
           command: opam exec -- make lang
@@ -65,16 +56,13 @@ jobs:
       - checkout
       - run:
           name: set up node
-          command: ./scripts/setup-node
+          command: ./core/scripts/setup-node
       - run:
           name: fetch submodules
           command: git submodule update --init --recursive --depth 1
       - run:
           name: install tree-sitter lib
-          command: ./scripts/install-tree-sitter-lib
-      - run:
-          name: configure
-          command: ./configure
+          command: ./core/scripts/install-tree-sitter-lib
       - run:
           name: install dependencies
           command: opam exec -- make setup
@@ -109,14 +97,14 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - main
     jobs:
       - stat:
           # Run only on these branches (each pushing different images)
           filters:
             branches:
               only:
-                - master
+                - main
 
   # This is for testing or for forcing a stats job. Requires pushing
   # to a branch named 'stats'.

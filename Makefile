@@ -5,27 +5,18 @@
 # a second phase, in lang/
 #
 
-# Generate this with ./configure
-include config.mk
-
 PROJECT_ROOT = $(shell pwd)
 
 .PHONY: build
 build:
-	dune build
-	test -e bin || ln -s _build/install/default/bin .
+	cd core && ./configure
+	$(MAKE) -C core build
 
 # Full development setup.
-#
-# Note that the tree-sitter runtime library must be installed in advance,
-# prior to calling ./configure.
-#
 .PHONY: setup
 setup:
-	./scripts/check-prerequisites
-	./scripts/install-tree-sitter-cli
-	opam install --deps-only -y .
-	opam install ocp-indent
+	cd core && ./configure
+	$(MAKE) -C core setup
 
 # Shortcut for updating the git submodules.
 .PHONY: update
@@ -45,20 +36,10 @@ distclean:
 	# remove everything that's git-ignored
 	git clean -dfX
 
+# Run core tests
 .PHONY: test
 test: build
-	$(MAKE) unit
-	$(MAKE) e2e
-
-# Run unit tests only (takes a few seconds).
-.PHONY: unit
-unit: build
-	./_build/default/src/test/test.exe
-
-# Run end-to-end tests (takes a few minutes).
-.PHONY: e2e
-e2e: build
-	$(MAKE) -C tests
+	$(MAKE) -C core test
 
 # Build and test all the production languages.
 .PHONY: lang
@@ -73,8 +54,4 @@ stat:
 
 .PHONY: install
 install:
-	dune install
-
-.PHONY: ci
-ci:
-	docker build -t ocaml-tree-sitter .
+	$(MAKE) -C core install
