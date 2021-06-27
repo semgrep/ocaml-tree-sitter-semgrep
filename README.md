@@ -1,7 +1,7 @@
 ocaml-tree-sitter
 ==
 
-[![CircleCI](https://circleci.com/gh/returntocorp/ocaml-tree-sitter.svg?style=svg)](https://circleci.com/gh/returntocorp/ocaml-tree-sitter)
+[![CircleCI](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep.svg?style=svg)](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep)
 
 ⚠️ **We're in the process of splitting ocaml-tree-sitter into multiple
 repositories**. [See
