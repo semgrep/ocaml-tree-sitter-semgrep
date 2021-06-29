@@ -3,21 +3,20 @@ ocaml-tree-sitter-semgrep
 
 [![CircleCI](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep.svg?style=svg)](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep)
 
-⚠️ **We're in the process of splitting ocaml-tree-sitter into multiple
-repositories**. [See
-details](https://github.com/returntocorp/ocaml-tree-sitter/issues/204).
-
 Generate OCaml parsers based on
 [tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars,
 for [semgrep](https://github.com/returntocorp/semgrep).
 
-Installation
---
-
-Installing `ocaml-tree-sitter` alone isn't of great use at the
-moment. It is useful as part of the flow for generating OCaml parsers
-from tree-sitter grammars, which is done from the `lang/` folder.
-See the **Contributing** instructions below.
+Related ocaml-tree-sitter repositories:
+* [ocaml-tree-sitter-core](https://github.com/returntocorp/ocaml-tree-sitter-core): provides the code generator that
+  takes a tree-sitter grammar and produces an OCaml library from it.
+* [ocaml-tree-sitter-languages](https://github.com/returntocorp/ocaml-tree-sitter-languages): community repository that has scripts
+  for building and publishing OCaml libraries for parsing a variety of
+  programming languages.
+* **ocaml-tree-sitter-semgrep**: this repo; same as
+  ocaml-tree-sitter-languages but extends each language with
+  constructs specific to
+  [semgrep](https://github.com/returntocorp/semgrep) patterns.
 
 Contributing
 --
@@ -34,9 +33,14 @@ Contributing
    `git commit`.
 4. Check out the [extra instructions for MacOS](doc/macos.md).
 
-For building or rebuilding everything after big changes, use this script:
+See the Makefile for the available targets. Get started with:
 ```
-./scripts/rebuild-everything  # needs root access to install libtree-sitter
+make setup  # needs root access to install libtree-sitter
+```
+
+Then build and install the OCaml code generator (core):
+```
+make && make install
 ```
 
 ### Testing a language
