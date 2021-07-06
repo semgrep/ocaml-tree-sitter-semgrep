@@ -1,0 +1,27 @@
+#! /usr/bin/env bash
+#
+# Import and patch up external files.
+#
+# Not the generic script because html use a special tag.h file
+#
+set -eu -o pipefail
+
+mkdir -p src
+
+(
+  cd src
+  rm -f scanner.cc
+  ln -sf ../../tree-sitter-html/src/scanner.cc scanner.cc
+)
+
+(
+  cd src
+  ln -sf ../../tree-sitter-html/src/tag.h .
+)
+
+mkdir -p test/corpus
+(
+  cd test/corpus
+  rm -f inherited
+  ln -sf ../../../tree-sitter-html/corpus inherited
+)

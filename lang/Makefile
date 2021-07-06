@@ -16,6 +16,7 @@ SUPPORTED_TS_LANGUAGES = \
   go \
   hack \
   hcl \
+  html \
   java \
   javascript \
   kotlin \
