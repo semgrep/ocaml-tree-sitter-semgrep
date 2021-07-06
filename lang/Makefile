@@ -25,7 +25,8 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
-  typescript
+  typescript \
+  vue
 
 # Includes all language variants e.g. typescript and tsx
 SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
