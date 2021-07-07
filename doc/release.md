@@ -37,3 +37,34 @@ cd lang
 
 This will push to the git repository for `semgrep-foolang`, which will
 then be used in semgrep as a git submodule.
+
+Appendix: List of semgrep-* repos
+--
+
+The list of languages below should match the languages listed in the [`lang` folder of ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-semgrep/tree/main/lang). Let's try to keep it up-to-date.
+
+```
+bash
+c
+cpp
+c-sharp
+go
+hack
+hcl
+html
+java
+javascript
+kotlin
+lua
+ocaml
+r
+ruby
+rust
+tsx
+typescript
+vue
+```
+
+GitHub homepage is: `https://github.com/returntocorp/semgrep-$lang`
+Git URL is: `git@github.com:returntocorp/semgrep-$lang.git`
+or `https://github.com/returntocorp/semgrep-$lang.git`
