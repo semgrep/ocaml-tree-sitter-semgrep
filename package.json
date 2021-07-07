@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "tree-sitter-bash": "file:lang/semgrep-grammars/src/tree-sitter-bash",
     "tree-sitter-c": "file:lang/semgrep-grammars/src/tree-sitter-c",
     "tree-sitter-c-sharp": "file:lang/semgrep-grammars/src/tree-sitter-c-sharp",
     "tree-sitter-cli": "^0.19.4",

@@ -10,6 +10,7 @@
 # The list below only shows typescript, not tsx.
 #
 SUPPORTED_TS_LANGUAGES = \
+  bash \
   c \
   c-sharp \
   cpp \
@@ -35,6 +36,7 @@ SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
 # the supported languages. See the 'stat' target.
 #
 STAT_LANGUAGES = \
+  bash \
   c \
   c-sharp \
   cpp \
