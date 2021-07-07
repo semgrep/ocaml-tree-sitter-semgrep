@@ -66,5 +66,6 @@ vue
 ```
 
 GitHub homepage is: `https://github.com/returntocorp/semgrep-$lang`
+
 Git URL is: `git@github.com:returntocorp/semgrep-$lang.git`
 or `https://github.com/returntocorp/semgrep-$lang.git`
