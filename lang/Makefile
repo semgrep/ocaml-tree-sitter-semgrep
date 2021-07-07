@@ -27,6 +27,7 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
+  sqlite \
   typescript \
   vue
 
@@ -53,6 +54,7 @@ STAT_LANGUAGES = \
   r \
   ruby \
   rust \
+  sqlite \
   tsx \
   typescript
 
