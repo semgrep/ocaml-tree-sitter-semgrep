@@ -56,3 +56,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-bash"]
 	path = lang/semgrep-grammars/src/tree-sitter-bash
 	url = https://github.com/tree-sitter/tree-sitter-bash.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-dockerfile"]
+	path = lang/semgrep-grammars/src/tree-sitter-dockerfile
+	url = https://github.com/camdencheek/tree-sitter-dockerfile.git
