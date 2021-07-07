@@ -31,7 +31,10 @@ repository](https://github.com/returntocorp/semgrep):
 ```
 
 You'll need a new repo semgrep-X to host the generated parser code.
-Ask someone at r2c to create one for you.
+Ask someone at r2c to create one for you. For this, they should use
+the template
+[semgrep-lang-template](https://github.com/returntocorp/semgrep-lang-template)
+when creating the repo.
 
 Setup
 --
