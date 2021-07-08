@@ -1,4 +1,3 @@
-https://github.com/JetBrains/kotlin
 https://github.com/hussien89aa/KotlinUdemy
 https://github.com/git-xuhao/KotlinMvp
 https://github.com/Kotlin/kotlin-koans
@@ -28,3 +27,4 @@ https://github.com/detekt/detekt
 https://github.com/Kotlin/kotlinx.serialization
 https://github.com/perwendel/spark
 https://github.com/gradle/kotlin-dsl-samples
+https://github.com/noxone/regex-generator
