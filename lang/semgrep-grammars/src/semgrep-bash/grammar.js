@@ -14,16 +14,10 @@ module.exports = grammar(base_grammar, {
 
   rules: {
 
-    simple_expansion: ($, previous) => {
-      return choice(
-        $.semgrep_double_curly_metavariable,
-        previous
-      )
-    },
-
     _primary_expression: ($, previous) => {
       return choice(
         $.semgrep_ellipsis,
+        $.semgrep_double_curly_metavariable,
         ...previous.members
       );
     },
