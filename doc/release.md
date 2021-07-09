@@ -48,6 +48,7 @@ bash
 c
 cpp
 c-sharp
+dockerfile
 go
 hack
 hcl
@@ -60,6 +61,7 @@ ocaml
 r
 ruby
 rust
+sqlite
 tsx
 typescript
 vue
