@@ -72,6 +72,27 @@ if [[ "$lang" = typescript ]]; then
   sublangs="typescript tsx"
 fi
 
+check_for_blanks() {
+  cst_ml=ocaml-src/lib/CST.ml
+  if grep -C 2 Blank "$cst_ml"; then
+    cat 2>&1 <<EOF
+
+found in $(pwd)/$cst_ml
+language: $sublang
+
+*** Warning: We have some Blank nodes, which will produce no tokens. ***
+
+This means there won't be any token or location information available
+at parsing time for these nodes.
+
+You should get back to the grammar and create named rules for these nodes
+to avoid this problem.
+EOF
+    else
+      echo "$sublang: OK"
+  fi
+}
+
 echo "Testing C/OCaml code generation for sublanguages: $sublangs"
 for sublang in $sublangs; do
   (
@@ -79,5 +100,13 @@ for sublang in $sublangs; do
     make clean
     make
     make test
+  )
+done
+
+for sublang in $sublangs; do
+  (
+    echo "$sublang: Checking for undesirable Blank nodes."
+    cd "$sublang"
+    check_for_blanks
   )
 done
