@@ -119,7 +119,7 @@ grep Blank lang/X/ocaml-src/lib/CST.ml
 If anything comes up, you must modify the grammar so as to create
 a named rule for the node of the `Blank` kind. Eventually, the generated
 `CST.ml` should not have `Blank` nodes anymore but a token type instead.
-Where a `Blank` node exist, we won't be able to get a token or its location
+Where a `Blank` node exists, we won't be able to get a token or its location
 at parsing time.
 
 If this works, we're all set. Commit the new commit for the
