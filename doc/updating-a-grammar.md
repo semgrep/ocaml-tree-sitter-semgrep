@@ -110,6 +110,18 @@ cd lang
   ./test-lang X
 ```
 
+⚠️ Check the generated code for the presence of `Blank` nodes. Those
+correspond to [missing tokens](https://github.com/tree-sitter/tree-sitter/issues/1151).
+Check with:
+```
+grep Blank lang/X/ocaml-src/lib/CST.ml
+```
+If anything comes up, you must modify the grammar to as to create
+a named rule for the node of the `Blank` kind. Eventually, the generated
+`CST.ml` should not have `Blank` nodes anymore but a token type instead.
+Where a `Blank` node exist, we won't be able to get a token or its location
+at parsing time.
+
 If this works, we're all set. Commit the new commit for the
 tree-sitter-X submodule:
 ```
