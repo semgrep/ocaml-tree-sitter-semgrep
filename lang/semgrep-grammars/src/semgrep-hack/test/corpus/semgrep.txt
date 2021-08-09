@@ -1,0 +1,470 @@
+==========================
+Ellipses as args
+==========================
+
+insecure_function(...);
+func(1, ...);
+func(..., 1);
+requests.get(..., $arg, ...);
+
+---
+
+(script
+  (expression_statement
+    (call_expression
+      function: (qualified_identifier
+        (identifier))
+      (arguments
+        (argument
+          (ellipsis)))))
+  (expression_statement
+    (call_expression
+      function: (qualified_identifier
+        (identifier))
+      (arguments
+        (argument
+          (integer))
+        (argument
+          (ellipsis)))))
+  (expression_statement
+    (call_expression
+      function: (qualified_identifier
+        (identifier))
+      (arguments
+        (argument
+          (ellipsis))
+        (argument
+          (integer)))))
+  (expression_statement
+    (binary_expression
+      left: (qualified_identifier
+        (identifier))
+      right: (call_expression
+        function: (qualified_identifier
+          (identifier))
+        (arguments
+          (argument
+            (ellipsis))
+          (argument
+            (variable))
+          (argument
+            (ellipsis)))))))
+
+==========================
+Ellipses as params
+==========================
+
+function is_int(...);
+
+function is_int(..., $var);
+
+function is_int($var, ...);
+
+function is_int($var, ...);
+
+function is_int(..., int ...$arg1);
+
+(...) ==> $x + 1;
+
+<<Attribute, Attribute(...)>>
+class C {
+  <<Attribute(1, ..., 1)>>
+  function method() {}
+}
+
+$f4 = function(..., $p1): int use ($p2, $p3) {};
+$f4 = function(...): int use ($p2, $p3) {};
+
+---
+
+(script
+  (function_declaration
+    name: (identifier)
+    (parameters
+      (variadic_modifier)))
+  (function_declaration
+    name: (identifier)
+    (parameters
+      (parameter
+        (ellipsis))
+      (parameter
+        name: (variable))))
+  (function_declaration
+    name: (identifier)
+    (parameters
+      (parameter
+        name: (variable))
+      (parameter
+        (ellipsis))))
+  (function_declaration
+    name: (identifier)
+    (parameters
+      (parameter
+        name: (variable))
+      (parameter
+        (ellipsis))))
+  (function_declaration
+    name: (identifier)
+    (parameters
+      (parameter
+        (ellipsis))
+      (parameter
+        type: (type_specifier)
+        (variadic_modifier)
+        name: (variable))))
+  (expression_statement
+    (lambda_expression
+      (parameters
+        (variadic_modifier))
+      body: (binary_expression
+        left: (variable)
+        right: (integer))))
+  (class_declaration
+    (attribute_modifier
+      (qualified_identifier
+        (identifier))
+      (qualified_identifier
+        (identifier))
+      (arguments
+        (argument
+          (ellipsis))))
+    name: (identifier)
+    body: (member_declarations
+      (method_declaration
+        (attribute_modifier
+          (qualified_identifier
+            (identifier))
+          (arguments
+            (argument
+              (integer))
+            (argument
+              (ellipsis))
+            (argument
+              (integer))))
+        name: (identifier)
+        (parameters)
+        body: (compound_statement))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (anonymous_function_expression
+        (parameters
+          (parameter
+            (ellipsis))
+          (parameter
+            name: (variable)))
+        return_type: (type_specifier)
+        (use_clause
+          (variable)
+          (variable))
+        body: (compound_statement))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (anonymous_function_expression
+        (parameters
+          (variadic_modifier))
+        return_type: (type_specifier)
+        (use_clause
+          (variable)
+          (variable))
+        body: (compound_statement)))))
+
+==========================
+Ellipses in method chaining
+==========================
+
+$var->make_test()->{...}->test_made();
+// TODO: This should work in XHP attributes and interpolated strings
+
+---
+
+(script
+  (expression_statement
+    (call_expression
+      function: (selection_expression
+        (selection_expression
+          (call_expression
+            function: (selection_expression
+              (variable)
+              (qualified_identifier
+                (identifier)))
+            (arguments))
+          (braced_expression
+            (ellipsis)))
+        (qualified_identifier
+          (identifier)))
+      (arguments)))
+  (comment))
+
+==========================
+Ellipses in class def
+==========================
+class Test {
+    ...
+}
+
+class Test {
+    const int hello = 4;
+    ...
+    function tester() {
+    }
+}
+
+---
+
+(script
+  (class_declaration
+    name: (identifier)
+    body: (member_declarations
+      (ellipsis)))
+  (class_declaration
+    name: (identifier)
+    body: (member_declarations
+      (const_declaration
+        type: (type_specifier)
+        (const_declarator
+          name: (identifier)
+          value: (integer)))
+      (ellipsis)
+      (method_declaration
+        name: (identifier)
+        (parameters)
+        body: (compound_statement)))))
+
+==========================
+Ellipses in func def
+==========================
+
+function test() {
+    ...
+}
+
+function test() {
+    ...;
+
+}
+function test() {
+    $var = "hello";
+    ...
+    $hello = "hi";
+}
+function test() {
+    $var = "hello";
+    ...;
+    $hello = "hi";
+}
+
+---
+
+(script
+  (function_declaration
+    name: (identifier)
+    (parameters)
+    body: (compound_statement
+      (empty_statement
+        (ellipsis))))
+  (function_declaration
+    name: (identifier)
+    (parameters)
+    body: (compound_statement
+      (expression_statement
+        (ellipsis))))
+  (function_declaration
+    name: (identifier)
+    (parameters)
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (variable)
+          right: (string)))
+      (empty_statement
+        (ellipsis))
+      (expression_statement
+        (binary_expression
+          left: (variable)
+          right: (string)))))
+  (function_declaration
+    name: (identifier)
+    (parameters)
+    body: (compound_statement
+      (expression_statement
+        (binary_expression
+          left: (variable)
+          right: (string)))
+      (expression_statement
+        (ellipsis))
+      (expression_statement
+        (binary_expression
+          left: (variable)
+          right: (string))))))
+
+==========================
+Ellipses in binary ops and containers 
+==========================
+
+$X = 1 + 2 + ...;
+
+$v = vec[...];
+$v = vec[..., 1];
+$v = vec[1, ..., 2];
+
+$items = Vector {...};
+$items = Vector {'a', ...};
+$items = Vector {'a', ..., 'b'};
+
+$items = darray['a' => 1, ...];
+$items = darray[..., 'a' => 1];
+
+$v = vec[..., "test", 1 + 2 + ...];
+$v = vec[1 + 2 + ..., ...];
+
+---
+
+(script
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (binary_expression
+        left: (binary_expression
+          left: (integer)
+          right: (integer))
+        right: (ellipsis))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (ellipsis))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (ellipsis)
+        (integer))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (integer)
+        (ellipsis)
+        (integer))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (collection
+        (qualified_identifier
+          (identifier))
+        (ellipsis))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (collection
+        (qualified_identifier
+          (identifier))
+        (string)
+        (ellipsis))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (collection
+        (qualified_identifier
+          (identifier))
+        (string)
+        (ellipsis)
+        (string))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (element_initializer
+          (string)
+          (integer))
+        (ellipsis))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (ellipsis)
+        (element_initializer
+          (string)
+          (integer)))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (ellipsis)
+        (string)
+        (binary_expression
+          left: (binary_expression
+            left: (integer)
+            right: (integer))
+          right: (ellipsis)))))
+  (expression_statement
+    (binary_expression
+      left: (variable)
+      right: (array
+        (array_type)
+        (binary_expression
+          left: (binary_expression
+            left: (integer)
+            right: (integer))
+          right: (ellipsis))
+        (ellipsis)))))
+
+==========================
+Ellipses in conditionals
+==========================
+
+if (...) {
+  ...
+}
+if (...) {
+  ...
+} else {
+  ...
+}
+
+
+if (...)
+  ...
+if (...)
+  ...;
+else
+  ...
+
+---
+
+(script
+  (if_statement
+    condition: (parenthesized_expression
+      (ellipsis))
+    body: (compound_statement
+      (empty_statement
+        (ellipsis))))
+  (if_statement
+    condition: (parenthesized_expression
+      (ellipsis))
+    body: (compound_statement
+      (empty_statement
+        (ellipsis)))
+    else: (compound_statement
+      (empty_statement
+        (ellipsis))))
+  (if_statement
+    condition: (parenthesized_expression
+      (ellipsis))
+    body: (empty_statement
+      (ellipsis)))
+  (if_statement
+    condition: (parenthesized_expression
+      (ellipsis))
+    body: (expression_statement
+      (ellipsis))
+    else: (empty_statement
+      (ellipsis))))
