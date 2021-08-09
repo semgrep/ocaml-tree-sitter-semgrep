@@ -24,6 +24,7 @@ SUPPORTED_TS_LANGUAGES = \
   kotlin \
   lua \
   ocaml \
+  php \
   r \
   ruby \
   rust \
@@ -51,6 +52,7 @@ STAT_LANGUAGES = \
   kotlin \
   lua \
   ocaml \
+  php \
   r \
   ruby \
   rust \

@@ -15,6 +15,7 @@
     "tree-sitter-kotlin": "file:lang/semgrep-grammars/src/tree-sitter-kotlin",
     "tree-sitter-lua": "file:lang/semgrep-grammars/src/tree-sitter-lua",
     "tree-sitter-ocaml": "file:lang/semgrep-grammars/src/tree-sitter-ocaml",
+    "tree-sitter-php": "file:lang/semgrep-grammars/src/tree-sitter-php",
     "tree-sitter-r": "file:lang/semgrep-grammars/src/tree-sitter-r",
     "tree-sitter-ruby": "file:lang/semgrep-grammars/src/tree-sitter-ruby",
     "tree-sitter-rust": "file:lang/semgrep-grammars/src/tree-sitter-rust",
