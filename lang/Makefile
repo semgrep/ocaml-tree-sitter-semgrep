@@ -52,6 +52,7 @@ STAT_LANGUAGES = \
   kotlin \
   lua \
   ocaml \
+  php \
   r \
   ruby \
   rust \
