@@ -24,6 +24,7 @@ SUPPORTED_TS_LANGUAGES = \
   kotlin \
   lua \
   ocaml \
+  php \
   r \
   ruby \
   rust \
