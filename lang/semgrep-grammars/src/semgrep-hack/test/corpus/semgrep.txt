@@ -468,3 +468,409 @@ else
       (ellipsis))
     else: (empty_statement
       (ellipsis))))
+
+==========================
+Metavariables as declaration identifiers
+==========================
+
+function $TEST() {
+  ...
+}
+
+class $TE_ST {
+}
+
+class $F<Ta as A, Tb super B<A, C>> extends B implements A\B<A, C>, C\D {
+  function $M<Ta as A, Tb super B>(): Tc {}
+}
+
+interface $X {
+}
+
+interface $INTER<Ta as A, Tb super B<A, C>> extends B, A\B<A, C>, C\D {
+  function $METHOD<Ta as A, Tb super B>(): Tc {}
+}
+
+
+trait $_X {
+}
+
+trait $F<Ta as A, Tb super B<A, C>> implements A\B<A, C>, C\D {
+}
+
+---
+
+(script
+  (function_declaration
+    name: (semgrep_identifier)
+    (parameters)
+    body: (compound_statement
+      (empty_statement
+        (ellipsis))))
+  (class_declaration
+    name: (semgrep_identifier)
+    body: (member_declarations))
+  (class_declaration
+    name: (semgrep_identifier)
+    (type_parameters
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))))
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))
+          (type_arguments
+            (type_specifier
+              (qualified_identifier
+                (identifier)))
+            (type_specifier
+              (qualified_identifier
+                (identifier)))))))
+    (extends_clause
+      (type_specifier
+        (qualified_identifier
+          (identifier))))
+    (implements_clause
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))
+        (type_arguments
+          (type_specifier
+            (qualified_identifier
+              (identifier)))
+          (type_specifier
+            (qualified_identifier
+              (identifier)))))
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))))
+    body: (member_declarations
+      (method_declaration
+        name: (semgrep_identifier)
+        (type_parameters
+          (type_parameter
+            name: (identifier)
+            constraint_type: (type_specifier
+              (qualified_identifier
+                (identifier))))
+          (type_parameter
+            name: (identifier)
+            constraint_type: (type_specifier
+              (qualified_identifier
+                (identifier)))))
+        (parameters)
+        return_type: (type_specifier
+          (qualified_identifier
+            (identifier)))
+        body: (compound_statement))))
+  (interface_declaration
+    name: (semgrep_identifier)
+    body: (member_declarations))
+  (interface_declaration
+    name: (semgrep_identifier)
+    (type_parameters
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))))
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))
+          (type_arguments
+            (type_specifier
+              (qualified_identifier
+                (identifier)))
+            (type_specifier
+              (qualified_identifier
+                (identifier)))))))
+    (extends_clause
+      (type_specifier
+        (qualified_identifier
+          (identifier)))
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))
+        (type_arguments
+          (type_specifier
+            (qualified_identifier
+              (identifier)))
+          (type_specifier
+            (qualified_identifier
+              (identifier)))))
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))))
+    body: (member_declarations
+      (method_declaration
+        name: (semgrep_identifier)
+        (type_parameters
+          (type_parameter
+            name: (identifier)
+            constraint_type: (type_specifier
+              (qualified_identifier
+                (identifier))))
+          (type_parameter
+            name: (identifier)
+            constraint_type: (type_specifier
+              (qualified_identifier
+                (identifier)))))
+        (parameters)
+        return_type: (type_specifier
+          (qualified_identifier
+            (identifier)))
+        body: (compound_statement))))
+  (trait_declaration
+    name: (semgrep_identifier)
+    body: (member_declarations))
+  (trait_declaration
+    name: (semgrep_identifier)
+    (type_parameters
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))))
+      (type_parameter
+        name: (identifier)
+        constraint_type: (type_specifier
+          (qualified_identifier
+            (identifier))
+          (type_arguments
+            (type_specifier
+              (qualified_identifier
+                (identifier)))
+            (type_specifier
+              (qualified_identifier
+                (identifier)))))))
+    (implements_clause
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))
+        (type_arguments
+          (type_specifier
+            (qualified_identifier
+              (identifier)))
+          (type_specifier
+            (qualified_identifier
+              (identifier)))))
+      (type_specifier
+        (qualified_identifier
+          (identifier)
+          (identifier))))
+    body: (member_declarations)))
+
+==========================
+Metavariables as attributes
+==========================
+<<$ATTR($C,), Attribute>>
+function func() {
+}
+
+---
+
+(script
+  (function_declaration
+    (attribute_modifier
+      (qualified_identifier
+        (semgrep_identifier))
+      (arguments
+        (argument
+          (variable)))
+      (qualified_identifier
+        (identifier)))
+    name: (identifier)
+    (parameters)
+    body: (compound_statement)))
+
+==========================
+Metavariables as attributes
+==========================
+
+newtype $I = int;
+
+newtype $I as $INT = $BLAH;
+
+---
+
+(script
+  (alias_declaration
+    (semgrep_identifier)
+    (type_specifier))
+  (alias_declaration
+    (semgrep_identifier)
+    as: (type_specifier
+      (qualified_identifier
+        (semgrep_identifier)))
+    (type_specifier
+      (qualified_identifier
+        (semgrep_identifier)))))
+
+==========================
+Metavariables with class declarations
+==========================
+
+class C {
+  abstract const $TYPE $NAME;
+  const $TYPE $NAME = A\B::C0;
+  const $VAR = A\B::C0;
+
+  const int C1 = $TEST;
+  const int C2 = 1, $TEST = $TEST;
+
+
+  const type $VAR;
+  const type $VAR = $TYPE;
+  <<A3(1), A2(2,3,)>>
+  const type T3 as $VAR;
+  const type T4<<<Attr>> T3> as $VAR = $VAR;
+  abstract const type $VAR as ?$VAR = ?$VAR;
+}
+
+---
+
+(script
+  (class_declaration
+    name: (identifier)
+    body: (member_declarations
+      (const_declaration
+        (abstract_modifier)
+        type: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier)))
+        (const_declarator
+          name: (semgrep_identifier)))
+      (const_declaration
+        type: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier)))
+        (const_declarator
+          name: (semgrep_identifier)
+          value: (scoped_identifier
+            (qualified_identifier
+              (identifier)
+              (identifier))
+            (identifier))))
+      (const_declaration
+        (const_declarator
+          name: (semgrep_identifier)
+          value: (scoped_identifier
+            (qualified_identifier
+              (identifier)
+              (identifier))
+            (identifier))))
+      (const_declaration
+        type: (type_specifier)
+        (const_declarator
+          name: (identifier)
+          value: (variable)))
+      (const_declaration
+        type: (type_specifier)
+        (const_declarator
+          name: (identifier)
+          value: (integer))
+        (const_declarator
+          name: (semgrep_identifier)
+          value: (variable)))
+      (type_const_declaration
+        name: (semgrep_identifier))
+      (type_const_declaration
+        name: (semgrep_identifier)
+        type: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier))))
+      (type_const_declaration
+        (attribute_modifier
+          (qualified_identifier
+            (identifier))
+          (arguments
+            (argument
+              (integer)))
+          (qualified_identifier
+            (identifier))
+          (arguments
+            (argument
+              (integer))
+            (argument
+              (integer))))
+        name: (identifier)
+        as: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier))))
+      (type_const_declaration
+        name: (identifier)
+        (type_parameters
+          (type_parameter
+            (attribute_modifier
+              (qualified_identifier
+                (identifier)))
+            name: (identifier)))
+        as: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier)))
+        type: (type_specifier
+          (qualified_identifier
+            (semgrep_identifier))))
+      (type_const_declaration
+        (abstract_modifier)
+        name: (semgrep_identifier)
+        as: (type_specifier
+          (nullable_modifier)
+          (qualified_identifier
+            (semgrep_identifier)))
+        type: (type_specifier
+          (nullable_modifier)
+          (qualified_identifier
+            (semgrep_identifier)))))))
+
+==========================
+Metavariables with enums
+==========================
+
+<<$BEENUM>>
+enum $E : $TYPE {
+  F1 = 1;
+  F2 = $VAR;
+  F3 = C::CONST;
+  $TESTER = $BLAH.'b';
+}
+
+---
+
+(script
+  (enum_declaration
+    (attribute_modifier
+      (qualified_identifier
+        (semgrep_identifier)))
+    name: (semgrep_identifier)
+    type: (type_specifier
+      (qualified_identifier
+        (semgrep_identifier)))
+    (enumerator
+      (identifier)
+      (integer))
+    (enumerator
+      (identifier)
+      (variable))
+    (enumerator
+      (identifier)
+      (scoped_identifier
+        (qualified_identifier
+          (identifier))
+        (identifier)))
+    (enumerator
+      (semgrep_identifier)
+      (binary_expression
+        left: (variable)
+        right: (string)))))
