@@ -135,12 +135,10 @@ module.exports = grammar(base_grammar, {
   /*
     semgrep_ellipsis: \$ => '...',
 
-    _expression: (\$, previous) => {
-      return choice(
-        \$.semgrep_ellipsis,
-        ...previous.members
-      );
-    }
+    _expression: (\$, previous) => choice(
+      \$.semgrep_ellipsis,
+      ...previous.members
+    ),
   */
   }
 });
