@@ -2,7 +2,7 @@
 # one per line.
 #
 https://github.com/facebookarchive/hack-example-site.git
-https://github.com/titon/framework.git
+# https://github.com/titon/framework.git
 https://github.com/facebookarchive/oss-performance.git
 https://github.com/igorw/reasoned-php.git
 https://github.com/hacktx/nucleus.git
@@ -17,7 +17,7 @@ https://github.com/ivivian/EchartSample.git
 https://github.com/JarJarBernie/jimmybox5.git
 https://github.com/XinLiangCoder/web_barrage.git
 https://github.com/wangzhenjjcn/WZ_WEB_ENGINE.git
-https://github.com/nuxed/framework.git
+# https://github.com/nuxed/framework.git
 https://github.com/hhvm/type-assert.git
 https://github.com/pauloamgomes/BackupAndRestore.git
 https://github.com/iamcal/grant-pattishall-award.com.git
