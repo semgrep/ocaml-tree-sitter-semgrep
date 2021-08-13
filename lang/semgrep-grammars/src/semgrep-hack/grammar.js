@@ -97,6 +97,7 @@ module.exports = grammar(base_grammar, {
     */
 
     semgrep_identifier: ($) => /\$[A-Z_][A-Z_0-9]*/,
+    _semgrep_variadic_identifier: ($) => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     _semgrep_extended_identifier: ($) =>
       choice($.semgrep_identifier, $.identifier),
 
@@ -243,5 +244,11 @@ module.exports = grammar(base_grammar, {
 
     enumerator: ($) =>
       seq($._semgrep_extended_identifier, '=', $._expression, ';'), // Overridden
+
+    /*
+      Support for semgrep variadic metavariables ('$...ARGS')
+    */
+
+    argument: ($, previous) => choice(previous, $._semgrep_variadic_identifier),
   },
 });

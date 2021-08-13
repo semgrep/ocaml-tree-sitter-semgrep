@@ -470,6 +470,25 @@ else
       (ellipsis))))
 
 ==========================
+Ellipses + metavariables as args
+==========================
+
+foo($...ARGS, 3, $...ARGS);
+
+---
+
+(script
+  (expression_statement
+    (call_expression
+      function: (qualified_identifier
+        (identifier))
+      (arguments
+        (argument)
+        (argument
+          (integer))
+        (argument)))))
+
+==========================
 Metavariables as declaration identifiers
 ==========================
 
