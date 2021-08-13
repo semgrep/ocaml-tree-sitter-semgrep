@@ -41,12 +41,6 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([]),
 
   rules: {
-    // Entry point
-    script: ($, previous) => choice(previous, $.semgrep_expression),
-
-    // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: ($) => seq('__SEMGREP_EXPRESSION', $._expression),
-
     /*
       Support for semgrep ellipsis ('...')
     */

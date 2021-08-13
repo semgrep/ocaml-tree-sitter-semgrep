@@ -893,31 +893,3 @@ enum $E : $TYPE {
       (binary_expression
         left: (variable)
         right: (string)))))
-
-==========================
-Standalone expression (v1)
-==========================
-
-__SEMGREP_EXPRESSION$X == $X
-
----
-
-(script
-  (semgrep_expression
-    (binary_expression
-      left: (variable)
-      right: (variable))))
-
-==========================
-Standalone expression (v2)
-==========================
-
-__SEMGREP_EXPRESSION $X == $X
-
----
-
-(script
-  (semgrep_expression
-    (binary_expression
-      left: (variable)
-      right: (variable))))
