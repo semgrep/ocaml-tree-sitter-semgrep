@@ -51,22 +51,19 @@ module.exports = grammar(base_grammar, {
 
     // By using an empty statement, we leverage a statement type that is strictly only used within
     // $._statement and nowhere else.
-    empty_statement: ($, previous) => {
-      return choice(
+    empty_statement: ($, previous) =>
+      choice(
         previous,
         // For conflict with `ellipsis;`
         // we want it to be read as an expression with a semicolon
         // instead of a statement
         prec(-1, $.ellipsis) // statement ellipsis
-      );
-    },
+      ),
 
-    _expression: ($, previous) => {
-      return choice(previous, $.ellipsis, $.deep_ellipsis);
-    },
+    _expression: ($, previous) => choice(previous, $.ellipsis, $.deep_ellipsis),
 
-    member_declarations: ($) => {
-      return seq(
+    member_declarations: ($) =>
+      seq(
         '{',
         choice.rep(
           // Copied from existing grammar
@@ -85,18 +82,16 @@ module.exports = grammar(base_grammar, {
           $.ellipsis
         ),
         '}'
-      );
-    },
+      ),
 
-    parameter: ($, previous) => {
-      return choice(previous, $.ellipsis);
-    },
+    parameter: ($, previous) => choice(previous, $.ellipsis),
 
     /*
       Support for semgrep metavariables ('$FOO')
     */
 
     semgrep_identifier: ($) => /\$[A-Z_][A-Z_0-9]*/,
+    _semgrep_variadic_identifier: ($) => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     _semgrep_extended_identifier: ($) =>
       choice($.semgrep_identifier, $.identifier),
 
@@ -108,9 +103,8 @@ module.exports = grammar(base_grammar, {
     // metavariable overrides (like in XHP). Or get global $.identifier
     // extension working.
 
-    qualified_identifier: ($, previous) => {
-      return choice(previous, $.semgrep_identifier);
-    },
+    qualified_identifier: ($, previous) =>
+      choice(previous, $.semgrep_identifier),
 
     // Alternative reach-in edit strategy:
     /*
@@ -244,5 +238,11 @@ module.exports = grammar(base_grammar, {
 
     enumerator: ($) =>
       seq($._semgrep_extended_identifier, '=', $._expression, ';'), // Overridden
+
+    /*
+      Support for semgrep variadic metavariables ('$...ARGS')
+    */
+
+    argument: ($, previous) => choice(previous, $._semgrep_variadic_identifier),
   },
 });
