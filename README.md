@@ -23,19 +23,21 @@ Contributing
 
 ### Development setup
 
-1. Install [opam](https://opam.ocaml.org/doc/Install.html).
-2. Install [ocaml dev tools for your favorite
+1. Install [opam](https://opam.ocaml.org/doc/Install.html), git, make, pkg-config, [libtree-sitter0](https://github.com/returntocorp/ocaml-tree-sitter-core/blob/main/scripts/install-tree-sitter-lib), nodejs, npm.
+2. Run `opam init`, `opam switch create 4.12.0` to install a recent OCaml.
+3. Install [ocaml dev tools for your favorite
    editor](https://github.com/janestreet/install-ocaml):
    typically `opam install merlin` + some plugin for your editor.
-3. Install `pre-commit` with `pip3 install pre-commit` and run
+4. Install `pre-commit` with `pip3 install pre-commit` and run
    `pre-commit install` to set up the pre-commit hook.
    This will re-indent code in a consistent fashion each time you call
    `git commit`.
-4. Check out the [extra instructions for MacOS](doc/macos.md).
+5. Check out the [extra instructions for MacOS](https://github.com/returntocorp/ocaml-tree-sitter-core/blob/main/doc/macos.md).
 
 See the Makefile for the available targets. Get started with:
 ```
-make setup  # needs root access to install libtree-sitter
+make update
+make setup
 ```
 
 Then build and install the OCaml code generator (core):
