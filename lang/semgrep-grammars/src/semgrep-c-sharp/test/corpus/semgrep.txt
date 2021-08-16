@@ -202,3 +202,19 @@ class A {
           (parameter
             (ellipsis)))
         (block)))))
+
+=====================================
+Ellipsis in class declaration
+=====================================
+
+class A {
+  ...
+}
+
+---
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (declaration_list
+      (ellipsis))))

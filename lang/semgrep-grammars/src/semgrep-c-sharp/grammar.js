@@ -58,6 +58,13 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    _declaration: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.ellipsis
+      );
+    },
+
     // Statement ellipsis: '...' not followed by ';'
     expression_statement: ($, previous) => {
       return choice(
