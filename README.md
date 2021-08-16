@@ -23,7 +23,7 @@ Contributing
 
 ### Development setup
 
-1. Install [opam](https://opam.ocaml.org/doc/Install.html), git, make, pkg-config, [libtree-sitter0](https://github.com/returntocorp/ocaml-tree-sitter-core/blob/main/scripts/install-tree-sitter-lib), nodejs, npm.
+1. Install [opam](https://opam.ocaml.org/doc/Install.html), git, make, pkg-config, [libtree-sitter-dev](https://github.com/returntocorp/ocaml-tree-sitter-core/blob/main/scripts/install-tree-sitter-lib), nodejs, npm.
 2. Run `opam init`, `opam switch create 4.12.0` to install a recent OCaml.
 3. Install [ocaml dev tools for your favorite
    editor](https://github.com/janestreet/install-ocaml):
