@@ -108,8 +108,8 @@ dry:
 #
 .PHONY: stat
 stat:
-	set -e; \
-	for lang in $(STAT_LANGUAGES); do $(MAKE) -C $$lang stat; done
+	set -eu -o pipefail; \
+	for lang in $(STAT_LANGUAGES); do $(MAKE) -C $$lang stat; done; \
 	../scripts/report-stat $(STAT_LANGUAGES) | tee stat.txt
 
 # Run stats on projects-priv.txt instead of projects.txt.
