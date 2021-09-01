@@ -2,7 +2,7 @@ Releasing generated code for semgrep
 ==
 
 The process for updating a grammar and releasing the generated code in
-described in details [in this document](updating-a-grammar.md).
+described in details [in this document](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
 Until we have an automatic process for this and for security reasons,
 please ask someone at r2c to release the code for the language.
