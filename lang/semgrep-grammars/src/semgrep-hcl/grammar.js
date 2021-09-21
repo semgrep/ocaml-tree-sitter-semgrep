@@ -10,6 +10,13 @@ module.exports = grammar(base_grammar, {
   name: 'hcl',
 
   conflicts: ($, previous) => previous.concat([
+     // when added ellipsis for object_elems
+     // Unresolved conflict for symbol sequence:
+     // object_start  semgrep_ellipsis  •  '['  …
+     // Possible interpretations:
+     //  1:  object_start  (_expr_term  semgrep_ellipsis)  •  '['  …
+     //  2:  object_start  (object_elem  semgrep_ellipsis)  •  '['  …
+     [$._expr_term, $.object_elem],
   ]),
 
   /*
@@ -52,7 +59,7 @@ module.exports = grammar(base_grammar, {
     object_elem: ($, previous) => {
       return choice(
         previous,
-        //TODO: $.semgrep_ellipsis, conflict right now
+        $.semgrep_ellipsis
       );
     },
 
