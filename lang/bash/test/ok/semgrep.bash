@@ -3,10 +3,42 @@
 cat ...
 ... --force
 
-# Semgrep metavariables / all-caps shell variables
+# Semgrep metavariables
 echo $FOO
 $FOO
 
-# Unambiguous semgrep metavariables (experimental)
-echo ${{BAR}}
-${{BAR}}
+# All-caps shell variables
+echo "${BAR}"
+echo ${BAR}
+${BAR}
+
+# Metavariable matching a variable
+echo ${$X}
+echo ${$X#/}
+
+# Match any variable expansion
+echo ${...}
+echo "${...}"
+
+# Other metavariables and ellipses
+case $X in
+  a)
+    ;;
+  *)
+esac
+
+for $X in ...; do
+  ...
+done
+
+# Function definition (requires 'function' keyword with metavariable)
+function $FOO() {
+ ...
+}
+
+declare -r $READONLY
+$MUT=$(ls)
+
+# Array declaration and assignment
+declare -a $ARR
+# $ARR=(...)
