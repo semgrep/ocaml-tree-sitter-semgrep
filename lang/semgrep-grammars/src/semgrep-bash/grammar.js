@@ -21,6 +21,24 @@ module.exports = grammar(base_grammar, {
       previous
     ),
 
+    // Override variable assignments to treat '$X=42' as an assignment rather
+    // than an ordinary literal.
+    variable_assignment: ($, previous) => choice(
+      seq(
+        // $FOO= or $FOO+=
+        choice(
+          $.semgrep_metavar_eq,
+          $.semgrep_metavar_pluseq
+        ),
+        field('value', choice(
+          $._literal,
+          $.array,
+          $._empty_value
+        ))
+      ),
+      previous
+    ),
+
     // An item in a command line, subject to expansion into multiple elements,
     // such as
     // - hello
@@ -84,6 +102,8 @@ module.exports = grammar(base_grammar, {
     ),
 
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+    semgrep_metavar_eq: $ => /\$[A-Z_][A-Z_0-9]*=/,
+    semgrep_metavar_pluseq: $ => /\$[A-Z_][A-Z_0-9]*\+=/,
     semgrep_ellipsis: $ => '...',
   }
 });
