@@ -129,25 +129,81 @@ function $FOO() {
     (semgrep_metavariable)
     (compound_statement (command (command_name (semgrep_ellipsis))))))
 
+
 ======================================================================
-Declaration and assignment
+Metavariable in declaration
 ======================================================================
 
-declare -r $READONLY
-$MUT=$(ls)
+declare -r $VAR
 
 ---
 
 (program
   (declaration_command
     (word)
-    (semgrep_metavariable))
+    (semgrep_metavariable)))
+
+======================================================================
+Metavariable in assignment
+======================================================================
+
+$MUT=x
+$MUT+=x
+
+---
+
+(program
+  (variable_assignment
+    (semgrep_metavar_eq)
+    (word))
+  (variable_assignment
+    (semgrep_metavar_pluseq)
+    (word)))
+
+======================================================================
+Environment variable assignment before command
+======================================================================
+
+${PATH}=/bin command arg
+
+---
+
+(program
   (command
     (command_name
       (concatenation
-        (simple_expansion (variable_name))
-        (word)
-        (command_substitution (command (command_name (word))))))))
+        (expansion
+          (variable_name))
+        (word)))
+    (word)
+    (word)))
+
+======================================================================
+Metavariable in assignment before command
+======================================================================
+
+$X=42 Y=x command arg
+$X= 42 command
+
+---
+
+(program
+  (command
+    (variable_assignment
+      (semgrep_metavar_eq)
+      (word))
+    (variable_assignment
+      (variable_name)
+      (word))
+    (command_name
+      (word))
+    (word))
+  (command
+    (variable_assignment
+      (semgrep_metavar_eq))
+    (command_name
+      (word))
+    (word)))
 
 ======================================================================
 Array declaration and assignment (TODO)
