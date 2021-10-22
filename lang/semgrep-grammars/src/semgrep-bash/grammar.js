@@ -2,6 +2,9 @@
   semgrep-bash
 
   Extends the standard bash grammar with semgrep pattern constructs.
+
+  This adds special treatment for semgrep metavariables.
+  Semgrep ellipses are covered by the 'word' rule.
 */
 
 const base_grammar = require('tree-sitter-bash/grammar');
@@ -39,22 +42,6 @@ module.exports = grammar(base_grammar, {
       previous
     ),
 
-    // An item in a command line, subject to expansion into multiple elements,
-    // such as
-    // - hello
-    // - "$x".z
-    // - $args
-    // - 'hello world'
-    // - $(ls)
-    // etc.
-    //
-    _literal: ($, previous) => {
-      return choice(
-        $.semgrep_ellipsis,
-        ...previous.members
-      );
-    },
-
     // We only want to extend simple variable names, not fragments of
     // command-line arguments. See 'literal'.
     _extended_word: $ => choice(
@@ -87,6 +74,5 @@ module.exports = grammar(base_grammar, {
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_metavar_eq: $ => /\$[A-Z_][A-Z_0-9]*=/,
     semgrep_metavar_pluseq: $ => /\$[A-Z_][A-Z_0-9]*\+=/,
-    semgrep_ellipsis: $ => '...',
   }
 });

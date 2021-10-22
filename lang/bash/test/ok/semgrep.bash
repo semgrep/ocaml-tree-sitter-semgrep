@@ -16,6 +16,14 @@ ${BAR}
 echo ${$X}
 echo ${$X#/}
 
+# Ellipsis in unquoted concatenation
+$a...
+...$a
+
+# Ellipsis in quoted concatenation
+"$a..."
+"...$a"
+
 # Other metavariables and ellipses
 case $X in
   a)
