@@ -16,10 +16,6 @@ ${BAR}
 echo ${$X}
 echo ${$X#/}
 
-# Match any variable expansion
-echo ${...}
-echo "${...}"
-
 # Other metavariables and ellipses
 case $X in
   a)

@@ -65,22 +65,6 @@ echo ${$X#/}
       (word))))
 
 ======================================================================
-Match any variable expansion
-======================================================================
-
-echo ${...}
-echo "${...}"
-
----
-
-(program
-  (command
-    (command_name (word))
-    (expansion (semgrep_ellipsis)))
-  (command (command_name (word)) (string (expansion (semgrep_ellipsis)))))
-
-
-======================================================================
 Case (switch) with metavariables and ellipses
 ======================================================================
 
