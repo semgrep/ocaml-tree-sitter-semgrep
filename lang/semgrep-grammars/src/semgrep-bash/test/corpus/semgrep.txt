@@ -9,9 +9,9 @@ cat ...
 ---
 
 (program
-  (command (command_name (semgrep_ellipsis)))
-  (command (command_name (word)) (semgrep_ellipsis))
-  (command (command_name (semgrep_ellipsis)) (word)))
+  (command (command_name (word)))
+  (command (command_name (word)) (word))
+  (command (command_name (word)) (word)))
 
 ======================================================================
 Metavariables
@@ -27,6 +27,46 @@ $FOO
     (command_name (word))
     (simple_expansion (variable_name)))
   (command (command_name (simple_expansion (variable_name)))))
+
+======================================================================
+Simple expansion
+======================================================================
+
+$$A
+"$$A"
+
+---
+
+(program
+  (command
+    (command_name
+      (concatenation
+        (simple_expansion
+          (special_variable_name))
+        (word))))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (special_variable_name))))))
+
+======================================================================
+Concatenation
+======================================================================
+
+$a.$b
+
+---
+
+(program
+  (command
+    (command_name
+      (concatenation
+        (simple_expansion
+          (variable_name))
+        (word)
+        (simple_expansion
+          (variable_name))))))
 
 ======================================================================
 All-caps shell variables
@@ -65,20 +105,48 @@ echo ${$X#/}
       (word))))
 
 ======================================================================
-Match any variable expansion
+Ellipsis in unquoted concatenation
 ======================================================================
 
-echo ${...}
-echo "${...}"
+$a...
+...$a
 
 ---
 
 (program
   (command
-    (command_name (word))
-    (expansion (semgrep_ellipsis)))
-  (command (command_name (word)) (string (expansion (semgrep_ellipsis)))))
+    (command_name
+      (concatenation
+        (simple_expansion
+          (variable_name))
+        (word))))
+  (command
+    (command_name
+      (concatenation
+        (word)
+        (simple_expansion
+          (variable_name))))))
 
+======================================================================
+Ellipsis in quoted concatenation
+======================================================================
+
+"$a..."
+"...$a"
+
+---
+
+(program
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (variable_name)))))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (variable_name))))))
 
 ======================================================================
 Case (switch) with metavariables and ellipses
@@ -111,8 +179,8 @@ done
 (program
   (for_statement
     (semgrep_metavariable)
-    (semgrep_ellipsis)
-    (do_group (command (command_name (semgrep_ellipsis))))))
+    (word)
+    (do_group (command (command_name (word))))))
 
 ======================================================================
 Function definition
@@ -127,7 +195,7 @@ function $FOO() {
 (program
   (function_definition
     (semgrep_metavariable)
-    (compound_statement (command (command_name (semgrep_ellipsis))))))
+    (compound_statement (command (command_name (word))))))
 
 
 ======================================================================

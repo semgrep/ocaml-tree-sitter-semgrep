@@ -16,9 +16,13 @@ ${BAR}
 echo ${$X}
 echo ${$X#/}
 
-# Match any variable expansion
-echo ${...}
-echo "${...}"
+# Ellipsis in unquoted concatenation
+$a...
+...$a
+
+# Ellipsis in quoted concatenation
+"$a..."
+"...$a"
 
 # Other metavariables and ellipses
 case $X in
