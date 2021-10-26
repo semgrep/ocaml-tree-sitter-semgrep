@@ -39,6 +39,13 @@ jobs:
           name: install
           command: opam exec -- make install
       - run:
+          name: install tree-sitter executable
+          command: |
+            cd core
+            eval "$(opam env)"
+            ./scripts/install-tree-sitter-cli \
+              --bindir "$(dirname "$(which ocaml-tree-sitter)")"
+      - run:
           name: core tests
           command: opam exec -- make -C core test
       - run:
