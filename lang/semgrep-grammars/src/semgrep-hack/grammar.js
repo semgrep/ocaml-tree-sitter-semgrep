@@ -5,10 +5,10 @@
 */
 
 // The npm package is 'tree-sitter-hacklang', not 'tree-sitter-hack',
-// because npm doesn't like the word 'hack'. See original note in the
-// project's readme.
+// because npm doesn't like the word 'hack'. Here, we don't use npm
+// and point to the local folder named tree-sitter-hack.
 //
-const base_grammar = require('tree-sitter-hacklang/grammar');
+const base_grammar = require('tree-sitter-hack/grammar');
 
 // BEGIN: Helper functions copied from tree-sitter-hack.
 
