@@ -29,6 +29,28 @@ $FOO
   (command (command_name (simple_expansion (variable_name)))))
 
 ======================================================================
+Simple expansion
+======================================================================
+
+$$A
+"$$A"
+
+---
+
+(program
+  (command
+    (command_name
+      (concatenation
+        (simple_expansion
+          (special_variable_name))
+        (word))))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (special_variable_name))))))
+
+======================================================================
 All-caps shell variables
 ======================================================================
 

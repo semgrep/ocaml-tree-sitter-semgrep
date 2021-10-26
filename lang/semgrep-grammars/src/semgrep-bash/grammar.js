@@ -17,11 +17,24 @@ module.exports = grammar(base_grammar, {
 
   rules: {
 
-    // A variable name *not* followed by '=' or '+='.
-    //
+    _orig_simple_variable_name: $ => alias(/\w+/, $.variable_name),
+
+    // A variable name *not* immediately followed by '=' or '+='.
     _simple_variable_name: ($, previous) => choice(
       $.semgrep_metavariable,
       previous
+    ),
+
+    // This should parse the same input as the original. It should not
+    // parse '$$X' as "expand metavariable $X".
+    simple_expansion: $ => seq(
+      '$',
+      choice(
+        $._orig_simple_variable_name,  // no metavariable allowed here
+        $._special_variable_name,
+        alias('!', $.special_variable_name),
+        alias('#', $.special_variable_name)
+      )
     ),
 
     // Override variable assignments to treat '$X=42' as an assignment rather
