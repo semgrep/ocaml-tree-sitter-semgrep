@@ -282,3 +282,32 @@ declare -a $ARR
 ---
 
 (program (declaration_command (word) (semgrep_metavariable)))
+
+======================================================================
+Deep expressions
+======================================================================
+
+<... a ...>
+a <... b ...>
+a <... 'b'$c ...>
+
+---
+
+(program
+  (command
+    (command_name
+      (semgrep_deep_expression
+        (word))))
+  (command
+    (command_name
+      (word))
+    (semgrep_deep_expression
+      (word)))
+  (command
+    (command_name
+      (word))
+    (semgrep_deep_expression
+      (concatenation
+        (raw_string)
+        (simple_expansion
+          (variable_name))))))

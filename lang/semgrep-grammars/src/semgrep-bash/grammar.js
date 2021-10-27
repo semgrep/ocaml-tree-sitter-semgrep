@@ -25,6 +25,17 @@ module.exports = grammar(base_grammar, {
       previous
     ),
 
+    _primary_expression: ($, previous) => choice(
+      $.semgrep_deep_expression,
+      previous
+    ),
+
+    semgrep_deep_expression: $ => seq(
+      '<...',
+      $._literal,  // includes concatenations and unquoted expansions
+      '...>'
+    ),
+
     // This should parse the same input as the original. It should not
     // parse '$$X' as "expand metavariable $X".
     simple_expansion: $ => seq(
