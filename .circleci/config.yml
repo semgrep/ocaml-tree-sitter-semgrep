@@ -27,8 +27,11 @@ jobs:
           name: set up node
           command: ./core/scripts/setup-node
       - run:
-          name: install tree-sitter lib
+          name: install tree-sitter runtime library
           command: ./core/scripts/install-tree-sitter-lib
+      - run:
+          name: install tree-sitter executable
+          command: ./core/scripts/install-tree-sitter-cli
       - run:
           name: install dependencies
           command: opam exec -- make setup
@@ -39,17 +42,11 @@ jobs:
           name: install
           command: opam exec -- make install
       - run:
-          name: install tree-sitter executable
-          command: |
-            cd core
-            eval "$(opam env)"
-            ./scripts/install-tree-sitter-cli \
-              --bindir "$(dirname "$(which ocaml-tree-sitter)")"
-      - run:
           name: core tests
           command: opam exec -- make -C core test
       - run:
           name: test languages
+          no_output_timeout: 60m
           command: opam exec -- make lang
   stat:
     docker:
@@ -70,6 +67,9 @@ jobs:
       - run:
           name: install tree-sitter lib
           command: ./core/scripts/install-tree-sitter-lib
+      - run:
+          name: install tree-sitter executable
+          command: ./core/scripts/install-tree-sitter-cli
       - run:
           name: install dependencies
           command: opam exec -- make setup
