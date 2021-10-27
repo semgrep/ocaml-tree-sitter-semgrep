@@ -27,8 +27,11 @@ jobs:
           name: set up node
           command: ./core/scripts/setup-node
       - run:
-          name: install tree-sitter lib
+          name: install tree-sitter runtime library
           command: ./core/scripts/install-tree-sitter-lib
+      - run:
+          name: install tree-sitter executable
+          command: ./core/scripts/install-tree-sitter-cli
       - run:
           name: install dependencies
           command: opam exec -- make setup
@@ -43,6 +46,7 @@ jobs:
           command: opam exec -- make -C core test
       - run:
           name: test languages
+          no_output_timeout: 60m
           command: opam exec -- make lang
   stat:
     docker:
@@ -64,6 +68,9 @@ jobs:
           name: install tree-sitter lib
           command: ./core/scripts/install-tree-sitter-lib
       - run:
+          name: install tree-sitter executable
+          command: ./core/scripts/install-tree-sitter-cli
+      - run:
           name: install dependencies
           command: opam exec -- make setup
       - run:
@@ -74,6 +81,7 @@ jobs:
           command: opam exec -- make install
       - run:
           name: run parsing stats
+          no_output_timeout: 60m
           command: opam exec -- make stat
       - run:
           name: upload parsing stats

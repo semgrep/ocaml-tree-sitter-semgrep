@@ -49,14 +49,6 @@ if [[ -z "$lang" ]]; then
   error "Missing language name."
 fi
 
-echo "Installing tree-sitter-$lang using npm."
-#
-# '--include=dev' is for installing dependencies listed as 'devDependencies'
-# in 'package.json'. This installs into
-# './semgrep-grammars/src/tree-sitter-$lang/node_modules' for unclear reasons.
-#
-npm install --include=dev ./semgrep-grammars/src/tree-sitter-"$lang"
-
 echo "Building the extended parser semgrep-$lang."
 (
   cd semgrep-grammars/src/semgrep-"$lang"

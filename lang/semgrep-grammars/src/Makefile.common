@@ -8,6 +8,10 @@
 PROJECT_ROOT = $(shell git rev-parse --show-toplevel)
 NAME = $(shell pwd | xargs basename)
 
+# The folder containing the tree-sitter-* repos and semgrep-* folders
+NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH) make
+export NODE_PATH
+
 # If grammar.js was present at a fixed location, we could define a simple
 # make target like 'src/parser.c: grammar.js'.
 .PHONY: build
@@ -18,7 +22,7 @@ build:
 	  echo "Generate parser in $$(pwd)/$$dir"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
-	    (cd "$$dir" && npx tree-sitter generate --no-bindings); \
+	    (cd "$$dir" && tree-sitter generate --no-bindings); \
 	  else \
 	    echo "$$dir/src/parser.c is up to date."; \
 	  fi; \
@@ -34,7 +38,7 @@ prep:
 test:
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
 	  echo "Test $$dir"; \
-	  (cd "$$dir" && npx tree-sitter test); \
+	  (cd "$$dir" && tree-sitter test); \
 	done
 
 .PHONY: clean

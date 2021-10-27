@@ -97,10 +97,6 @@ $(git -C "$dir" log -1 "$(basename "$path")" | sed -e 's/^/  /')
 EOF
 }
 
-print_treesitter_version() {
-  npx tree-sitter --version
-}
-
 # Copy interesting files, such as the original grammar or the license.
 #
 # e.g.:
@@ -115,7 +111,7 @@ copy_fyi_files() {
 
     mkdir -p "$fyi_dst"
 
-    print_treesitter_version > "$fyi_dst"/tree-sitter-version
+    tree-sitter --version > "$fyi_dst"/tree-sitter-version
 
     # Record the git commit of each "FYI" file.
     version_file="$fyi_dst"/versions
