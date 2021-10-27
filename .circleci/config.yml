@@ -81,6 +81,7 @@ jobs:
           command: opam exec -- make install
       - run:
           name: run parsing stats
+          no_output_timeout: 60m
           command: opam exec -- make stat
       - run:
           name: upload parsing stats
