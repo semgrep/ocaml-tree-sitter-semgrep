@@ -33,7 +33,7 @@ class $CLASS {
 
 
 =====================================
-Ellipsis
+Expression Ellipsis 
 =====================================
 
 class Foo {
@@ -87,3 +87,42 @@ class Foo {
                         (simple_identifier)))
                     (value_argument
                       (simple_identifier))))))))))))
+
+=====================================
+Field Ellipsis
+=====================================
+class Foo {
+  ...
+}
+
+---
+(source_file
+    (class_declaration (type_identifier)
+       (class_body (ellipsis))))
+
+=====================================
+Argument Ellipsis
+=====================================
+foo(1, ..., 2)
+
+---
+(source_file
+   (call_expression (simple_identifier)
+      (call_suffix (value_arguments
+         (value_argument (integer_literal))
+	 (value_argument (ellipsis))
+	 (value_argument (integer_literal))))))
+
+=====================================
+Parameter Ellipsis
+=====================================
+fun foo(..., bar: String, ...) {}
+
+---
+
+(source_file
+  (function_declaration (simple_identifier)
+     (ellipsis)
+     (parameter (simple_identifier) (user_type (type_identifier)))
+     (ellipsis)
+     (function_body))) 
