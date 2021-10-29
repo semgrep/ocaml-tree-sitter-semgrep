@@ -23,9 +23,17 @@ Contributing
 
 ### Development setup
 
-1. Make sure you have at least 6 GiB of free memory.
-2. Install [opam](https://opam.ocaml.org/doc/Install.html), git, make, pkg-config, [libtree-sitter-dev](https://github.com/returntocorp/ocaml-tree-sitter-core/blob/main/scripts/install-tree-sitter-lib), nodejs, npm.
-3. Run `opam init`, `opam switch create 4.12.0` to install a recent OCaml.
+1. Make sure you have at least 6 GiB of free memory. More will be
+   needed for some of the grammars.
+2. Install the following tools:
+   * git
+   * GNU make
+   * pkg-config: manages the installation of tree-sitter's runtime library
+   * Node.js: JavaScript interpreter used to translate a grammar to json
+   * cargo: Rust compiler used to build `tree-sitter`
+   * [opam](https://opam.ocaml.org/doc/Install.html): OCaml package manager
+3. Run `opam init`, `opam switch create 4.12.0` to install a recent
+   version of OCaml.
 4. Install [ocaml dev tools for your favorite
    editor](https://github.com/janestreet/install-ocaml):
    typically `opam install merlin` + some plugin for your editor.
