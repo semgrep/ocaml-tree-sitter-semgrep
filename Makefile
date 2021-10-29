@@ -17,7 +17,6 @@ build:
 setup:
 	cd core && ./configure
 	$(MAKE) -C core setup
-	./core/scripts/install-tree-sitter-cli
 
 # Shortcut for updating the git submodules.
 .PHONY: update
