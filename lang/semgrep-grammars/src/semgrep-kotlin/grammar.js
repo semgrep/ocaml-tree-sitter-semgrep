@@ -40,6 +40,20 @@ module.exports = grammar(standard_grammar, {
             );
         },
 
+	_class_member_declaration: ($, previous) => {
+	    return choice(
+		previous,
+		$.ellipsis
+	    );
+	},
+
+	_function_value_parameter: ($, previous) => {
+	    return choice(
+		previous,
+		$.ellipsis
+	    );
+	},
+
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
         ),
