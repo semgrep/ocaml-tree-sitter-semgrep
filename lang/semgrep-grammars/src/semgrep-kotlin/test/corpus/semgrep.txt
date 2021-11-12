@@ -126,3 +126,37 @@ fun foo(..., bar: String, ...) {}
      (parameter (simple_identifier) (user_type (type_identifier)))
      (ellipsis)
      (function_body))) 
+
+=====================================
+Statement Ellipsis
+=====================================
+fun foo() {
+  a()
+  ...
+  b()
+}
+
+---
+(source_file
+  (function_declaration (simple_identifier)
+    (function_body
+      (statements
+        (call_expression (simple_identifier) (call_suffix (value_arguments)))
+	(ellipsis)
+	(call_expression (simple_identifier) (call_suffix (value_arguments))))
+	)))
+
+=====================================
+Statement Ellipsis and metavarible
+=====================================
+
+$COOKIE.setValue("")
+...
+
+---
+(source_file
+  (call_expression
+    (navigation_expression (simple_identifier)
+       (navigation_suffix (simple_identifier)))
+    (call_suffix (value_arguments (value_argument (line_string_literal)))))
+  (ellipsis))
