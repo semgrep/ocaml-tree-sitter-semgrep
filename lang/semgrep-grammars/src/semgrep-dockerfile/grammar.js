@@ -13,24 +13,13 @@ module.exports = grammar(base_grammar, {
   ]),
 
   rules: {
-    shell_fragment: ($, previous) => repeat1(
-      choice(
-        $.semgrep_ellipsis,
-        $.semgrep_double_curly_metavariable,
-        /[^\\\[\n#\s][^\\\n]*/,
-        /\\[^\n]/
-      )
+    _instruction: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
     ),
 
-    // Support ${{FOO}} as a metavariable, since it's unambiguous.
-    // (experimental)
-    semgrep_double_curly_metavariable: $ => seq(
-      '${{',
-      $.semgrep_metavariable_name,
-      '}}'
-    ),
-
-    semgrep_metavariable_name: $ => /[A-Z_][A-Z_0-9]*/,
+    // TODO: support metavariables and ellipses in a bunch of places
+    semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
   }
 });
