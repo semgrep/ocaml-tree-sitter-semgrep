@@ -79,9 +79,17 @@ module.exports = grammar(standard_grammar, {
       return choice(
         ...previous.members,
         $.ellipsis,
-        $.deep_ellipsis
+        $.deep_ellipsis,
+        $.member_access_ellipsis_expression
       );
     },
+
+   // TODO: how to use PREC.DOT from original grammar instead of 18 below?
+   member_access_ellipsis_expression : $ => prec(18, seq(
+      field('expression', choice($._expression, $.predefined_type, $._name)),
+      choice('.', '->'),
+      $.ellipsis
+    )),
 
     deep_ellipsis: $ => seq(
       '<...', $._expression, '...>'
