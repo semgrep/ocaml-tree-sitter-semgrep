@@ -218,3 +218,25 @@ class A {
     (identifier)
     (declaration_list
       (ellipsis))))
+
+=====================================
+Ellipsis in method chain
+=====================================
+$X = $O.foo(). ... .bar();
+
+---
+(compilation_unit
+  (global_statement
+   (expression_statement
+     (assignment_expression
+       (identifier)
+       (assignment_operator)
+       (invocation_expression
+         (member_access_expression
+           (member_access_ellipsis_expression
+              (invocation_expression
+                (member_access_expression (identifier) (identifier))
+               (argument_list))
+              (ellipsis))
+          (identifier))
+         (argument_list))))))
