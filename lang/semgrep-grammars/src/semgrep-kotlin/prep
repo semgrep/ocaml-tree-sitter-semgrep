@@ -21,3 +21,7 @@ mkdir -p test/corpus
     fi
   done
 )
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo Note that semgrep-kotlin/src/scanner.c must be in sync with
+echo tree-sitter-kotlin/src/scanner.c
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
