@@ -67,3 +67,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-elixir"]
 	path = lang/semgrep-grammars/src/tree-sitter-elixir
 	url = https://github.com/elixir-lang/tree-sitter-elixir.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-solidity"]
+	path = lang/semgrep-grammars/src/tree-sitter-solidity
+	url = https://github.com/JoranHonig/tree-sitter-solidity.git

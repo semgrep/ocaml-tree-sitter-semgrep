@@ -28,6 +28,7 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
+  solidity \
   sqlite \
   typescript \
   vue
