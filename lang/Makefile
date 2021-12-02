@@ -57,6 +57,7 @@ STAT_LANGUAGES = \
   r \
   ruby \
   rust \
+  solidity \
   sqlite \
   tsx \
   typescript
