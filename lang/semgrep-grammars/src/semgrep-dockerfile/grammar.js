@@ -18,6 +18,22 @@ module.exports = grammar(base_grammar, {
       previous
     ),
 
+    // overrides the original definition
+    string_array: ($) =>
+      seq(
+        "[",
+        optional(
+          seq($._array_element, repeat(seq(",", $._array_element)))
+        ),
+        "]"
+      ),
+
+    _array_element: ($) => choice(
+      $.double_quoted_string,
+      $.semgrep_ellipsis,
+      $.semgrep_metavariable
+    ),
+
     // TODO: support metavariables and ellipses in a bunch of places
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
