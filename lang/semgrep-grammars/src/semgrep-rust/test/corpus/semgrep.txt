@@ -15,32 +15,15 @@ impl $CLASS {
 ---
 
 (source_file
-  (item
-    (impl_item
-      (type_identifier)
-      (impl_block
-        (impl_block_item
-          (visibility_modifier)
-          (function_item
-            (function_declaration
-              (identifier)
-              (parameters
-                (parameter
-                  (identifier)
-                  (type_identifier)))
-              (type_identifier))
-            (block
-              (if_expression
-                (identifier) (block (identifier))
-                (else_clause (block (identifier)))
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-  )
+  (impl_item (type_identifier)
+     (declaration_list
+       (function_item (visibility_modifier) (identifier)
+          (parameters (parameter (identifier) (type_identifier)))
+	  (type_identifier)
+	  (block (if_expression (identifier)
+	  	 (block (identifier))
+		 (else_clause (block (identifier)))))))))
+
 
 =====================================
 Ellipsis for expression
@@ -57,31 +40,14 @@ impl Foo {
 ---
 
 (source_file
-  (item
-    (impl_item
-      (type_identifier)
-      (impl_block
-        (impl_block_item
-          (function_item
-            (function_declaration
-              (identifier)
-              (parameters))
-            (block
-              (let_declaration
-                (identifier)
-                (integer_literal))
-              (ellipsis)
-              (let_declaration
-                (identifier)
-                (integer_literal)
-              )
-            )
-          )
-        )
-      )
-    )
-  )
-)
+  (impl_item (type_identifier)
+     (declaration_list
+        (function_item (identifier) (parameters)
+	(block
+	  (let_declaration (identifier) (integer_literal))
+	  (ellipsis)
+	  (let_declaration (identifier) (integer_literal)))))))
+
 
 =====================================
 Ellipsis for statements
@@ -98,31 +64,14 @@ impl Foo {
 ---
 
 (source_file
-  (item
-    (impl_item
-      (type_identifier)
-      (impl_block
-        (impl_block_item
-          (function_item
-            (function_declaration
-              (identifier)
-              (parameters))
-            (block
-              (let_declaration
-                (identifier)
-                (integer_literal))
-              (ellipsis)
-              (let_declaration
-                (identifier)
-                (integer_literal)
-              )
-            )
-          )
-        )
-      )
-    )
-  )
-)
+  (impl_item (type_identifier)
+    (declaration_list
+      (function_item (identifier) (parameters)
+        (block
+	  (let_declaration (identifier) (integer_literal))
+	  (ellipsis)
+	  (let_declaration (identifier) (integer_literal)))))))
+
 
 =====================================
 Deep expression ellipsis
@@ -137,29 +86,11 @@ impl Foo {
 ---
 
 (source_file
-  (item
-    (impl_item
-      (type_identifier)
-      (impl_block
-        (impl_block_item
-          (function_item
-            (function_declaration
-              (identifier)
-              (parameters))
-            (block
-              (let_declaration
-                (identifier)
-                (deep_ellipsis
-                  (integer_literal)
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-  )
-)
+  (impl_item (type_identifier)
+    (declaration_list
+      (function_item (identifier) (parameters)
+        (block (let_declaration (identifier) (deep_ellipsis (integer_literal))))))))
+
 
 =====================================
 Toplevel expression
