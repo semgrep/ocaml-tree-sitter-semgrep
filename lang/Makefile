@@ -25,6 +25,7 @@ SUPPORTED_TS_LANGUAGES = \
   lua \
   ocaml \
   php \
+  python \
   r \
   ruby \
   rust \
@@ -54,6 +55,7 @@ STAT_LANGUAGES = \
   lua \
   ocaml \
   php \
+  python \
   r \
   ruby \
   rust \
