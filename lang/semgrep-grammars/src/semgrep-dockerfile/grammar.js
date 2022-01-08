@@ -35,12 +35,25 @@ module.exports = grammar(base_grammar, {
       $.semgrep_metavariable
     ),
 
-    // TODO: support metavariables and ellipses in a bunch of places
+    /*
+      Metavariable syntax vs. ARG expansions:
+
+      - in a semgrep pattern, $FOO is always a metavariable.
+      - in a semgrep pattern, ${FOO} is always an arg expansion.
+      - in a semgrep pattern, $FOO in a position where a metavariable
+        is not allowed results in an error.
+
+     TODO: support metavariables and ellipses in a bunch of places
+    */
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
 
     /*
       TODO: more syntax ellipsis (e) or metavariables (mv):
+
+      mv:
+      FROM extras:$CODE_VERSION       # metavariable (pattern only)
+      FROM extras:${CODE_VERSION}     # parameter from ARG
 
       e, mv:
       LABEL multi.label1="value1" multi.label2="value2" other="value3"

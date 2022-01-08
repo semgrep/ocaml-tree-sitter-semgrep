@@ -65,3 +65,22 @@ RUN ["a", $X, "b"]
       (double_quoted_string)
       (semgrep_metavariable)
       (double_quoted_string))))
+
+=============================================
+Param metavariable
+=============================================
+
+FROM --platform=$PLATFORM debian
+ADD --chown=$USER_GROUP src dst
+
+---
+
+(source_file
+  (from_instruction
+    (param)
+    (image_spec
+      (image_name)))
+  (add_instruction
+    (param)
+    (path)
+    (path)))
