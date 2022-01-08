@@ -84,3 +84,218 @@ ADD --chown=$USER_GROUP src dst
     (param)
     (path)
     (path)))
+
+=============================================
+Image metavariable
+=============================================
+
+FROM $NAME:$TAG@$DIGEST
+FROM ${NAME}:${TAG}@${DIGEST}
+
+---
+
+(source_file
+  (from_instruction
+    (image_spec
+      (image_name
+        (expansion
+          (variable)))
+      (image_tag
+        (expansion
+          (variable)))
+      (image_digest
+        (expansion
+          (variable)))))
+  (from_instruction
+    (image_spec
+      (image_name
+        (expansion
+          (variable)))
+      (image_tag
+        (expansion
+          (variable)))
+      (image_digest
+        (expansion
+          (variable))))))
+
+=============================================
+Image alias metavariable
+=============================================
+
+FROM debian AS $ALIAS
+
+---
+
+(source_file
+  (from_instruction
+    (image_spec
+      (image_name))
+    (image_alias
+      (expansion
+        (variable)))))
+
+=============================================
+File metavariables
+=============================================
+
+ADD $A $B $DST
+COPY $A $B $DST
+VOLUME $A
+
+---
+
+(source_file
+  (add_instruction
+    (path
+      (expansion
+        (variable)))
+    (path
+      (expansion
+        (variable))
+      (expansion
+        (variable))))
+  (copy_instruction
+    (path
+      (expansion
+        (variable)))
+    (path
+      (expansion
+        (variable))
+      (expansion
+        (variable))))
+  (volume_instruction
+    (path
+      (expansion
+        (variable)))))
+
+=============================================
+File list ellipsis
+=============================================
+
+ADD ... dst
+COPY ... dst
+VOLUME ...
+
+---
+
+(source_file
+  (add_instruction
+    (path)
+    (path))
+  (copy_instruction
+    (path)
+    (path))
+  (volume_instruction
+    (path)))
+
+=============================================
+Workdir metavariable
+=============================================
+
+WORKDIR $DIR
+
+---
+
+(source_file
+  (workdir_instruction
+    (path
+      (expansion
+        (variable)))))
+
+=============================================
+Arg metavariables
+=============================================
+
+ARG $KEY
+ARG $KEY=$DEFAULT
+
+---
+
+(source_file
+  (arg_instruction
+    (unquoted_string))
+  (arg_instruction
+    (unquoted_string)
+    (unquoted_string
+      (expansion
+        (variable)))))
+
+=============================================
+User and group metavariables
+=============================================
+
+USER $USER
+USER $USER:$GROUP
+
+---
+
+(source_file
+  (user_instruction
+    (unquoted_string
+      (expansion
+        (variable))))
+  (user_instruction
+    (unquoted_string
+      (expansion
+        (variable)))
+    (unquoted_string
+      (expansion
+        (variable)))))
+
+=============================================
+Env ellipsis
+=============================================
+
+ENV ...
+ENV AA=42 ...
+ENV AA=42 ... BB=17
+
+---
+
+(source_file
+  (env_instruction
+    (env_pair
+      (semgrep_ellipsis)))
+  (env_instruction
+    (env_pair
+      (unquoted_string)
+      (unquoted_string))
+    (env_pair
+      (semgrep_ellipsis)))
+  (env_instruction
+    (env_pair
+      (unquoted_string)
+      (unquoted_string))
+    (env_pair
+      (semgrep_ellipsis))
+    (env_pair
+      (unquoted_string)
+      (unquoted_string))))
+
+=============================================
+Env value metavariable
+=============================================
+
+ENV KEY=$VALUE KEY2=$VALUE2
+ENV KEY3 $VALUE3
+
+---
+
+(source_file
+  (env_instruction
+    (env_pair
+      (unquoted_string)
+      (unquoted_string
+        (expansion
+          (variable))))
+    (env_pair
+      (unquoted_string)
+      (unquoted_string
+        (expansion
+          (variable)))))
+  (env_instruction
+    (env_pair
+      (unquoted_string)
+      (unquoted_string
+        (expansion
+          (variable))))))

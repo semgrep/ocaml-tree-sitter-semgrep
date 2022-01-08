@@ -35,6 +35,38 @@ module.exports = grammar(base_grammar, {
       $.semgrep_metavariable
     ),
 
+    // redefinition
+    arg_instruction: ($, previous) => seq(
+      alias(/[aA][rR][gG]/, "ARG"),
+      field(
+        "name",
+        alias(
+          choice(
+            $.semgrep_metavariable,
+            /[a-zA-Z0-9_]+/
+          ),
+          $.unquoted_string
+        )
+      ),
+      optional(
+        seq(
+          token.immediate("="),
+          field(
+            "default",
+            choice(
+              $.double_quoted_string,
+              $.unquoted_string
+            )
+          )
+        )
+      )
+    ),
+
+    env_pair: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
     /*
       Metavariable syntax vs. ARG expansions:
 
@@ -51,7 +83,7 @@ module.exports = grammar(base_grammar, {
     /*
       TODO: more syntax ellipsis (e) or metavariables (mv):
 
-      mv:
+      mv: done
       FROM extras:$CODE_VERSION       # metavariable (pattern only)
       FROM extras:${CODE_VERSION}     # parameter from ARG
 
@@ -64,28 +96,35 @@ module.exports = grammar(base_grammar, {
       e, mv:
       EXPOSE 80/tcp 80/udp
 
-      e, mv:
-      ENV MY_NAME="John Doe" MY_CAT=fluffy
+      mv: (tricky)
+      ENV $MY_NAME=$VAL
+      ENV $MY_NAME $VAL
 
-      e, mv:
+      mv: done
+      ENV MY_NAME=$VAL
+
+      e: done
+      ENV ... MY_NAME="John Doe" ...
+
+      e, mv: done
       ADD a b /somedir/
       COPY a b /somedir/
 
-      e, mv:
+      e, mv: done
       ADD --chown=55:mygroup a b /somedir/
       COPY --chown=55:mygroup a b /somedir/
 
-      e, mv:
+      e, mv: done
       VOLUME /var/log /var/db
 
-      mv:
+      mv: done
       USER patrick
       USER patrick:star
 
-      mv:
+      mv: done
       WORKDIR /a
 
-      mv:
+      mv: done
       ARG pat
       ARG buildno=42
 
