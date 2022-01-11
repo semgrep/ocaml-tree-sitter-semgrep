@@ -18,7 +18,7 @@
 	url = https://github.com/Azganoth/tree-sitter-lua
 [submodule "lang/semgrep-grammars/src/tree-sitter-rust"]
 	path = lang/semgrep-grammars/src/tree-sitter-rust
-	url = git://github.com/tree-sitter/tree-sitter-rust.git
+	url = https://github.com/tree-sitter/tree-sitter-rust
 [submodule "lang/semgrep-grammars/src/tree-sitter-r"]
 	path = lang/semgrep-grammars/src/tree-sitter-r
 	url = https://github.com/r-lib/tree-sitter-r
