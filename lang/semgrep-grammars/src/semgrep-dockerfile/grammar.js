@@ -62,11 +62,23 @@ module.exports = grammar(base_grammar, {
       )
     ),
 
+    // override
     label_pair: ($, previous) => choice(
       $.semgrep_ellipsis,
-      previous
+      seq(
+        field(
+          "key",
+          choice(
+            $.semgrep_metavariable,
+            alias(/[-a-zA-Z0-9\._]+/, $.unquoted_string)
+          )
+        ),
+        token.immediate("="),
+        field("value", choice($.double_quoted_string, $.unquoted_string))
+      )
     ),
 
+    // TODO: find a way to support metavariables as env keys.
     env_pair: ($, previous) => choice(
       $.semgrep_ellipsis,
       previous
@@ -108,7 +120,7 @@ module.exports = grammar(base_grammar, {
       FROM extras:$CODE_VERSION       # metavariable (pattern only)
       FROM extras:${CODE_VERSION}     # parameter from ARG
 
-      mv: (tricky like ENV)
+      mv: done
       LABEL $NAME=$VAL
 
       e: done

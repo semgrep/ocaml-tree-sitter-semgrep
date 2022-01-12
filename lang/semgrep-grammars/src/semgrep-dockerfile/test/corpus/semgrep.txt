@@ -273,6 +273,46 @@ LABEL com.example.label-with-value=foo ... version="1.0"
       (double_quoted_string))))
 
 =============================================
+LABEL metavariables
+=============================================
+
+LABEL foo=abc
+LABEL $NAME=abc
+LABEL foo=$VALUE
+LABEL $A=$B ... $C=$D
+
+---
+
+(source_file
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (unquoted_string)))
+  (label_instruction
+    (label_pair
+      (semgrep_metavariable)
+      (unquoted_string)))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (unquoted_string
+        (expansion
+          (variable)))))
+  (label_instruction
+    (label_pair
+      (semgrep_metavariable)
+      (unquoted_string
+        (expansion
+          (variable))))
+    (label_pair
+      (semgrep_ellipsis))
+    (label_pair
+      (semgrep_metavariable)
+      (unquoted_string
+        (expansion
+          (variable))))))
+
+=============================================
 ENV ellipsis
 =============================================
 
