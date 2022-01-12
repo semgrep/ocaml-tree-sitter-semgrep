@@ -189,7 +189,7 @@ VOLUME ...
     (path)))
 
 =============================================
-Workdir metavariable
+WORKDIR metavariable
 =============================================
 
 WORKDIR $DIR
@@ -203,7 +203,7 @@ WORKDIR $DIR
         (variable)))))
 
 =============================================
-Arg metavariables
+ARG metavariables
 =============================================
 
 ARG $KEY
@@ -243,7 +243,37 @@ USER $USER:$GROUP
         (variable)))))
 
 =============================================
-Env ellipsis
+LABEL ellipsis
+=============================================
+
+LABEL ...
+LABEL version="1.0" ...
+LABEL com.example.label-with-value=foo ... version="1.0"
+
+---
+
+(source_file
+  (label_instruction
+    (label_pair
+      (semgrep_ellipsis)))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (double_quoted_string))
+    (label_pair
+      (semgrep_ellipsis)))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (unquoted_string))
+    (label_pair
+      (semgrep_ellipsis))
+    (label_pair
+      (unquoted_string)
+      (double_quoted_string))))
+
+=============================================
+ENV ellipsis
 =============================================
 
 ENV ...
@@ -273,7 +303,7 @@ ENV AA=42 ... BB=17
       (unquoted_string))))
 
 =============================================
-Env value metavariable
+ENV value metavariable
 =============================================
 
 ENV KEY=$VALUE KEY2=$VALUE2
@@ -299,3 +329,76 @@ ENV KEY3 $VALUE3
       (unquoted_string
         (expansion
           (variable))))))
+
+=============================================
+MAINTAINER metavariable
+=============================================
+
+MAINTAINER Spongebob Squarepants <sponge@bb.net>
+MAINTAINER $NAME
+
+---
+
+(source_file
+  (maintainer_instruction)
+  (maintainer_instruction))
+
+=============================================
+EXPOSE metavariable and ellipsis
+=============================================
+
+EXPOSE 80/udp 80/tcp
+EXPOSE ...
+EXPOSE ... $PORT_PROTO ...
+
+---
+
+(source_file
+  (expose_instruction
+    (expose_port)
+    (expose_port))
+  (expose_instruction
+    (expose_port
+      (semgrep_ellipsis)))
+  (expose_instruction
+    (expose_port
+      (semgrep_ellipsis))
+    (expansion
+      (variable))
+    (expose_port
+      (semgrep_ellipsis))))
+
+=============================================
+STOPSIGNAL metavariable
+=============================================
+
+STOPSIGNAL SIGFOO
+STOPSIGNAL $SIGNAL
+
+---
+
+(source_file
+  (stopsignal_instruction)
+  (stopsignal_instruction
+    (expansion
+      (variable))))
+
+=============================================
+HEALTHCHECK
+=============================================
+
+HEALTHCHECK NONE
+HEALTHCHECK --timeout=30s CMD echo hello
+HEALTHCHECK $X
+
+---
+
+(source_file
+  (healthcheck_instruction)
+  (healthcheck_instruction
+    (param)
+    (cmd_instruction
+      (shell_command
+        (shell_fragment))))
+  (healthcheck_instruction
+    (semgrep_metavariable)))

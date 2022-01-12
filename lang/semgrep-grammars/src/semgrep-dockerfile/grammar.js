@@ -62,10 +62,31 @@ module.exports = grammar(base_grammar, {
       )
     ),
 
+    label_pair: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
     env_pair: ($, previous) => choice(
       $.semgrep_ellipsis,
       previous
     ),
+
+    expose_port: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // override
+    healthcheck_instruction: ($) =>
+      seq(
+        alias(/[hH][eE][aA][lL][tT][hH][cC][hH][eE][cC][kK]/, "HEALTHCHECK"),
+        choice(
+          $.semgrep_metavariable,
+          "NONE",
+          seq(repeat($.param), $.cmd_instruction)
+        )
+      ),
 
     /*
       Metavariable syntax vs. ARG expansions:
@@ -87,14 +108,21 @@ module.exports = grammar(base_grammar, {
       FROM extras:$CODE_VERSION       # metavariable (pattern only)
       FROM extras:${CODE_VERSION}     # parameter from ARG
 
-      e, mv:
-      LABEL multi.label1="value1" multi.label2="value2" other="value3"
+      mv: (tricky like ENV)
+      LABEL $NAME=$VAL
 
-      mv:
+      e: done
+      LABEL ... multi.label1="value1" ...
+
+      mv: done
       MAINTAINER bob
 
-      e, mv:
+      mv: done
       EXPOSE 80/tcp 80/udp
+      EXPOSE $PORT_PROTO
+
+      e: done
+      EXPOSE ...
 
       mv: (tricky)
       ENV $MY_NAME=$VAL
@@ -128,11 +156,14 @@ module.exports = grammar(base_grammar, {
       ARG pat
       ARG buildno=42
 
-      mv:
+      mv: done
       STOPSIGNAL SIGUSR1
+      STOPSIGNAL $SIGNAL
 
-      mv:
+      mv: done
       HEALTHCHECK --interval=5m --timeout=3s CMD echo
+      HEALTHCHECK NONE
+      HEALTHCHECK $X
     */
   }
 });
