@@ -35,52 +35,147 @@ module.exports = grammar(base_grammar, {
       $.semgrep_metavariable
     ),
 
-    // TODO: support metavariables and ellipses in a bunch of places
+    // redefinition
+    arg_instruction: ($, previous) => seq(
+      alias(/[aA][rR][gG]/, "ARG"),
+      field(
+        "name",
+        alias(
+          choice(
+            $.semgrep_metavariable,
+            /[a-zA-Z0-9_]+/
+          ),
+          $.unquoted_string
+        )
+      ),
+      optional(
+        seq(
+          token.immediate("="),
+          field(
+            "default",
+            choice(
+              $.double_quoted_string,
+              $.unquoted_string
+            )
+          )
+        )
+      )
+    ),
+
+    // override
+    label_pair: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      seq(
+        field(
+          "key",
+          choice(
+            $.semgrep_metavariable,
+            alias(/[-a-zA-Z0-9\._]+/, $.unquoted_string)
+          )
+        ),
+        token.immediate("="),
+        field("value", choice($.double_quoted_string, $.unquoted_string))
+      )
+    ),
+
+    // TODO: find a way to support metavariables as env keys.
+    env_pair: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    expose_port: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // override
+    healthcheck_instruction: ($) =>
+      seq(
+        alias(/[hH][eE][aA][lL][tT][hH][cC][hH][eE][cC][kK]/, "HEALTHCHECK"),
+        choice(
+          $.semgrep_metavariable,
+          "NONE",
+          seq(repeat($.param), $.cmd_instruction)
+        )
+      ),
+
+    /*
+      Metavariable syntax vs. ARG expansions:
+
+      - in a semgrep pattern, $FOO is always a metavariable.
+      - in a semgrep pattern, ${FOO} is always an arg expansion.
+      - in a semgrep pattern, $FOO in a position where a metavariable
+        is not allowed results in an error.
+
+     TODO: support metavariables and ellipses in a bunch of places
+    */
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
 
     /*
       TODO: more syntax ellipsis (e) or metavariables (mv):
 
-      e, mv:
-      LABEL multi.label1="value1" multi.label2="value2" other="value3"
+      mv: done
+      FROM extras:$CODE_VERSION       # metavariable (pattern only)
+      FROM extras:${CODE_VERSION}     # parameter from ARG
 
-      mv:
+      mv: done
+      LABEL $NAME=$VAL
+
+      e: done
+      LABEL ... multi.label1="value1" ...
+
+      mv: done
       MAINTAINER bob
 
-      e, mv:
+      mv: done
       EXPOSE 80/tcp 80/udp
+      EXPOSE $PORT_PROTO
 
-      e, mv:
-      ENV MY_NAME="John Doe" MY_CAT=fluffy
+      e: done
+      EXPOSE ...
 
-      e, mv:
+      mv: (tricky)
+      ENV $MY_NAME=$VAL
+      ENV $MY_NAME $VAL
+
+      mv: done
+      ENV MY_NAME=$VAL
+
+      e: done
+      ENV ... MY_NAME="John Doe" ...
+
+      e, mv: done
       ADD a b /somedir/
       COPY a b /somedir/
 
-      e, mv:
+      e, mv: done
       ADD --chown=55:mygroup a b /somedir/
       COPY --chown=55:mygroup a b /somedir/
 
-      e, mv:
+      e, mv: done
       VOLUME /var/log /var/db
 
-      mv:
+      mv: done
       USER patrick
       USER patrick:star
 
-      mv:
+      mv: done
       WORKDIR /a
 
-      mv:
+      mv: done
       ARG pat
       ARG buildno=42
 
-      mv:
+      mv: done
       STOPSIGNAL SIGUSR1
+      STOPSIGNAL $SIGNAL
 
-      mv:
+      mv: done
       HEALTHCHECK --interval=5m --timeout=3s CMD echo
+      HEALTHCHECK NONE
+      HEALTHCHECK $X
     */
   }
 });
