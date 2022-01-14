@@ -75,6 +75,8 @@ ADD --chown=$USER_GROUP src dst
 
 ---
 
+; '$PLATFORM' is already allowed as parameter value by the dockerfile syntax.
+;
 (source_file
   (from_instruction
     (param)
@@ -94,6 +96,10 @@ FROM ${NAME}:${TAG}@${DIGEST}
 
 ---
 
+; $NAME and ${NAME} are dockerfile variable expansions. We will use
+; the former syntax for metavariables in Semgrep patterns, like we do
+; with Bash.
+;
 (source_file
   (from_instruction
     (image_spec
@@ -178,6 +184,9 @@ VOLUME ...
 
 ---
 
+; '...' is a valid path. In Semgrep patterns, it will be interpreted
+; as an ellipsis.
+;
 (source_file
   (add_instruction
     (path)
@@ -379,6 +388,10 @@ MAINTAINER $NAME
 
 ---
 
+; The maintainer string can be anything, including $NAME. It will need
+; to be interpreted as a metavariable in the context of Semgrep
+; patterns.
+;
 (source_file
   (maintainer_instruction)
   (maintainer_instruction))
