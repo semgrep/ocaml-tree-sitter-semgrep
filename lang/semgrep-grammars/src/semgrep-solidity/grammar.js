@@ -30,7 +30,7 @@ module.exports = grammar(base_grammar, {
         },
 
       // Metavariables. No need to patch the identifier rule because
-      // Solidity already acceptds '$' as part of an identifier
+      // Solidity already accepts '$' as part of an identifier
       
       // Ellipsis
         _expression: ($, previous) => {
@@ -38,7 +38,7 @@ module.exports = grammar(base_grammar, {
                 previous,
                 $.ellipsis,
                 $.deep_ellipsis,
-		$.member_ellipsis_expression
+                $.member_ellipsis_expression
             );
         },
 
@@ -76,7 +76,15 @@ module.exports = grammar(base_grammar, {
                $.ellipsis
             );
         },
-      
+
+        for_statement: ($, previous) => {
+            return choice(
+               previous,
+               seq('for', '(', $.ellipsis, ')', $._statement)
+            );
+        },
+
+      // The actual ellipsis rules
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
         ),
