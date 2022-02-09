@@ -61,8 +61,12 @@ module.exports = grammar(base_grammar, {
             $.ellipsis
        )),
 
-      //TODO: ellipsis in contract member list, but need to define
-      // an intermediate name in the original grammar
+        _contract_member: ($, previous) => {
+            return choice(
+               previous,
+               $.ellipsis
+            );
+        },
         struct_member: ($, previous) => {
             return choice(
                previous,

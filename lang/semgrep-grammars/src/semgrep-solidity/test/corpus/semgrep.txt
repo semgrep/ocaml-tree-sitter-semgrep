@@ -3,6 +3,17 @@ Metavariables
 =====================================
 
 =====================================
+Ellipsis for contract
+=====================================
+contract Foo {
+  ...
+}
+---
+(source_file
+	(contract_declaration (identifier)
+			      (contract_body (ellipsis))))
+
+=====================================
 Ellipsis for 'for'
 =====================================
 
