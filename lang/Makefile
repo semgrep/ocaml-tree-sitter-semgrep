@@ -15,6 +15,7 @@ SUPPORTED_TS_LANGUAGES = \
   c-sharp \
   cpp \
   dockerfile \
+  elixir \
   go \
   hack \
   hcl \
@@ -46,6 +47,7 @@ STAT_LANGUAGES = \
   c-sharp \
   cpp \
   dockerfile \
+  elixir \
   go \
   hack \
   hcl \
