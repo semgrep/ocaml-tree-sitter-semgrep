@@ -64,7 +64,7 @@ $ ./test-lang kotlin
 ```
 
 For details, see [How to upgrade the grammar for a
-language](doc/updating-a-grammar.md).
+language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
 ### Adding a new language
 
