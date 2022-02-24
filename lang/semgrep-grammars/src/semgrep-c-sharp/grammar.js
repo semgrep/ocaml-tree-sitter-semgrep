@@ -80,15 +80,25 @@ module.exports = grammar(standard_grammar, {
         ...previous.members,
         $.ellipsis,
         $.deep_ellipsis,
-        $.member_access_ellipsis_expression
+        $.member_access_ellipsis_expression,
+        $.typed_metavariable
       );
     },
 
-   // TODO: how to use PREC.DOT from original grammar instead of 18 below?
-   member_access_ellipsis_expression : $ => prec(18, seq(
+    // TODO: how to use PREC.DOT from original grammar instead of 18 below?
+    member_access_ellipsis_expression : $ => prec(18, seq(
       field('expression', choice($._expression, $.predefined_type, $._name)),
       choice('.', '->'),
       $.ellipsis
+     )),
+
+    // use syntax similar to a cast_expression, but with metavar
+    //TODO: use PREC.CAST from original grammar instead of 17 below
+    typed_metavariable: $ => prec.right(17, seq(
+      '(',
+      field('type', $._type),
+      field('metavar', $._semgrep_metavariable),
+      ')',
     )),
 
     deep_ellipsis: $ => seq(
