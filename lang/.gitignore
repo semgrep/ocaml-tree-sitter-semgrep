@@ -29,6 +29,8 @@ node-types.json
 /*/ocaml-src
 /*/parse-*
 /*/parse
+/*/grammar-rev.js.orig
+/*/grammar-rev.js
 
 # Repo to which we publish generated code.
 /export
