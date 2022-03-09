@@ -240,3 +240,20 @@ $X = $O.foo(). ... .bar();
               (ellipsis))
           (identifier))
          (argument_list))))))
+
+=====================================
+Typed metavariable
+=====================================
+
+__SEMGREP_EXPRESSION
+(FooClass $FOO).method()
+
+---
+
+(compilation_unit
+   (semgrep_expression
+      (invocation_expression
+         (member_access_expression
+	    (typed_metavariable (identifier))
+	    (identifier))
+	 (argument_list)))) 
