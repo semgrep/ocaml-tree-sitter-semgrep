@@ -29,6 +29,12 @@ module.exports = grammar(base_grammar, {
         "]"
       ),
 
+    // overrides the original definition
+    _argv_or_shell_choice: ($,previous) => choice(
+          $.semgrep_ellipsis,
+          previous
+      ),
+
     _array_element: ($) => choice(
       $.double_quoted_string,
       $.semgrep_ellipsis,
