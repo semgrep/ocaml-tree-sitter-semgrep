@@ -13,19 +13,35 @@ module.exports = grammar(base_grammar, {
   ]),
 
   /*
-     Support for semgrep ellipsis ('...') and metavariables ('$FOO'),
-     if they're not already part of the base grammar.
+     ellipsis ('...') and metavariables ('$FOO') are actually
+     valid HTML syntax in many places, so we don't need that many
+     grammar extensions
   */
   rules: {
-  /*
-    semgrep_ellipsis: $ => '...',
+    //alt: redefine instead _start_tag_name and _end_tag_name?
+    start_tag: ($, previous) => choice(
+      $.semgrep_start_tag,
+      previous
+    ),
+    end_tag: ($, previous) => choice(
+      $.semgrep_end_tag,
+      previous
+    ),
 
-    _expression: ($, previous) => {
-      return choice(
-        $.semgrep_ellipsis,
-        ...previous.members
-      );
-    }
-  */
+    semgrep_start_tag: $ => seq(
+      '<',
+      $.semgrep_metavariable,
+      repeat($.attribute),
+      '>'
+    ),
+
+    semgrep_end_tag: $ => seq(
+      '</',
+      $.semgrep_metavariable,
+      '>'
+    ),
+
+    semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+      
   }
 });
