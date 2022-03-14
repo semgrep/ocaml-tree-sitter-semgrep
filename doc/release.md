@@ -62,6 +62,7 @@ The list of languages below should match the languages listed in the [`lang` fol
 * [ruby](https://github.com/returntocorp/semgrep-ruby)
 * [rust](https://github.com/returntocorp/semgrep-rust)
 * [sqlite](https://github.com/returntocorp/semgrep-sqlite)
+* [swift](https://github.com/returntocorp/semgrep-swift)
 * [tsx](https://github.com/returntocorp/semgrep-tsx)
 * [typescript](https://github.com/returntocorp/semgrep-typescript)
 * [vue](https://github.com/returntocorp/semgrep-vue)
