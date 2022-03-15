@@ -52,6 +52,19 @@ RUN ["a", ..., "b"]
       (double_quoted_string))))
 
 =============================================
+Shell or argv ellipsis
+=============================================
+
+RUN ...
+
+---
+
+(source_file
+  (run_instruction
+    (shell_command
+      (semgrep_ellipsis))))
+
+=============================================
 Array metavariable
 =============================================
 
