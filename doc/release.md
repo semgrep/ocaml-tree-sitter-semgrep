@@ -1,6 +1,8 @@
 Releasing generated code for semgrep
 ==
 
+⚠️ r2c admins: See note at the bottom.
+
 The process for updating a grammar and releasing the generated code in
 described in details [in this document](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
@@ -71,3 +73,8 @@ GitHub homepage is: `https://github.com/returntocorp/semgrep-$lang`
 
 Git URL is: `git@github.com:returntocorp/semgrep-$lang.git`
 or `https://github.com/returntocorp/semgrep-$lang.git`
+
+Note to r2c admins
+--
+
+The repos above are not conventional source repos. Please talk to someone from the PA team if you're considering making changes to their GitHub settings.
