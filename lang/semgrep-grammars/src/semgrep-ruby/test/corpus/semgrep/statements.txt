@@ -1,0 +1,72 @@
+======================================================================
+while loop cond 1
+======================================================================
+
+while $COND do
+  puts "hello"
+end
+
+---
+
+(program
+  (while (global_variable)
+    (do (call (identifier) (argument_list (string (string_content)))))))
+
+======================================================================
+while loop cond 2
+======================================================================
+
+while ... do
+  puts "hello"
+end
+
+---
+
+(program
+  (while (semgrep_ellipsis)
+    (do (call (identifier) (argument_list (string (string_content)))))))
+
+
+=====================
+while loop ellipsis 1
+=====================
+
+while conditional do
+  ...
+end
+
+---
+
+(program
+  (while (identifier)
+    (do (semgrep_ellipsis))))
+
+=====================
+parameter ellipsis
+=====================
+
+def foo(x, ...)
+  x
+end
+
+---
+
+(program 
+  (method (identifier)
+    (method_parameters (identifier) (semgrep_ellipsis))
+      (identifier)))
+
+
+=====================
+Method call omiting parentheses and braces
+=====================
+
+begin
+  after_update $ARG, unless: ...
+end
+
+---
+
+(program
+  (begin
+    (call (identifier) (argument_list (global_variable) (pair (hash_key_symbol) (semgrep_ellipsis))))))

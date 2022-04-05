@@ -12,15 +12,49 @@ module.exports = grammar(standard_grammar, {
   rules: {
     /* Ruby global variables start with a '$' ('global_variable'). */
 
-/*
-    semgrep_dots: $ => '...',
+    /* Alternative "entry point". Allows parsing a standalone expression. */
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expression),
 
-    _expression: ($, previous) => {
+    /* Entry point. */
+    program: ($, previous) => {
       return choice(
-        $.semgrep_dots,
-        ...previous.members
+        previous,
+        $.semgrep_expression
       );
+    },
+
+    /* We don't do anything special to distiguish metavariables, we just let them
+       be parsed as global variables. Semgrep can fix that when converting to the
+       Generic AST. */
+
+    semgrep_ellipsis: $ => '...',
+
+    semgrep_deep_ellipsis: $ => seq(
+      '<...'
+      , $._expression, '...>'
+    ),
+
+    _primary: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.semgrep_ellipsis,
+        $.semgrep_deep_ellipsis
+      )
+    },
+
+    _simple_formal_parameter: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.semgrep_ellipsis
+      )
+    },
+
+    _method_name: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.semgrep_ellipsis
+      )
     }
-*/
+
   }
 });

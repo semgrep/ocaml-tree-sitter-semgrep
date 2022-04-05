@@ -1,0 +1,14 @@
+=========================
+lambda ellipsis
+=========================
+
+$FOO = -> (...) {...}
+
+---
+
+(program
+  (assignment
+    (global_variable)
+    (lambda
+      (lambda_parameters (semgrep_ellipsis))
+      (block (semgrep_ellipsis)))))
