@@ -27,6 +27,7 @@ module.exports = grammar(base_grammar, {
 
     _primary_expression: ($, previous) => choice(
       $.semgrep_deep_expression,
+      $.semgrep_named_ellipsis,
       previous
     ),
 
@@ -35,6 +36,10 @@ module.exports = grammar(base_grammar, {
       $._literal,  // includes concatenations and unquoted expansions
       '...>'
     ),
+
+    // Named ellipses like '$...HELLO'.
+    // Regular ellipses '...' are already parsed as 'word'.
+    semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
 
     // This should parse the same input as the original. It should not
     // parse '$$X' as "expand metavariable $X".
