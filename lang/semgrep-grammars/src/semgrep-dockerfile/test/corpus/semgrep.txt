@@ -142,10 +142,17 @@ Image alias metavariable
 =============================================
 
 FROM debian AS $ALIAS
+FROM debian as $ALIAS
 
 ---
 
 (source_file
+  (from_instruction
+    (image_spec
+      (image_name))
+    (image_alias
+      (expansion
+        (variable))))
   (from_instruction
     (image_spec
       (image_name))
@@ -170,7 +177,8 @@ VOLUME $A
         (variable)))
     (path
       (expansion
-        (variable))
+        (variable)))
+    (path
       (expansion
         (variable))))
   (copy_instruction
@@ -179,7 +187,8 @@ VOLUME $A
         (variable)))
     (path
       (expansion
-        (variable))
+        (variable)))
+    (path
       (expansion
         (variable))))
   (volume_instruction
