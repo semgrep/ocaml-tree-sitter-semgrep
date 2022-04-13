@@ -318,6 +318,8 @@ Named ellipses
 
 apt-get install $...ARGS
 $...ARGS and more
+"$...X"
+"foo$...Xbar"
 
 ---
 
@@ -326,9 +328,21 @@ $...ARGS and more
     (command_name
       (word))
     (word)
-    (semgrep_named_ellipsis))
+    (simple_expansion
+      (semgrep_named_ellipsis)))
   (command
     (command_name
-      (semgrep_named_ellipsis))
+      (simple_expansion
+        (semgrep_named_ellipsis)))
     (word)
-    (word)))
+    (word))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (semgrep_named_ellipsis)))))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (semgrep_named_ellipsis))))))

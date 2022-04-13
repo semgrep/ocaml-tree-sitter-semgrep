@@ -27,7 +27,6 @@ module.exports = grammar(base_grammar, {
 
     _primary_expression: ($, previous) => choice(
       $.semgrep_deep_expression,
-      $.semgrep_named_ellipsis,
       previous
     ),
 
@@ -43,14 +42,21 @@ module.exports = grammar(base_grammar, {
 
     // This should parse the same input as the original. It should not
     // parse '$$X' as "expand metavariable $X".
-    simple_expansion: $ => seq(
-      '$',
-      choice(
-        $._orig_simple_variable_name,  // no metavariable allowed here
-        $._special_variable_name,
-        alias('!', $.special_variable_name),
-        alias('#', $.special_variable_name)
-      )
+    //
+    // TODO: use token.immediate(...) to only accept variables that stick
+    //       to the '$'.
+    //       This should be fixed in the original grammar as well.
+    simple_expansion: $ => choice(
+      seq(
+        '$',
+        choice(
+          $._orig_simple_variable_name,  // no metavariable allowed here
+          $._special_variable_name,
+          alias('!', $.special_variable_name),
+          alias('#', $.special_variable_name)
+        )
+      ),
+      $.semgrep_named_ellipsis
     ),
 
     // Override variable assignments to treat '$X=42' as an assignment rather
