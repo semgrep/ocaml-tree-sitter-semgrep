@@ -40,14 +40,13 @@ module.exports = grammar(base_grammar, {
     // Regular ellipses '...' are already parsed as 'word'.
     semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
 
-    // This should parse the same input as the original. It should not
-    // parse '$$X' as "expand metavariable $X".
-    //
-    // TODO: use token.immediate(...) to only accept variables that stick
-    //       to the '$'.
-    //       This should be fixed in the original grammar as well.
     simple_expansion: $ => choice(
       seq(
+        // This should parse the same input as the original. It should not
+        // parse '$$X' as "expand metavariable $X".
+        // TODO: use token.immediate(...) to only accept variables that stick
+        //       to the '$'.
+        //       This should be fixed in the original grammar as well.
         '$',
         choice(
           $._orig_simple_variable_name,  // no metavariable allowed here
