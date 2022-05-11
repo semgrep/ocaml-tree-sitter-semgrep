@@ -10,6 +10,7 @@ module.exports = grammar(base_grammar, {
   name: 'swift',
 
   conflicts: ($, previous) => previous.concat([
+    [$._three_dot_operator, $.semgrep_ellipsis],
   ]),
 
   /*
@@ -17,14 +18,16 @@ module.exports = grammar(base_grammar, {
      if they're not already part of the base grammar.
   */
   rules: {
-  /*
-    semgrep_ellipsis: $ => '...',
+    // Swift has an unbounded range operator which is also three dots. When we
+    // are parsing a pattern, we will convert that into an ellipsis after it's
+    // parsed, but let's use low precedence here so that normally we only
+    // produce this node where the unbounded range operator cannot exist.
+    semgrep_ellipsis: $ => prec.dynamic(-1337, $._three_dot_operator_custom),
 
     _expression: ($, previous) => choice(
+      previous,
       $.semgrep_ellipsis,
-      ...previous.members
     ),
-  */
 
     // Avoid problem with ocaml-tree-sitter due to $.multiline_comment
     // being an extra that can occur anywhere (like a comment) which is
