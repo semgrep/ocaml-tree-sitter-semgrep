@@ -128,6 +128,19 @@ fun foo(..., bar: String, ...) {}
      (function_body))) 
 
 =====================================
+Class Parameter Ellipsis
+=====================================
+class Foo(...) : Filter {
+}
+
+---
+(source_file
+   (class_declaration (type_identifier)
+       (primary_constructor (class_parameter (ellipsis)))
+       (delegation_specifier (user_type (type_identifier)))
+     (class_body)))
+
+=====================================
 Statement Ellipsis
 =====================================
 fun foo() {

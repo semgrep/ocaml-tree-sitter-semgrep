@@ -54,6 +54,13 @@ module.exports = grammar(standard_grammar, {
 	    );
 	},
 
+	class_parameter: ($, previous) => {
+	    return choice(
+		previous,
+		$.ellipsis
+	    );
+	},
+	
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
         ),
