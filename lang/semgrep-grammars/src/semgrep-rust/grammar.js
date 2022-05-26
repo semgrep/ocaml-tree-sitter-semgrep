@@ -51,15 +51,16 @@ module.exports = grammar(standard_grammar, {
       return choice(
         ...previous.members,
         $.ellipsis,
-        $.deep_ellipsis
+        $.deep_ellipsis,
+        $.member_access_ellipsis_expression,
       );
     },
 
     // TODO: have to use 13 instead of PREC.field because the Rust grammar
     // doesn't export precedences. Should we use something like
     // https://github.com/jhnns/rewire to access this directly?
-    member_access_ellipsis_expression: $ => prec(13,
-        seq(field('expression', $._expression),
+    member_access_ellipsis_expression: $ => prec(13, seq(
+      field('expression', $._expression),
       '.',
       $.ellipsis
     )),
