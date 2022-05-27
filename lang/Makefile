@@ -16,7 +16,6 @@ SUPPORTED_TS_LANGUAGES = \
   cpp \
   dockerfile \
   go \
-  hack \
   hcl \
   html \
   java \
@@ -33,6 +32,8 @@ SUPPORTED_TS_LANGUAGES = \
   sqlite \
   typescript \
   vue
+# Commented out due to hitting memory limits in CI:
+#  hack
 
 # Includes all language variants e.g. typescript and tsx
 SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
