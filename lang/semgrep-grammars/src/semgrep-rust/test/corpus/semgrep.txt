@@ -95,53 +95,22 @@ impl Foo {
 Ellipsis for method / field chains
 =====================================
 
-fn foo() -> Result<i32, ()> {
-    Builder::new()
-        .add_value(31)
-        .enable_bar()
-        .run()
-        .output_status
-        .map_err(|x| ())
-}
+let $L = $X.iter(). ... .count();
 
 ---
 
 (source_file
-  (function_item
+  (let_declaration
     (identifier)
-    (parameters)
-    (generic_type
-        (type_identifier)
-        (type_arguments (primitive_type) (unit_type)))
-    (block
-      (call_expression
-        (field_expression
-          (field_expression
-            (call_expression
-              (field_expression
-                (call_expression
-                  (field_expression
-                    (call_expression
-                      (field_expression
-                        (call_expression
-                          (scoped_identifier
-                            (identifier)
-                            (identifier))
-                          (arguments))
-                        (field_identifier))
-                      (arguments
-                        (integer_literal)))
-                    (field_identifier))
-                  (arguments))
-                (field_identifier))
-              (arguments))
-            (field_identifier))
-          (field_identifier))
-        (arguments
-          (closure_expression
-            (closure_parameters
-              (identifier))
-            (unit_expression)))))))
+    (call_expression
+      (field_expression
+        (member_access_ellipsis_expression
+          (call_expression
+            (field_expression (identifier) (field_identifier))
+            (arguments))
+          (ellipsis))
+        (field_identifier))
+      (arguments))))
 
 =====================================
 Toplevel expression
