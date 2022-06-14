@@ -76,3 +76,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-swift"]
 	path = lang/semgrep-grammars/src/tree-sitter-swift
 	url = https://github.com/alex-pinkus/tree-sitter-swift.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-dart"]
+	path = lang/semgrep-grammars/src/tree-sitter-dart
+	url = https://github.com/returntocorp/tree-sitter-dart.git

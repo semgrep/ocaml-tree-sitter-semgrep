@@ -14,6 +14,7 @@ SUPPORTED_TS_LANGUAGES = \
   c \
   c-sharp \
   cpp \
+  dart \
   dockerfile \
   go \
   hcl \
