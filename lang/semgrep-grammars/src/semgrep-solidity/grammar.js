@@ -51,8 +51,8 @@ module.exports = grammar(base_grammar, {
           );
         },
 
-       // TODO: how to use PREC.MEMBER from original grammar instead of 14?
-       member_ellipsis_expression : $ => prec(14, seq(
+       // TODO: how to use PREC.MEMBER from original grammar instead of hardcoded value?
+       member_ellipsis_expression : $ => prec(1, seq(
             field('object', choice(
                 $._expression,
                 $.identifier,
