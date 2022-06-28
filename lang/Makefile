@@ -54,6 +54,7 @@ STAT_LANGUAGES = \
   hcl \
   java \
   javascript \
+  julia \
   kotlin \
   lua \
   ocaml \
