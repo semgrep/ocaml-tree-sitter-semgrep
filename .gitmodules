@@ -79,3 +79,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-dart"]
 	path = lang/semgrep-grammars/src/tree-sitter-dart
 	url = https://github.com/returntocorp/tree-sitter-dart.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-julia"]
+	path = lang/semgrep-grammars/src/tree-sitter-julia
+	url = https://github.com/tree-sitter/tree-sitter-julia

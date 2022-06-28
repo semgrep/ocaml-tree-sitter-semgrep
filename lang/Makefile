@@ -20,6 +20,7 @@ SUPPORTED_TS_LANGUAGES = \
   hcl \
   html \
   java \
+  julia \
   javascript \
   kotlin \
   lua \
