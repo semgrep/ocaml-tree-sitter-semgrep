@@ -20,6 +20,7 @@ SUPPORTED_TS_LANGUAGES = \
   hcl \
   html \
   java \
+  julia \
   javascript \
   kotlin \
   lua \
@@ -53,6 +54,7 @@ STAT_LANGUAGES = \
   hcl \
   java \
   javascript \
+  julia \
   kotlin \
   lua \
   ocaml \

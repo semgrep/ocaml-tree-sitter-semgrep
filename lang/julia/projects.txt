@@ -1,0 +1,12 @@
+# Git URLs of publicly-accessible projects to be used for parsing stats,
+# one per line.
+#
+https://github.com/fonsp/Pluto.jl
+https://github.com/FluxML/Flux.jl
+https://github.com/GenieFramework/Genie.jl
+https://github.com/GiovineItalia/Gadfly.jl
+https://github.com/SciML/DifferentialEquations.jl
+https://github.com/jump-dev/JuMP.jl
+https://github.com/probcomp/Gen.jl
+https://github.com/julialang/julia
+https://github.com/julialang/Pkg.jl
