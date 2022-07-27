@@ -14,13 +14,14 @@ SUPPORTED_TS_LANGUAGES = \
   c \
   c-sharp \
   cpp \
+  dart \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   html \
   java \
+  julia \
   javascript \
   kotlin \
   lua \
@@ -34,6 +35,8 @@ SUPPORTED_TS_LANGUAGES = \
   sqlite \
   typescript \
   vue
+# Commented out due to hitting memory limits in CI:
+#  hack
 
 # Includes all language variants e.g. typescript and tsx
 SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
@@ -53,6 +56,7 @@ STAT_LANGUAGES = \
   hcl \
   java \
   javascript \
+  julia \
   kotlin \
   lua \
   ocaml \

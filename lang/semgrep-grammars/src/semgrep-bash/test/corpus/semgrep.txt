@@ -311,3 +311,38 @@ a <... 'b'$c ...>
         (raw_string)
         (simple_expansion
           (variable_name))))))
+
+======================================================================
+Named ellipses
+======================================================================
+
+apt-get install $...ARGS
+$...ARGS and more
+"$...X"
+"foo$...Xbar"
+
+---
+
+(program
+  (command
+    (command_name
+      (word))
+    (word)
+    (simple_expansion
+      (semgrep_named_ellipsis)))
+  (command
+    (command_name
+      (simple_expansion
+        (semgrep_named_ellipsis)))
+    (word)
+    (word))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (semgrep_named_ellipsis)))))
+  (command
+    (command_name
+      (string
+        (simple_expansion
+          (semgrep_named_ellipsis))))))

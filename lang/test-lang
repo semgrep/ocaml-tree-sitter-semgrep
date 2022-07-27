@@ -66,7 +66,7 @@ fi
 
 check_for_blanks() {
   cst_ml=ocaml-src/lib/CST.ml
-  if grep -C 2 Blank "$cst_ml"; then
+  if grep -C 2 '\bBlank\b' "$cst_ml"; then
     cat 2>&1 <<EOF
 
 found in $(pwd)/$cst_ml

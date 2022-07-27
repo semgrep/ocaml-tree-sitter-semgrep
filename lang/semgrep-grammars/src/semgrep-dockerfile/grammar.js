@@ -100,6 +100,11 @@ module.exports = grammar(base_grammar, {
         )
       ),
 
+    shell_command: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
     /*
       Metavariable syntax vs. ARG expansions:
 

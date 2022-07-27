@@ -91,6 +91,26 @@ impl Foo {
       (function_item (identifier) (parameters)
         (block (let_declaration (identifier) (deep_ellipsis (integer_literal))))))))
 
+=====================================
+Ellipsis for method / field chains
+=====================================
+
+let $L = $X.iter(). ... .count();
+
+---
+
+(source_file
+  (let_declaration
+    (identifier)
+    (call_expression
+      (field_expression
+        (member_access_ellipsis_expression
+          (call_expression
+            (field_expression (identifier) (field_identifier))
+            (arguments))
+          (ellipsis))
+        (field_identifier))
+      (arguments))))
 
 =====================================
 Toplevel expression

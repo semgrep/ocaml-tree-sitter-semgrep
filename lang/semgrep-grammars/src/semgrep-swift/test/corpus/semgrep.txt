@@ -1,0 +1,92 @@
+================================================================================
+Ellipsis
+================================================================================
+
+... + 1;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (additive_expression
+    (semgrep_expression_ellipsis)
+    (integer_literal)))
+
+================================================================================
+Unbounded range operator
+================================================================================
+
+(...) + 1;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (additive_expression
+    (tuple_expression (fully_open_range))
+    (integer_literal)))
+
+================================================================================
+Argument Ellipsis
+================================================================================
+
+foo(...);
+foo(..., 1, ...);
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    (simple_identifier)
+    (call_suffix
+      (value_arguments (value_argument (fully_open_range)))))
+  (call_expression
+    (simple_identifier)
+    (call_suffix
+      (value_arguments
+        (value_argument (fully_open_range))
+        (value_argument (integer_literal))
+        (value_argument (fully_open_range))))))
+
+================================================================================
+Type Ellipsis
+================================================================================
+
+typealias foo = ...;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (typealias_declaration
+    (type_identifier)
+    (semgrep_ellipsis)))
+
+================================================================================
+TParam Ellipsis
+================================================================================
+
+func foo<...>() { }
+func foo<T, ...>() { }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (function_declaration
+    (simple_identifier)
+    (type_parameters
+      (type_parameter (semgrep_ellipsis)))
+    (function_body))
+  (function_declaration
+    (simple_identifier)
+    (type_parameters
+      (type_parameter (type_identifier))
+      (type_parameter (semgrep_ellipsis)))
+    (function_body)))
+
+================================================================================
+Deep Ellipsis
+================================================================================
+
+<... 5 ...>
+
+--------------------------------------------------------------------------------
+
+(source_file (semgrep_deep_ellipsis (integer_literal)))

@@ -68,7 +68,7 @@ language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
 ### Adding a new language
 
-See [How to add support for a new language](doc/adding-a-language.md).
+See [How to add support for a new language](https://semgrep.dev/docs/contributing/adding-a-language/).
 
 Documentation
 --
