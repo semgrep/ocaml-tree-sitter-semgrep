@@ -40,7 +40,7 @@ module.exports = grammar(base_grammar, {
     ),
 
     _class_member_declarations: ($, previous) => choice (
-      previous, 
+      previous,
       $.semgrep_ellipsis,
     ),
 
