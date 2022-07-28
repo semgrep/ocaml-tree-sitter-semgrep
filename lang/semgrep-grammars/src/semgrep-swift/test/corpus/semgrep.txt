@@ -91,9 +91,6 @@ Deep Ellipsis
 
 (source_file (semgrep_deep_ellipsis (integer_literal)))
 
-
-
-
 ================================================================================
 Class Ellipsis
 ================================================================================
@@ -105,3 +102,17 @@ class ClassName {
 --------------------------------------------------------------------------------
 
 (source_file (class_declaration (type_identifier) (class_body (semgrep_ellipsis))))
+
+================================================================================
+Class Ellipsis Sandwiched 
+================================================================================
+
+class ClassName {
+  ...
+  var x = 2
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(source_file (class_declaration (type_identifier) (class_body (semgrep_ellipsis) (property_declaration (pattern (simple_identifier)) (open_end_range_expression (integer_literal))))))
