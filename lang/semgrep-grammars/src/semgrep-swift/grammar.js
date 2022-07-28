@@ -39,6 +39,11 @@ module.exports = grammar(base_grammar, {
       $.semgrep_ellipsis,
     ),
 
+    _class_member_declarations: ($, previous) => choice (
+      previous, 
+      $.semgrep_ellipsis,
+    ),
+
     type_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
