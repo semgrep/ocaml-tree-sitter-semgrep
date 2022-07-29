@@ -173,3 +173,21 @@ $COOKIE.setValue("")
        (navigation_suffix (simple_identifier)))
     (call_suffix (value_arguments (value_argument (line_string_literal)))))
   (ellipsis))
+
+=====================================
+Method chaining Ellipsis
+=====================================
+obj. ... .foo().bar()
+
+---
+(source_file
+  (call_expression
+    (navigation_expression
+      (call_expression
+        (navigation_expression
+	   (navigation_expression (simple_identifier)
+	     (navigation_suffix (ellipsis)))
+	   (navigation_suffix (simple_identifier)))
+	(call_suffix (value_arguments)))
+      (navigation_suffix (simple_identifier)))
+    (call_suffix (value_arguments))))
