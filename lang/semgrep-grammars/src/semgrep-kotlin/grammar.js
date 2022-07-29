@@ -40,6 +40,13 @@ module.exports = grammar(standard_grammar, {
             );
         },
 
+        navigation_suffix: ($, previous) => {
+	    return choice(
+		previous,
+		seq($._member_access_operator, $.ellipsis)
+		);
+	},
+
 	_class_member_declaration: ($, previous) => {
 	    return choice(
 		previous,
