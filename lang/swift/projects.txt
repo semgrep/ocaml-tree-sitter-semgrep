@@ -1,6 +1,6 @@
 # Git URLs of publicly-accessible projects to be used for parsing stats,
 # one per line.
-https://github.com/saoudrizwan/Dance#
+https://github.com/saoudrizwan/Dance
 https://github.com/146BC/StyleKit
 https://github.com/ReactKit/ReactKit
 https://github.com/delba/JASON
