@@ -48,11 +48,5 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_ellipsis,
     ),
-
-    // Avoid problem with ocaml-tree-sitter due to $.multiline_comment
-    // being an extra that can occur anywhere (like a comment) which is
-    // removed from the CST.
-    //_class_member_separator: ($) => choice($._semi, $.multiline_comment),
-    _class_member_separator: ($) => $._semi,
   }
 });
