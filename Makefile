@@ -23,12 +23,9 @@ setup:
 update:
 	git submodule update --init --recursive --depth 1
 
-# Keep things like node_modules that are worth keeping around
 .PHONY: clean
 clean:
 	rm -rf bin
-	dune clean
-	make -C tests clean
 	make -C lang clean
 
 .PHONY: distclean
