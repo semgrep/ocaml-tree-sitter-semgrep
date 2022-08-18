@@ -2,11 +2,13 @@
 # Generic makefile to be symlinked or to be included at the root of the
 # semgrep-* folders as follows:
 #
-#   include ../common.mk
+#   include ../Makefile.common
 #
 
 PROJECT_ROOT = $(shell git rev-parse --show-toplevel)
 NAME = $(shell pwd | xargs basename)
+
+include $(PROJECT_ROOT)/tree-sitter-config.mk
 
 # The folder containing the tree-sitter-* repos and semgrep-* folders
 NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH) make

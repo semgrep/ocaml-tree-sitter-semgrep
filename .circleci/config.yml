@@ -27,12 +27,6 @@ jobs:
           name: set up node
           command: ./core/scripts/setup-node
       - run:
-          name: install tree-sitter runtime library
-          command: ./core/scripts/install-tree-sitter-lib
-      - run:
-          name: install tree-sitter executable
-          command: ./core/scripts/install-tree-sitter-cli
-      - run:
           name: install dependencies
           command: opam exec -- make setup
       - run:
