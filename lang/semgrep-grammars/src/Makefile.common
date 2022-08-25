@@ -38,6 +38,7 @@ prep:
 
 .PHONY: test
 test:
+	set -e; \
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
 	  echo "Test $$dir"; \
 	  (cd "$$dir" && tree-sitter test); \
