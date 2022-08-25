@@ -1,0 +1,54 @@
+==================================
+Expression Ellipsis
+==================================
+
+...
+foo(...);
+x + ...;
+switch (...) { }
+if (...) { }
+[..., 1, ...]
+
+---
+
+(program
+  (expression_statement
+    (semgrep_expression_ellipsis))
+  (expression_statement
+    (call_expression
+      (identifier)
+      (arguments
+        (semgrep_expression_ellipsis))))
+  (expression_statement
+    (binary_expression
+      (identifier)
+      (semgrep_expression_ellipsis)))
+  (switch_statement
+    (parenthesized_expression
+      (semgrep_expression_ellipsis))
+    (switch_body))
+  (if_statement
+    (parenthesized_expression
+      (semgrep_expression_ellipsis))
+    (statement_block))
+  (expression_statement
+    (array
+      (semgrep_expression_ellipsis)
+      (number)
+      (semgrep_expression_ellipsis))))
+
+==================================
+Case pattern
+==================================
+
+case "Foo":
+  ...
+
+---
+
+(program
+  (switch_case
+    (string
+      (string_fragment))
+    (expression_statement
+      (semgrep_expression_ellipsis))))
