@@ -1,0 +1,75 @@
+================================================================================
+Ellipsis
+================================================================================
+
+...
+
+--------------------------------------------------------------------------------
+
+(program
+  (semgrep_ellipsis))
+
+================================================================================
+Top level public constructor
+================================================================================
+
+public Foo(...) { }
+
+--------------------------------------------------------------------------------
+
+(program
+  (constructor_declaration
+    (modifiers)
+    (identifier)
+    (formal_parameters
+      (formal_parameter
+        (semgrep_ellipsis)))
+    (constructor_body)))
+
+================================================================================
+Top level bare constructor
+================================================================================
+
+Foo(...) { }
+
+--------------------------------------------------------------------------------
+
+(program
+  (constructor_declaration
+    (identifier)
+    (formal_parameters
+      (formal_parameter
+        (semgrep_ellipsis)))
+    (constructor_body)))
+
+================================================================================
+Metavariable
+================================================================================
+
+class $X {
+  $X() { }
+  void $ASDF() {
+    int $QWERTY = $UIOP;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (class_declaration
+    (identifier)
+    (class_body
+      (constructor_declaration
+        (identifier)
+        (formal_parameters)
+        (constructor_body))
+      (method_declaration
+        (void_type)
+        (identifier)
+        (formal_parameters)
+        (block
+          (local_variable_declaration
+            (integral_type)
+            (variable_declarator
+              (identifier)
+              (identifier))))))))
