@@ -23,6 +23,7 @@ SUPPORTED_TS_LANGUAGES = \
   java \
   julia \
   javascript \
+  jsonnet \
   kotlin \
   lua \
   ocaml \
