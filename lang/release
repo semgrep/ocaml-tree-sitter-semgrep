@@ -57,6 +57,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+if [[ -z "$lang" ]]; then
+  error "Missing language. See --help for usage."
+fi
+
 id=$(git rev-parse --short HEAD)
 
 if [[ "$dry_run" = false ]]; then
