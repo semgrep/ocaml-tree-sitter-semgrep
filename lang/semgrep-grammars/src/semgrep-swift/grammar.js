@@ -11,6 +11,7 @@ module.exports = grammar(base_grammar, {
 
   conflicts: ($, previous) => previous.concat([
     [$._three_dot_operator, $.semgrep_expression_ellipsis],
+    [$._three_dot_operator, $.semgrep_expression_ellipsis, $.semgrep_ellipsis],
   ]),
 
   /*
@@ -22,11 +23,14 @@ module.exports = grammar(base_grammar, {
     // are parsing a pattern, we will convert that into an ellipsis after it's
     // parsed, but let's use low precedence here so that normally we only
     // produce this node where the unbounded range operator cannot exist.
-    semgrep_expression_ellipsis: $ => prec.dynamic(-1337, $._three_dot_operator_custom),
+    semgrep_expression_ellipsis: $ => prec.dynamic(-1337, "..."),
 
+    // Use "..." here and in semgrep_expression_ellipsis above, rather than
+    // `$._three_dot_operator`, so that the conflicts list is easier to
+    // understand.
     semgrep_ellipsis: $ => "...",
 
-    semgrep_deep_ellipsis: $ => seq("<...", $._expression, "...>"),
+    semgrep_deep_ellipsis: $ => seq("<...", $._expression, $.custom_operator),
 
     _expression: ($, previous) => choice(
       previous,

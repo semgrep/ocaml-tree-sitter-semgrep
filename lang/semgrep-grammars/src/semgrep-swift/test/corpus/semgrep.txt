@@ -89,7 +89,35 @@ Deep Ellipsis
 
 --------------------------------------------------------------------------------
 
-(source_file (semgrep_deep_ellipsis (integer_literal)))
+(source_file (semgrep_deep_ellipsis (integer_literal) (custom_operator)))
+
+================================================================================
+Deep Ellipsis with custom operator (should not parse, but does because of a hack
+necessary to work around custom operators getting scanned by the custom scanner)
+================================================================================
+
+<... 5 .+.
+
+--------------------------------------------------------------------------------
+
+(source_file (semgrep_deep_ellipsis (integer_literal) (custom_operator)))
+
+================================================================================
+Deep Ellipsis with custom operator (this parses due to parens)
+================================================================================
+
+<... (5 .+. 3) ...>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_deep_ellipsis
+    (tuple_expression
+      (infix_expression
+        (integer_literal)
+        (custom_operator)
+        (integer_literal)))
+    (custom_operator)))
 
 ================================================================================
 Class Ellipsis
@@ -116,3 +144,29 @@ class ClassName {
 --------------------------------------------------------------------------------
 
 (source_file (class_declaration (type_identifier) (class_body (semgrep_ellipsis) (property_declaration (pattern (simple_identifier)) (integer_literal)) (semgrep_ellipsis))))
+
+================================================================================
+Statement Ellipsis with semicolon
+================================================================================
+
+foo;
+...
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (simple_identifier)
+  (fully_open_range))
+
+================================================================================
+Statement Ellipsis without semicolon
+================================================================================
+
+foo
+...
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (simple_identifier)
+  (fully_open_range))
