@@ -16,6 +16,20 @@ module.exports = grammar(base_grammar, {
     // are already several conflicts in the original grammar to deal with this
     // case.
     [$.primary_expression, $.formal_parameter],
+
+    // We need to add semgrep_ellipsis to the statement rule, so that the
+    // semgrep ellipsis by itself, without a semicolon, is considered a valid
+    // statement, e.g. for:
+    //
+    // foo();
+    // ...
+    // bar();
+    //
+    // However, it also needs to be a valid expression. So, there is a conflict
+    // here, but it should be adequately resolved by allowing tree sitter to
+    // explore both options with GLR. It's probably not a true ambiguity, just
+    // an LR(1) conflict. However, even if it is, it should be an innocuous one.
+    [$.primary_expression, $.statement],
   ]),
 
   /*
@@ -34,6 +48,11 @@ module.exports = grammar(base_grammar, {
     semgrep_ellipsis: $ => '...',
 
     primary_expression: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    statement: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
     ),
