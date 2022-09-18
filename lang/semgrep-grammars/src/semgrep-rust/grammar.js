@@ -46,6 +46,13 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    _declaration_statement: ($, previous) => {
+      return choice(
+        previous,
+        $.ellipsis
+      );
+    },
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(
