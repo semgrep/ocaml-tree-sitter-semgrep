@@ -135,3 +135,17 @@ stat-priv:
 clean:
 	set -e; \
 	for lang in $(SUPPORTED_LANGUAGES); do $(MAKE) -C $$lang clean; done
+
+# Helpers for github PRs using git and hub command-line tools
+.PHONY: pr
+pr:
+	git push origin `git rev-parse --abbrev-ref HEAD`
+	hub pull-request -b main
+
+.PHONY: push
+push:
+	git push origin `git rev-parse --abbrev-ref HEAD`
+
+.PHONY: merge
+merge:
+	A=`git rev-parse --abbrev-ref HEAD` && git checkout main && git pull && git branch -D $$A

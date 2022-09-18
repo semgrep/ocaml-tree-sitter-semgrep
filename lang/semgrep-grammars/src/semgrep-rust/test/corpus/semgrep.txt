@@ -72,6 +72,21 @@ impl Foo {
 	  (ellipsis)
 	  (let_declaration (identifier) (integer_literal)))))))
 
+=====================================
+Ellipsis for declarations
+=====================================
+
+mod Foo {
+  ...
+}
+
+---
+(source_file
+      (mod_item
+        (identifier)
+        (declaration_list
+          (ellipsis))))
+
 
 =====================================
 Deep expression ellipsis
