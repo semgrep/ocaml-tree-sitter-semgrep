@@ -25,7 +25,9 @@ module.exports = grammar(base_grammar, {
           return choice(
             previous,
             repeat1($._statement),
-            $._expression
+            $._expression,
+            $.constructor_definition,
+            $.modifier_definition,
           );
         },
 

@@ -24,3 +24,35 @@ for(...) {
 
 (source_file
   (for_statement (ellipsis) (block_statement)))
+
+=====================================
+Constructor pattern
+=====================================
+constructor (...) {
+   ...
+}
+---
+ (source_file
+      (constructor_definition
+        (parameter
+          (ellipsis))
+        (function_body
+          (expression_statement
+            (ellipsis)))))
+
+=====================================
+Modifier pattern
+=====================================
+
+modifier $M(...) {
+   ...
+}
+---
+(source_file
+      (modifier_definition
+        (identifier)
+        (parameter
+          (ellipsis))
+        (function_body
+          (expression_statement
+            (ellipsis)))))
