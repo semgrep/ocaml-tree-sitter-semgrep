@@ -257,3 +257,25 @@ __SEMGREP_EXPRESSION
 	    (typed_metavariable (identifier))
 	    (identifier))
 	 (argument_list)))) 
+
+
+==========================
+Ellipses + metavariables as args
+==========================
+
+foo($...ARGS, 3, $...ARGS);
+
+---
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (invocation_expression
+        (identifier)
+        (argument_list
+          (argument
+            (semgrep_variadic_metavariable))
+          (argument
+            (integer_literal))
+          (argument
+            (semgrep_variadic_metavariable)))))))
