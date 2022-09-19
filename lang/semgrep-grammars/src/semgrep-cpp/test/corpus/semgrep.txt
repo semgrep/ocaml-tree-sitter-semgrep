@@ -1,0 +1,28 @@
+=====================================
+Metavariables
+=====================================
+$VAR = 1;
+
+---
+(translation_unit
+      (expression_statement
+        (assignment_expression
+          (identifier)
+          (number_literal))))
+
+=====================================
+Ellipsis for expression
+=====================================
+
+$VAR->$MEMBER = ...;
+
+---
+
+(translation_unit
+      (expression_statement
+        (assignment_expression
+          (field_expression
+            (identifier)
+            (field_identifier))
+          (semgrep_ellipsis))))
+
