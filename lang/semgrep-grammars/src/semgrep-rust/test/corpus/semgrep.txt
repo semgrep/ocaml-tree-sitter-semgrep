@@ -87,6 +87,35 @@ mod Foo {
         (declaration_list
           (ellipsis))))
 
+=====================================
+Ellipsis for struct fields
+=====================================
+
+struct $FOO {
+  ...
+}
+
+struct $FOO {
+  $VAR: $TYPE,
+  ...
+}
+
+---
+(source_file
+      (struct_item
+        (type_identifier)
+        (field_declaration_list
+          (field_declaration
+            (ellipsis))))
+      (struct_item
+        (type_identifier)
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier))
+          (field_declaration
+            (ellipsis)))))
+
 
 =====================================
 Deep expression ellipsis

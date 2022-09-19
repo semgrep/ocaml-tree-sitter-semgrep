@@ -53,6 +53,13 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    field_declaration: ($, previous) => {
+      return choice(
+        previous,
+        $.ellipsis
+      );
+    },
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(
