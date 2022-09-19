@@ -50,11 +50,21 @@ module.exports = grammar(standard_grammar, {
     },
 
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+    semgrep_variadic_metavariable: ($) => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
 
     parameter: ($, previous) => {
       return choice(
         previous,
         $.ellipsis
+      );
+    },
+
+    // alt: we could also extend 'identifier' above and allow 'semgrep_variadic_metavariable'
+    // there to be more general
+    argument: ($, previous) => {
+      return choice(
+        previous,
+        $.semgrep_variadic_metavariable
       );
     },
 
