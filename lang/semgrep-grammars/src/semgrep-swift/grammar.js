@@ -30,6 +30,26 @@ module.exports = grammar(base_grammar, {
     // understand.
     semgrep_ellipsis: $ => "...",
 
+    /*
+    * Unfortunately, `...>` is a valid custom operator in Swift, and it can
+    * occur as part of an expression. So, for the pattern `<... 5 ...>`, it gets
+    * lexed as `<...`, followed by the expression `5`, followed by a
+    * `custom_operator` token. This doesn't fit the deep ellipsis rule, so it
+    * results in a parse error.
+    *
+    * A proper fix would be to extend the scanner so that `...>` is its own
+    * token, and then handle it separately in the grammar. This would be
+    * complicated, and would likely present significant maintainability
+    * challenges because the way custom scanners are structured does not invite
+    * extensibility. We would probably have to maintain a fork of the scanner.
+    *
+    * Instead, we just replaced `...>` with `$.custom_operator` in this rule.
+    * Unfortunately, it will prevent people from writing patterns like `<... 5
+    * .+. 1 ...>` because the custom operator in the middle will get mistaken
+    * for the end of the deep ellipsis. However, this can easily be worked
+    * around with parentheses, and it's probably going to come up rarely, if
+    * ever.
+    */
     semgrep_deep_ellipsis: $ => seq("<...", $._expression, $.custom_operator),
 
     _expression: ($, previous) => choice(
