@@ -58,10 +58,15 @@ echo "Building the extended parser semgrep-$lang."
 )
 
 sublangs="$lang"
-# Another special case for typescript. Could be handled in a generic fashion
-# by declaring the list of dialects for each tree-sitter-X project.
+# Another special case for typescript and apex.
+# It could be handled in a generic fashion by declaring the list of
+# dialects for each tree-sitter-X project.
 if [[ "$lang" = typescript ]]; then
   sublangs="typescript tsx"
+elif [[ "$lang" = sfapex ]]; then
+  # sosl and soql are subgrammars of apex which have their own test suites
+  # but we don't care about them as standalone languages.
+  sublangs="apex"
 fi
 
 check_for_blanks() {

@@ -32,6 +32,7 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
+  sfapex \
   solidity \
   sqlite \
   typescript \
@@ -66,6 +67,7 @@ STAT_LANGUAGES = \
   r \
   ruby \
   rust \
+  sfapex \
   solidity \
   sqlite \
   tsx \
