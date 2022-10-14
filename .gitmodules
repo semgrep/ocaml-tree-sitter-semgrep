@@ -85,3 +85,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-jsonnet"]
 	path = lang/semgrep-grammars/src/tree-sitter-jsonnet
 	url = https://github.com/sourcegraph/tree-sitter-jsonnet.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-sfapex"]
+	path = lang/semgrep-grammars/src/tree-sitter-sfapex
+	url = https://github.com/aheber/tree-sitter-sfapex.git
