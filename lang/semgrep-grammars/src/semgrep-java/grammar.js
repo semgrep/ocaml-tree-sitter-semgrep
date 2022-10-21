@@ -2,6 +2,8 @@
   semgrep-java
 
   Extends the standard java grammar with semgrep pattern constructs.
+  Note that '$' is valid character in Java identifiers so we don't
+  need to extend the grammar to support metavariables such as '$FOO'.
 */
 
 const base_grammar = require('tree-sitter-java/grammar');
@@ -32,10 +34,6 @@ module.exports = grammar(base_grammar, {
     [$.primary_expression, $.statement],
   ]),
 
-  /*
-     Support for semgrep ellipsis ('...') and metavariables ('$FOO'),
-     if they're not already part of the base grammar.
-  */
   rules: {
     // Additional rules for constructs that are not, by themselves, valid Java
     // programs, but which should be valid Semgrep patterns.
