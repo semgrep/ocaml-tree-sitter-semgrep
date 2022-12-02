@@ -32,3 +32,6 @@ https://github.com/pdalcol/Zippex
 https://github.com/choudharymanish8585/Apex-Development-Course
 https://github.com/rsoesemann/visualforce-table-grid
 https://github.com/jamessimone/apex-rollup
+
+# Extra public repos provided by customer
+https://github.com/trailheadapps/build-apps-with-lwc
