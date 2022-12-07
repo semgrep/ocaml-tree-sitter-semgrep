@@ -43,12 +43,9 @@ module.exports = grammar(base_grammar, {
       $._full_method_header,
 
       // Partial statements
-/*
-       | IF "(" expression ")" EOF { Partial (PartialIf ($1, $3)) }
-       | TRY block             EOF { Partial (PartialTry ($1, $2)) }
-       | catch_clause          EOF { Partial (PartialCatch $1) }
-       | finally               EOF { Partial (PartialFinally $1) }
-*/
+      seq(ci("try"), $.block),
+      seq(ci("catch"), $.catch_clause),
+      $.finally_clause,
     ),
 
     ///// Add Semgrep ellipsis (...) in several places
@@ -75,7 +72,7 @@ module.exports = grammar(base_grammar, {
     class_declaration: ($) =>
       seq($._class_header, $.class_body),
 
-    // Derived from the original class_declaration.
+    // Derived from class_declaration.
     // (hidden so that it doesn't change the original text expectations)
     _class_header: ($) => seq(
       optional($.modifiers),
@@ -86,10 +83,26 @@ module.exports = grammar(base_grammar, {
       optional($.interfaces)
     ),
 
-    // Derived from the original method_declaration.
+    // Derived from method_declaration.
     _full_method_header: ($) => seq(
       optional($.modifiers),
       $._method_header,
     ),
+
+    // Rewrite if_statement to support partial construct: if(cond)
+    if_statement: ($) => prec.right(
+      seq(
+        ci("if"),
+        $.parenthesized_expression,
+        optional($._consequences)
+      )
+    ),
+
+    _consequences: ($) => prec.right(
+      seq(
+        $.statement,
+        optional(seq(ci("else"), field("alternative", $.statement)))
+      )
+    )
   }
 });

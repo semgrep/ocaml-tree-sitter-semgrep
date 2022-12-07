@@ -185,3 +185,77 @@ public override void printName()
   (void_type)
   (identifier)
   (formal_parameters))
+
+==========================================
+IF right-associativity
+==========================================
+
+if (true)
+  if (true)
+    x;
+  else
+    x;
+
+---
+
+(parser_output
+  (if_statement
+    (parenthesized_expression
+      (boolean))
+    (if_statement
+      (parenthesized_expression
+        (boolean))
+      (expression_statement
+        (identifier))
+      (expression_statement
+        (identifier)))))
+
+==========================================
+Partial IF
+==========================================
+
+iF (true)
+
+---
+
+(parser_output
+  (if_statement
+    (parenthesized_expression
+      (boolean))))
+
+==========================================
+Partial TRY
+==========================================
+
+tRy {
+  insert a;
+}
+
+---
+
+(parser_output
+  (block
+    (expression_statement
+      (dml_expression
+        (dml_type)
+        (identifier)))))
+
+==========================================
+FINALLY clause
+==========================================
+
+finallY {
+  Boolean finallyRan = true;
+}
+
+---
+
+(parser_output
+  (finally_clause
+    (block
+      (local_variable_declaration
+        (type_identifier)
+        (variable_declarator
+          (identifier)
+          (assignment_operator)
+          (boolean))))))
