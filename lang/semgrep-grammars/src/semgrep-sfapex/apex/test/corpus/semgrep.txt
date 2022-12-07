@@ -10,7 +10,7 @@ Ellipsis
   (semgrep_ellipsis))
 
 ==========================================
-Top level statements
+Top-level statements
 ==========================================
 
 foo();
@@ -31,7 +31,7 @@ bar();
       (argument_list))))
 
 ==========================================
-Top level public constructor
+Top-level public constructor
 ==========================================
 
 public Foo(...) { }
@@ -49,7 +49,7 @@ public Foo(...) { }
     (constructor_body)))
 
 ==========================================
-Top level bare constructor
+Top-level bare constructor
 ==========================================
 
 Foo(...) { }
@@ -63,6 +63,54 @@ Foo(...) { }
       (formal_parameter
         (semgrep_ellipsis)))
     (constructor_body)))
+
+==========================================
+Class body ellipsis
+==========================================
+
+class $X {
+  ...
+  f() {}
+}
+
+---
+
+(parser_output
+  (class_declaration
+    (identifier)
+    (class_body
+      (semgrep_ellipsis)
+      (constructor_declaration
+        (identifier)
+        (formal_parameters)
+        (constructor_body)))))
+
+==========================================
+Class interface body ellipsis
+==========================================
+
+interface $INTERFACE extends Remote {
+  ...
+  $RETURNTYPE $METHOD(Object $PARAM);
+}
+
+---
+
+(parser_output
+  (interface_declaration
+    (identifier)
+    (extends_interfaces
+      (type_list
+        (type_identifier)))
+    (interface_body
+      (semgrep_ellipsis)
+      (method_declaration
+        (type_identifier)
+        (identifier)
+        (formal_parameters
+          (formal_parameter
+            (type_identifier)
+            (identifier)))))))
 
 ==========================================
 Constructor body ellipsis
@@ -101,7 +149,7 @@ foo(..., 5)
       (int))))
 
 ==========================================
-Ellipsis in if
+Ellipsis in 'if'
 ==========================================
 
 if (...) {
@@ -151,6 +199,51 @@ class $X {
               (identifier))))))))
 
 ==========================================
+Metavariable statement
+==========================================
+
+$X;
+
+---
+
+(parser_output
+  (expression_statement
+    (identifier)))
+
+==========================================
+Top-level lone annotation
+==========================================
+
+@Annotation
+
+---
+
+(parser_output
+  (annotation
+    (identifier)))
+
+==========================================
+Top-level lone annotation with args
+==========================================
+
+@Annotation(param1=false, param2='hello')
+
+---
+
+(parser_output
+  (annotation
+    (identifier)
+    (annotation_argument_list
+      (annotation_key_value
+        (identifier)
+        (assignment_operator)
+        (boolean))
+      (annotation_key_value
+        (identifier)
+        (assignment_operator)
+        (string_literal)))))
+
+==========================================
 Class header
 ==========================================
 
@@ -187,7 +280,7 @@ public override void printName()
   (formal_parameters))
 
 ==========================================
-IF right-associativity
+'if' right-associativity
 ==========================================
 
 if (true)
@@ -211,7 +304,7 @@ if (true)
         (identifier)))))
 
 ==========================================
-Partial IF
+Partial 'if'
 ==========================================
 
 iF (true)
@@ -224,7 +317,7 @@ iF (true)
       (boolean))))
 
 ==========================================
-Partial TRY
+Partial 'try'
 ==========================================
 
 tRy {
@@ -241,7 +334,7 @@ tRy {
         (identifier)))))
 
 ==========================================
-FINALLY clause
+'finally' clause
 ==========================================
 
 finallY {
@@ -259,3 +352,89 @@ finallY {
           (identifier)
           (assignment_operator)
           (boolean))))))
+
+==========================================
+Ellipsis for type parameters
+==========================================
+
+class Foo<...> {}
+class Foo<...,T1,...> {}
+
+---
+
+(parser_output
+  (class_declaration
+    (identifier)
+    (type_parameters
+      (type_parameter
+        (semgrep_ellipsis)))
+    (class_body))
+  (class_declaration
+    (identifier)
+    (type_parameters
+      (type_parameter
+        (semgrep_ellipsis))
+      (type_parameter
+        (type_identifier))
+      (type_parameter
+        (semgrep_ellipsis)))
+    (class_body)))
+
+==========================================
+'for' ellipsis
+==========================================
+
+for(...) { ... }
+
+---
+
+(parser_output
+  (for_statement
+    (semgrep_ellipsis)
+    (block
+      (semgrep_ellipsis))))
+
+==========================================
+'catch' ellipsis
+==========================================
+
+try {}
+catch (...) {}
+
+---
+
+(parser_output
+  (try_statement
+    (block)
+    (catch_clause
+      (catch_formal_parameter
+        (semgrep_ellipsis))
+      (block))))
+
+==========================================
+Deep expressions
+==========================================
+
+if (<... $X == true ...>) {
+  ...
+}
+
+foo(<... 42 ...>);
+
+---
+
+(parser_output
+  (if_statement
+    (parenthesized_expression
+      (semgrep_deep_expression
+        (binary_expression
+          (identifier)
+          (boolean))))
+    (block
+      (semgrep_ellipsis)))
+  (expression_statement
+    (method_invocation
+      (identifier)
+      (argument_list
+        (semgrep_deep_expression
+          (int))))))

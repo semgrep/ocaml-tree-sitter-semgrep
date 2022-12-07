@@ -37,6 +37,7 @@ module.exports = grammar(base_grammar, {
 
       $.constructor_declaration,
       $.expression,
+      $.annotation,
 
       ///// Partial definitions
       $._class_header,
@@ -48,12 +49,16 @@ module.exports = grammar(base_grammar, {
       $.finally_clause,
     ),
 
-    ///// Add Semgrep ellipsis (...) in several places
     semgrep_ellipsis: $ => '...',
+    semgrep_deep_expression: $ => seq('<...', $.expression, '...>'),
+
+    ////////////////////////////////////////////////////////////////////
+    ///// Add Semgrep ellipsis and deep expressions in several places
 
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_deep_expression,
     ),
 
     statement: ($, previous) => choice(
@@ -66,6 +71,66 @@ module.exports = grammar(base_grammar, {
       $.semgrep_ellipsis,
     ),
 
+    // class Foo<...,T1,...> {}
+    type_parameter: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // foo.bar
+    // foo. ... .bar
+    // TODO. See method_invocation
+
+    // for(...) {}
+    for_statement: ($) => seq(
+      ci("for"),
+      "(",
+      choice(
+        $.semgrep_ellipsis,
+        seq(
+          choice(
+            field("init", $.local_variable_declaration),
+            seq(commaJoined(field("init", $.expression)), ";"),
+          ),
+          field("condition", optional($.expression)),
+          ";",
+          commaJoined(field("update", $.expression))
+        )
+      ),
+      ")",
+      field("body", $.statement)
+    ),
+
+    // catch(...) {}
+    catch_formal_parameter: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // class X { ... }
+    _class_body_declaration: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // interface X { ... }
+    interface_body: ($) => seq(
+      "{",
+      repeat(
+        choice(
+          $.semgrep_ellipsis,
+          $.constant_declaration,
+          $.enum_declaration,
+          $.method_declaration,
+          $.class_declaration,
+          $.interface_declaration,
+          ";"
+        )
+      ),
+      "}"
+    ),
+
+    /////////////////////////////////////////////////////////////////////
     ///// Add support for partial constructs used in Semgrep patterns
 
     // Redefine class_declaration, splitting it into header and body.
@@ -103,6 +168,19 @@ module.exports = grammar(base_grammar, {
         $.statement,
         optional(seq(ci("else"), field("alternative", $.statement)))
       )
+    ),
+
+/*
+    // Typed metavariable (TODO).
+    // Should parse the following: (Point $X)
+    primary_expression: ($, previous) => choice(
+      $.semgrep_typed_metavar,
+      previous
+    ),
+
+    semgrep_typed_metavar: ($) => seq(
+      "(", $._type, ")"
     )
+*/
   }
 });
