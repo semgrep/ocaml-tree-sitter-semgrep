@@ -412,6 +412,40 @@ catch (...) {}
       (block))))
 
 ==========================================
+Metavariable ellipsis in parameters
+==========================================
+
+public class ClassA {
+  public void func($...PARAMS) {
+    obj.writeObj('object');
+  }
+}
+
+---
+
+(parser_output
+  (class_declaration
+    (modifiers
+      (modifier))
+    (identifier)
+    (class_body
+      (method_declaration
+        (modifiers
+          (modifier))
+        (void_type)
+        (identifier)
+        (formal_parameters
+          (formal_parameter
+            (semgrep_metavar_ellipsis)))
+        (block
+          (expression_statement
+            (method_invocation
+              (identifier)
+              (identifier)
+              (argument_list
+                (string_literal)))))))))
+
+==========================================
 Deep expressions
 ==========================================
 

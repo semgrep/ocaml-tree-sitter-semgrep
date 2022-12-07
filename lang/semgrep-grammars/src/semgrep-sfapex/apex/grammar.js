@@ -50,6 +50,7 @@ module.exports = grammar(base_grammar, {
     ),
 
     semgrep_ellipsis: $ => '...',
+    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     semgrep_deep_expression: $ => seq('<...', $.expression, '...>'),
 
     ////////////////////////////////////////////////////////////////////
@@ -69,6 +70,7 @@ module.exports = grammar(base_grammar, {
     formal_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_metavar_ellipsis
     ),
 
     // class Foo<...,T1,...> {}
