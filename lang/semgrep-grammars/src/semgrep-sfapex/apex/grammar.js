@@ -27,6 +27,7 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([
     [$.primary_expression, $.formal_parameter],
     [$.primary_expression, $.statement],
+    [$.argument_list, $.formal_parameter]
   ]),
 
   rules: {
@@ -58,7 +59,6 @@ module.exports = grammar(base_grammar, {
 
     primary_expression: ($, previous) => choice(
       previous,
-      $.semgrep_ellipsis,
       $.semgrep_deep_expression,
     ),
 
@@ -71,6 +71,18 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_ellipsis,
       $.semgrep_metavar_ellipsis
+    ),
+
+    argument_list: ($) => seq(
+      "(",
+      commaJoined(
+        choice(
+          $.semgrep_ellipsis,
+          $.semgrep_metavar_ellipsis,
+          $.expression
+        )
+      ),
+      ")"
     ),
 
     // class Foo<...,T1,...> {}

@@ -149,10 +149,10 @@ foo(..., 5)
       (int))))
 
 ==========================================
-Ellipsis in 'if'
+Metavariable in 'if'
 ==========================================
 
-if (...) {
+if ($COND) {
   ...
 }
 
@@ -161,7 +161,7 @@ if (...) {
 (parser_output
   (if_statement
     (parenthesized_expression
-      (semgrep_ellipsis))
+      (identifier))
     (block
       (semgrep_ellipsis))))
 
@@ -444,6 +444,22 @@ public class ClassA {
               (identifier)
               (argument_list
                 (string_literal)))))))))
+
+==========================================
+Metavariable ellipsis in arguments
+==========================================
+
+obj.writeObj(foo, $...X)
+
+---
+
+(parser_output
+  (method_invocation
+    (identifier)
+    (identifier)
+    (argument_list
+      (identifier)
+      (semgrep_metavar_ellipsis))))
 
 ==========================================
 Deep expressions
