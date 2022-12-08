@@ -30,6 +30,9 @@ module.exports = grammar(base_grammar, {
     [$.argument_list, $.formal_parameter]
   ]),
 
+  // Originally: $.identifier
+  word: ($) => $._apex_identifier,
+
   rules: {
     // Entrypoint. We add alternate entrypoints for Semgrep patterns.
     parser_output: ($, previous) => choice(
@@ -53,6 +56,26 @@ module.exports = grammar(base_grammar, {
     semgrep_ellipsis: $ => '...',
     semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     semgrep_deep_expression: $ => seq('<...', $.expression, '...>'),
+    semgrep_any_ellipsis: $ => choice(
+      $.semgrep_ellipsis,
+      $.semgrep_metavar_ellipsis
+    ),
+
+    // Ordinary identifiers already can start with a dollar sign.
+    // This is for spots where we want to support metavariables but
+    // an identifier is not already allowed.
+    semgrep_metavar: $ => /\$[A-Z_][A-Z_0-9]*/,
+
+    _apex_identifier: $ => /[\p{L}_$][\p{L}\p{Nd}_$]*/,
+
+    // Split 'identifier' into two cases. This allows us to use
+    // metavariables only where regular identifiers aren't allowed.
+    identifier: ($) => choice(
+      // We assume the tokenizer will prefer to match 'semgrep_metavar'
+      // over the original pattern.
+      $.semgrep_metavar,
+      $._apex_identifier
+    ),
 
     ////////////////////////////////////////////////////////////////////
     ///// Add Semgrep ellipsis and deep expressions in several places
@@ -196,5 +219,27 @@ module.exports = grammar(base_grammar, {
       "(", $._type, ")"
     )
 */
+
+    ////////////// Semgrep extensions for SOQL
+
+    // SELECT ...
+    _selectable_expression: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      $.semgrep_metavar_ellipsis,
+      previous
+    ),
+
+    // FROM ...
+    storage_identifier: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      $.semgrep_metavar_ellipsis,
+      previous
+    ),
+
+    // WHERE $A
+    _condition_expression: ($, previous) => choice(
+      $.identifier,
+      previous
+    )
   }
 });

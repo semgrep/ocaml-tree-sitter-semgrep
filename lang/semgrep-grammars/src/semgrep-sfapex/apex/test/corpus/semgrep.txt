@@ -77,7 +77,8 @@ class $X {
 
 (parser_output
   (class_declaration
-    (identifier)
+    (identifier
+      (semgrep_metavar))
     (class_body
       (semgrep_ellipsis)
       (constructor_declaration
@@ -98,19 +99,23 @@ interface $INTERFACE extends Remote {
 
 (parser_output
   (interface_declaration
-    (identifier)
+    (identifier
+      (semgrep_metavar))
     (extends_interfaces
       (type_list
         (type_identifier)))
     (interface_body
       (semgrep_ellipsis)
       (method_declaration
-        (type_identifier)
-        (identifier)
+        (type_identifier
+          (semgrep_metavar))
+        (identifier
+          (semgrep_metavar))
         (formal_parameters
           (formal_parameter
             (type_identifier)
-            (identifier)))))))
+            (identifier
+              (semgrep_metavar))))))))
 
 ==========================================
 Constructor body ellipsis
@@ -161,7 +166,8 @@ if ($COND) {
 (parser_output
   (if_statement
     (parenthesized_expression
-      (identifier))
+      (identifier
+        (semgrep_metavar)))
     (block
       (semgrep_ellipsis))))
 
@@ -180,23 +186,28 @@ class $X {
 
 (parser_output
   (class_declaration
-    (identifier)
+    (identifier
+      (semgrep_metavar))
     (class_body
       (constructor_declaration
-        (identifier)
+        (identifier
+          (semgrep_metavar))
         (formal_parameters)
         (constructor_body))
       (method_declaration
         (void_type)
-        (identifier)
+        (identifier
+          (semgrep_metavar))
         (formal_parameters)
         (block
           (local_variable_declaration
             (type_identifier)
             (variable_declarator
-              (identifier)
+              (identifier
+                (semgrep_metavar))
               (assignment_operator)
-              (identifier))))))))
+              (identifier
+                (semgrep_metavar)))))))))
 
 ==========================================
 Metavariable statement
@@ -208,7 +219,8 @@ $X;
 
 (parser_output
   (expression_statement
-    (identifier)))
+    (identifier
+      (semgrep_metavar))))
 
 ==========================================
 Top-level lone annotation
@@ -255,13 +267,17 @@ GlObAl without sharing cLaSs $A extends $SUPER implements $I1, $I2
   (modifiers
     (modifier)
     (modifier))
-  (identifier)
+  (identifier
+    (semgrep_metavar))
   (superclass
-    (type_identifier))
+    (type_identifier
+      (semgrep_metavar)))
   (interfaces
     (type_list
-      (type_identifier)
-      (type_identifier))))
+      (type_identifier
+        (semgrep_metavar))
+      (type_identifier
+        (semgrep_metavar)))))
 
 ==========================================
 Method header
@@ -478,7 +494,8 @@ foo(<... 42 ...>);
     (parenthesized_expression
       (semgrep_deep_expression
         (binary_expression
-          (identifier)
+          (identifier
+            (semgrep_metavar))
           (boolean))))
     (block
       (semgrep_ellipsis)))
@@ -488,3 +505,145 @@ foo(<... 42 ...>);
       (argument_list
         (semgrep_deep_expression
           (int))))))
+
+==========================================
+SELECT ellipsis
+==========================================
+
+[ SELECT a, ... FROM x ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier))
+          (semgrep_ellipsis))
+        (from_clause
+          (storage_identifier
+            (identifier)))))))
+
+==========================================
+SELECT metavariable
+==========================================
+
+[ SELECT $A, $B FROM x ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier
+              (semgrep_metavar)))
+          (field_identifier
+            (identifier
+              (semgrep_metavar))))
+        (from_clause
+          (storage_identifier
+            (identifier)))))))
+
+==========================================
+FROM ellipsis
+==========================================
+
+[ SELECT a FROM x, ..., y ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier)))
+        (from_clause
+          (storage_identifier
+            (identifier))
+          (storage_identifier
+            (semgrep_ellipsis))
+          (storage_identifier
+            (identifier)))))))
+
+==========================================
+FROM metavariable
+==========================================
+
+[ SELECT x FROM $TBL ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier)))
+        (from_clause
+          (storage_identifier
+            (identifier
+              (semgrep_metavar))))))))
+
+==========================================
+WHERE metavariable
+==========================================
+
+[ SELECT a FROM b WHERE $COND AND $X < 42 ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier)))
+        (from_clause
+          (storage_identifier
+            (identifier)))
+        (where_clause
+          (and_expression
+            (identifier
+              (semgrep_metavar))
+            (comparison_expression
+              (field_identifier
+                (identifier
+                  (semgrep_metavar)))
+              (value_comparison_operator)
+              (int))))))))
+
+==========================================
+Metavariables for Apex expressions embedded in SOQL
+==========================================
+
+[ SELECT Id FROM Account WHERE Name = :$X ]
+
+---
+
+(parser_output
+  (query_expression
+    (soql_query
+      (soql_query_body
+        (select_clause
+          (field_identifier
+            (identifier)))
+        (from_clause
+          (storage_identifier
+            (identifier)))
+        (where_clause
+          (comparison_expression
+            (field_identifier
+              (identifier))
+            (value_comparison_operator)
+            (bound_apex_expression
+              (identifier
+                (semgrep_metavar)))))))))
