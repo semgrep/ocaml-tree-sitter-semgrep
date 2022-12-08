@@ -30,6 +30,7 @@ module.exports = grammar(base_grammar, {
     [$.argument_list, $.formal_parameter]
   ]),
 
+  // This is the so-called "word token". It must be a terminal symbol.
   // Originally: $.identifier
   word: ($) => $._apex_identifier,
 
