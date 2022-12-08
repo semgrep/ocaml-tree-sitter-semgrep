@@ -612,8 +612,7 @@ WHERE metavariable
             (identifier)))
         (where_clause
           (and_expression
-            (identifier
-              (semgrep_metavar))
+            (semgrep_metavar)
             (comparison_expression
               (field_identifier
                 (identifier
