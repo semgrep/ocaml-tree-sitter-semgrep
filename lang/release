@@ -61,6 +61,15 @@ if [[ -z "$lang" ]]; then
   error "Missing language. See --help for usage."
 fi
 
+# Language-specific options
+GEN_OCAML_OPTIONS=""
+case "$lang" in
+  apex)
+    GEN_OCAML_OPTIONS="--package tree-sitter-lang-pro"
+    ;;
+  *)
+esac
+
 id=$(git rev-parse --short HEAD)
 
 if [[ "$dry_run" = false ]]; then
@@ -156,7 +165,7 @@ git -C "$export_dir/$repo" pull origin "$branch" --ff-only
 # Copy the files that we find.
 #
 make -C "$lang" clean
-make -C "$lang" gen
+make -C "$lang" GEN_OCAML_OPTIONS="$GEN_OCAML_OPTIONS" gen
 dst="$export_dir"/"$repo"
 if [[ -d "$lang"/ocaml-src ]]; then
   cp -a "$lang"/ocaml-src/lib "$dst"
