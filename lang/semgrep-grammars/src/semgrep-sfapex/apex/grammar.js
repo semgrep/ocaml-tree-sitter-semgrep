@@ -49,9 +49,10 @@ module.exports = grammar(base_grammar, {
       $._full_method_header,
 
       // Partial statements
+      seq(ci("if"), $.parenthesized_expression),
       seq(ci("try"), $.block),
       seq(ci("catch"), $.catch_clause),
-      $.finally_clause,
+      $.finally_clause
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -190,22 +191,6 @@ module.exports = grammar(base_grammar, {
     _full_method_header: ($) => seq(
       optional($.modifiers),
       $._method_header,
-    ),
-
-    // Rewrite if_statement to support partial construct: if(cond)
-    if_statement: ($) => prec.right(
-      seq(
-        ci("if"),
-        $.parenthesized_expression,
-        optional($._consequences)
-      )
-    ),
-
-    _consequences: ($) => prec.right(
-      seq(
-        $.statement,
-        optional(seq(ci("else"), field("alternative", $.statement)))
-      )
     ),
 
 /*
