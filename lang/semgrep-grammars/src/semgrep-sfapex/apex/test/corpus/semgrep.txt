@@ -328,7 +328,7 @@ iF (true)
 ---
 
 (parser_output
-  (if_statement
+  (partial_if
     (parenthesized_expression
       (boolean))))
 
@@ -343,31 +343,41 @@ tRy {
 ---
 
 (parser_output
-  (block
-    (expression_statement
-      (dml_expression
-        (dml_type)
-        (identifier)))))
+  (partial_try
+    (block
+      (expression_statement
+        (dml_expression
+          (dml_type)
+          (identifier))))))
 
 ==========================================
-'finally' clause
+Lone 'catch'
 ==========================================
 
-finallY {
-  Boolean finallyRan = true;
-}
+caTch(DmlException e) {}
 
 ---
 
 (parser_output
-  (finally_clause
-    (block
-      (local_variable_declaration
+  (partial_catch
+    (catch_clause
+      (catch_formal_parameter
         (type_identifier)
-        (variable_declarator
-          (identifier)
-          (assignment_operator)
-          (boolean))))))
+        (identifier))
+      (block))))
+
+==========================================
+Lone 'finally'
+==========================================
+
+finallY {}
+
+---
+
+(parser_output
+  (partial_finally
+    (finally_clause
+      (block))))
 
 ==========================================
 Ellipsis for type parameters
