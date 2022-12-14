@@ -27,7 +27,7 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([
     [$.primary_expression, $.formal_parameter],
     [$.primary_expression, $.statement],
-    [$.argument_list, $.formal_parameter]
+    [$.argument_list, $.formal_parameter],
   ]),
 
   // This is the so-called "word token". It must be a terminal symbol.
@@ -43,6 +43,8 @@ module.exports = grammar(base_grammar, {
       $.constructor_declaration,
       $.expression,
       $.annotation,
+      $.method_declaration,
+      prec(100, $.local_variable_declaration),
 
       ///// Partial definitions
       $._class_header,
@@ -172,6 +174,12 @@ module.exports = grammar(base_grammar, {
         )
       ),
       "}"
+    ),
+
+    // enum X { ... }
+    enum_constant: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
     ),
 
     /////////////////////////////////////////////////////////////////////

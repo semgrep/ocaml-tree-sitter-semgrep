@@ -656,3 +656,53 @@ Metavariables for Apex expressions embedded in SOQL
             (bound_apex_expression
               (identifier
                 (semgrep_metavar)))))))))
+
+==========================================
+Top-level method declaration
+==========================================
+
+$TYPE $FUNC() {
+}
+
+---
+
+(parser_output
+  (method_declaration
+    (type_identifier
+      (semgrep_metavar))
+    (identifier
+      (semgrep_metavar))
+    (formal_parameters)
+    (block)))
+
+==========================================
+Local variable declaration
+==========================================
+
+int x = 42;
+
+---
+
+(parser_output
+  (local_variable_declaration
+    (type_identifier)
+    (variable_declarator
+      (identifier)
+      (assignment_operator)
+      (int))))
+
+
+==========================================
+Enum ellipsis
+==========================================
+
+enum E { ... }
+
+---
+
+(parser_output
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (enum_constant
+        (semgrep_ellipsis)))))
