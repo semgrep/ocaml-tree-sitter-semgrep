@@ -690,3 +690,19 @@ int x = 42;
       (identifier)
       (assignment_operator)
       (int))))
+
+
+==========================================
+Enum ellipsis
+==========================================
+
+enum E { ... }
+
+---
+
+(parser_output
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (enum_constant
+        (semgrep_ellipsis)))))

@@ -176,6 +176,12 @@ module.exports = grammar(base_grammar, {
       "}"
     ),
 
+    // enum X { ... }
+    enum_constant: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
     /////////////////////////////////////////////////////////////////////
     ///// Add support for partial constructs used in Semgrep patterns
 
