@@ -176,8 +176,20 @@ module.exports = grammar(base_grammar, {
       "}"
     ),
 
+    // @SomeAnnot(...)
+    annotation_key_value: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
     // enum X { ... }
     enum_constant: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
+
+    // switch on foo { ... }
+    switch_rule: ($, previous) => choice(
       $.semgrep_ellipsis,
       previous
     ),
