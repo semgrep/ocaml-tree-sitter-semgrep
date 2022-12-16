@@ -706,3 +706,50 @@ enum E { ... }
     (enum_body
       (enum_constant
         (semgrep_ellipsis)))))
+
+==========================================
+Annotation argument ellipsis
+==========================================
+
+@SomeAnnot(..., a=b)
+
+---
+
+(parser_output
+  (annotation
+    (identifier)
+    (annotation_argument_list
+      (annotation_key_value
+        (semgrep_ellipsis))
+      (annotation_key_value
+        (identifier)
+        (assignment_operator)
+        (identifier)))))
+
+==========================================
+Switch body ellipsis
+==========================================
+
+switch on x {
+  ...
+  when 42 {
+    ...
+  }
+  ...
+}
+
+---
+
+(parser_output
+  (switch_expression
+    (identifier)
+    (switch_block
+      (switch_rule
+        (semgrep_ellipsis))
+      (switch_rule
+        (switch_label
+          (int))
+        (block
+          (semgrep_ellipsis)))
+      (switch_rule
+        (semgrep_ellipsis)))))
