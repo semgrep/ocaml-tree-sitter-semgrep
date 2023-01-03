@@ -88,3 +88,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-sfapex"]
 	path = lang/semgrep-grammars/src/tree-sitter-sfapex
 	url = https://github.com/aheber/tree-sitter-sfapex.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-clojure"]
+	path = lang/semgrep-grammars/src/tree-sitter-clojure
+	url = https://github.com/sogaiu/tree-sitter-clojure
