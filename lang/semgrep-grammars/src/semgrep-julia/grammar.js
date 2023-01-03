@@ -10,6 +10,7 @@ module.exports = grammar(base_grammar, {
   name: 'julia',
 
   conflicts: ($, previous) => previous.concat([
+    [$.typed_parameter, $._expression],
   ]),
 
   /*
@@ -17,13 +18,21 @@ module.exports = grammar(base_grammar, {
      if they're not already part of the base grammar.
   */
   rules: {
-  /*
     semgrep_ellipsis: $ => '...',
 
     _expression: ($, previous) => choice(
+      previous,
       $.semgrep_ellipsis,
-      ...previous.members
     ),
-  */
+
+    _statement: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    typed_parameter: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
   }
 });
