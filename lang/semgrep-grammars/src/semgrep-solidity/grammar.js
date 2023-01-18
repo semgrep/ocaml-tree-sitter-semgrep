@@ -90,6 +90,13 @@ module.exports = grammar(base_grammar, {
             );
         },
 
+        inheritance_specifier: ($, previous) => {
+            return choice(
+                previous,
+                $.ellipsis
+            );
+        },
+
       // The actual ellipsis rules
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'

@@ -56,3 +56,20 @@ modifier $M(...) {
         (function_body
           (expression_statement
             (ellipsis)))))
+
+=====================================
+Inheritance ellipsis pattern
+=====================================
+contract Example is ..., BoringBatchable, ... {}
+---
+(source_file
+  (contract_declaration
+    (identifier)
+    (inheritance_specifier
+      (ellipsis))
+    (inheritance_specifier
+      (user_defined_type
+        (identifier)))
+    (inheritance_specifier
+      (ellipsis))
+  (contract_body)))
