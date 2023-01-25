@@ -1,7 +1,7 @@
 /*
   semgrep-haskell
 
-  Extends the standard haskell grammar with semgrep pattern constructs.
+  Extends the standard Haskell grammar with semgrep pattern constructs.
 */
 
 const base_grammar = require('tree-sitter-haskell/grammar');

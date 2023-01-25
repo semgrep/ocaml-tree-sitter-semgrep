@@ -20,6 +20,7 @@ SUPPORTED_TS_LANGUAGES = \
   go \
   hcl \
   html \
+  haskell \
   java \
   julia \
   javascript \
@@ -55,6 +56,7 @@ STAT_LANGUAGES = \
   elixir \
   go \
   hack \
+  haskell \
   hcl \
   java \
   javascript \
