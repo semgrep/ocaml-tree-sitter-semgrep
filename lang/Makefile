@@ -49,29 +49,23 @@ SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
 STAT_LANGUAGES = \
   bash \
   dockerfile \
-  elixir \
   go \
   hcl \
   java \
   javascript \
   julia \
-  lua \
   ocaml \
   php \
   python \
-  r \
   ruby \
   rust \
   sfapex \
   solidity \
-  sqlite \
   tsx \
   typescript
 # Commented out due to hitting memory limits in CI or because taking too much time:
-#  hack
-#  c-sharp
-#  kotlin
-#  c cpp
+#  hack c-sharp kotlin
+#  c cpp elixir lua r sqlite
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
