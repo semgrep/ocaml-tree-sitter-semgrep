@@ -12,7 +12,6 @@
 SUPPORTED_TS_LANGUAGES = \
   bash \
   c \
-  c-sharp \
   cpp \
   dart \
   dockerfile \
@@ -39,6 +38,7 @@ SUPPORTED_TS_LANGUAGES = \
   vue
 # Commented out due to hitting memory limits in CI:
 #  hack
+#  c-sharp
 
 # Includes all language variants e.g. typescript and tsx
 SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
@@ -49,12 +49,10 @@ SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
 STAT_LANGUAGES = \
   bash \
   c \
-  c-sharp \
   cpp \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   java \
   javascript \
@@ -72,6 +70,9 @@ STAT_LANGUAGES = \
   sqlite \
   tsx \
   typescript
+# Commented out due to hitting memory limits in CI:
+#  hack
+#  c-sharp
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
