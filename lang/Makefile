@@ -23,7 +23,6 @@ SUPPORTED_TS_LANGUAGES = \
   julia \
   javascript \
   jsonnet \
-  kotlin \
   lua \
   ocaml \
   php \
@@ -39,6 +38,7 @@ SUPPORTED_TS_LANGUAGES = \
 # Commented out due to hitting memory limits in CI:
 #  hack
 #  c-sharp
+#  kotlin
 
 # Includes all language variants e.g. typescript and tsx
 SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
@@ -57,7 +57,6 @@ STAT_LANGUAGES = \
   java \
   javascript \
   julia \
-  kotlin \
   lua \
   ocaml \
   php \
@@ -73,6 +72,7 @@ STAT_LANGUAGES = \
 # Commented out due to hitting memory limits in CI:
 #  hack
 #  c-sharp
+#  kotlin
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
