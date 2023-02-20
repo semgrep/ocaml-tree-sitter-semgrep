@@ -15,7 +15,7 @@ jobs:
     # - medium+: 6 GB
     # - large: 8 GB
     # - xlarge: 16 GB
-    resource_class: xlarge
+    #resource_class: xlarge
 
     working_directory: ~/ocaml-tree-sitter
     steps:
@@ -47,7 +47,7 @@ jobs:
       - image: returntocorp/ocaml:ubuntu
 
     # See earlier note about memory requirements.
-    resource_class: xlarge
+    #resource_class: xlarge
 
     working_directory: ~/ocaml-tree-sitter
     steps:
