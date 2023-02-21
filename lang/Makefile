@@ -13,6 +13,7 @@ SUPPORTED_TS_LANGUAGES = \
   bash \
   c \
   c-sharp \
+  clojure \
   cpp \
   dart \
   dockerfile \
@@ -35,13 +36,54 @@ SUPPORTED_TS_LANGUAGES = \
   sfapex \
   solidity \
   sqlite \
+  swift \
   typescript \
   vue
 # Commented out due to hitting memory limits in CI:
 #  hack
 
-# Includes all language variants e.g. typescript and tsx
-SUPPORTED_LANGUAGES = $(SUPPORTED_TS_LANGUAGES) tsx
+# List of all language variants, as they're made available to semgrep.
+#
+# This includes all language variants e.g. typescript and tsx that may
+# come from the same tree-sitter project.
+#
+# After updating this list, run 'make links' and update the
+# list of languages in the release readme (/doc/release.md).
+# (nothing bad will happen if you forget, though)
+#
+SUPPORTED_DIALECTS = \
+  apex \
+  bash \
+  c \
+  c-sharp \
+  clojure \
+  cpp \
+  dart \
+  dockerfile \
+  elixir \
+  go \
+  hack \
+  hcl \
+  html \
+  java \
+  julia \
+  javascript \
+  jsonnet \
+  julia \
+  kotlin \
+  lua \
+  ocaml \
+  php \
+  python \
+  r \
+  ruby \
+  rust \
+  solidity \
+  sqlite \
+  swift \
+  tsx \
+  typescript \
+  vue
 
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.
@@ -102,7 +144,7 @@ release:
 release-all:
 	$(MAKE) -C semgrep-grammars
 	set -eu; \
-        for lang in $(SUPPORTED_LANGUAGES); do \
+        for lang in $(SUPPORTED_DIALECTS); do \
 	  ./release $$lang; \
 	done
 
@@ -111,7 +153,7 @@ release-all:
 dry:
 	$(MAKE) -C semgrep-grammars
 	set -eu; \
-        for lang in $(SUPPORTED_LANGUAGES); do \
+        for lang in $(SUPPORTED_DIALECTS); do \
 	  ./release $$lang --dry-run; \
 	done
 
@@ -136,7 +178,7 @@ stat-priv:
 .PHONY: clean
 clean:
 	set -e; \
-	for lang in $(SUPPORTED_LANGUAGES); do $(MAKE) -C $$lang clean; done
+	for lang in $(SUPPORTED_DIALECTS); do $(MAKE) -C $$lang clean; done
 
 # Helpers for github PRs using git and hub command-line tools
 .PHONY: pr
@@ -148,6 +190,15 @@ pr:
 push:
 	git push origin `git rev-parse --abbrev-ref HEAD`
 
-.PHONY: merge
-merge:
-	A=`git rev-parse --abbrev-ref HEAD` && git checkout main && git pull && git branch -D $$A
+# This force-delete looks dangerous.
+# What is this for and how can everyone benefit from it?
+#.PHONY: merge
+#merge:
+#	A=`git rev-parse --abbrev-ref HEAD` && git checkout main && git pull &&# git branch -D $$A
+
+# Regenerate the language list in the release readme (/docs/release.md)
+.PHONY: links
+links:
+	for x in $(SUPPORTED_DIALECTS); do \
+	  echo "* [$$x](https://github.com/returntocorp/semgrep-$$x)"; \
+	done | sort -u
