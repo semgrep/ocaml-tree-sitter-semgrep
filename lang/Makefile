@@ -13,6 +13,7 @@ SUPPORTED_TS_LANGUAGES = \
   bash \
   c \
   c-sharp \
+  clojure \
   cpp \
   dart \
   dockerfile \
@@ -55,6 +56,7 @@ SUPPORTED_DIALECTS = \
   bash \
   c \
   c-sharp \
+  clojure \
   cpp \
   dart \
   dockerfile \
@@ -67,6 +69,7 @@ SUPPORTED_DIALECTS = \
   julia \
   javascript \
   jsonnet \
+  julia \
   kotlin \
   lua \
   ocaml \

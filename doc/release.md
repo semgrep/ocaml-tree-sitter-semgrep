@@ -51,6 +51,7 @@ ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-sem
 * [apex](https://github.com/returntocorp/semgrep-apex)
 * [bash](https://github.com/returntocorp/semgrep-bash)
 * [c](https://github.com/returntocorp/semgrep-c)
+* [clojure](https://github.com/returntocorp/semgrep-clojure)
 * [cpp](https://github.com/returntocorp/semgrep-cpp)
 * [c-sharp](https://github.com/returntocorp/semgrep-c-sharp)
 * [dart](https://github.com/returntocorp/semgrep-dart)
