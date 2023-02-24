@@ -39,5 +39,24 @@ module.exports = {
       previous,
       $.semgrep_expression_ellipsis,
     ),
+
+    // TODO Remove this when we update tree-sitter-typescript past
+    // https://github.com/tree-sitter/tree-sitter-typescript/pull/239. I (nmote)
+    // ran into unrelated issues updating it, documented in
+    // https://linear.app/r2c/issue/PA-2572/address-error-when-updating-tree-sitter-typescript.
+    comment: ($, previous) => token(choice(
+      previous,
+      // https://tc39.es/ecma262/#sec-html-like-comments
+      seq('<!--', /.*/),
+      // This allows code to exist before this token on the same line.
+      //
+      // Technically, --> is supposed to have nothing before it on the same line
+      // except for comments and whitespace, but that is difficult to express,
+      // and in general tree sitter grammars tend to prefer to be overly
+      // permissive anyway.
+      //
+      // This approach does not appear to cause problems in practice.
+      seq('-->', /.*/)
+   )),
   }
 }
