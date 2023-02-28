@@ -73,3 +73,31 @@ contract Example is ..., BoringBatchable, ... {}
     (inheritance_specifier
       (ellipsis))
   (contract_body)))
+
+
+=====================================
+Enum pattern
+=====================================
+
+enum $X {
+   ...
+}
+---
+
+(source_file
+      (enum_declaration
+        (identifier)
+        (ellipsis)))
+
+=====================================
+Event pattern
+=====================================
+
+event $EV(...);
+---
+
+(source_file
+      (event_definition
+        (identifier)
+        (event_paramater
+          (ellipsis))))

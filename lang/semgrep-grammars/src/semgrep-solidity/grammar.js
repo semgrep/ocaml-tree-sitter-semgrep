@@ -28,6 +28,7 @@ module.exports = grammar(base_grammar, {
             $._expression,
             $.constructor_definition,
             $.modifier_definition,
+            $.event_definition,
           );
         },
 
@@ -83,6 +84,14 @@ module.exports = grammar(base_grammar, {
             );
         },
 
+        // typo on name in the original grammar so we must copy the typo
+        event_paramater: ($, previous) => {
+            return choice(
+               previous,
+               $.ellipsis
+            );
+        },
+
         for_statement: ($, previous) => {
             return choice(
                previous,
@@ -97,6 +106,20 @@ module.exports = grammar(base_grammar, {
             );
         },
 
+      //TODO? it would be better to refactor the original grammar with
+      // a enum_member so we don't have to copy-paste the original rule
+      enum_declaration: $ =>  seq(
+            'enum',
+            field("enum_type_name", $.identifier),
+            '{',
+            commaSep($._enum_member),
+            '}',
+      ),
+      _enum_member: $ => choice(
+          alias($.identifier, $.enum_value),
+          $.ellipsis
+      ),
+
       // The actual ellipsis rules
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
@@ -105,3 +128,23 @@ module.exports = grammar(base_grammar, {
         ellipsis: $ => '...',
   }
 });
+
+// copy-pasted from the original grammar, because of our copy-paste of enum_declaration
+// once the original grammar is rewritten with a enum_member, we would not need
+// those defs anymore
+function commaSep1(rule) {
+    return seq(
+        rule,
+        repeat(
+            seq(
+                ',',
+                rule
+            )
+        ),
+        optional(','),
+    );
+}
+
+function commaSep(rule) {
+    return optional(commaSep1(rule));
+}
