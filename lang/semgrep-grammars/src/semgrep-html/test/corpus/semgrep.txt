@@ -62,3 +62,31 @@ Ellipsis in attributes and body
      (start_tag (tag_name) (attribute (attribute_name)))
      (raw_text)
      (end_tag (tag_name))))
+
+===================================
+XML constructs
+===================================
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>
+
+---
+(fragment
+      (xmldoctype
+        (attribute
+          (attribute_name)
+          (quoted_attribute_value
+            (attribute_value)))
+        (attribute
+          (attribute_name)
+          (quoted_attribute_value
+            (attribute_value))))
+      (element
+        (start_tag
+          (tag_name)
+          (attribute
+            (attribute_name)
+            (quoted_attribute_value
+              (attribute_value))))
+        (end_tag
+          (tag_name))))

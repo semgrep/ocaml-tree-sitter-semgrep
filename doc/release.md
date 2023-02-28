@@ -43,26 +43,37 @@ then be used in semgrep as a git submodule.
 Appendix: List of semgrep-* repos
 --
 
-The list of languages below should match the languages listed in the [`lang` folder of ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-semgrep/tree/main/lang). Let's try to keep it up-to-date.
+The list of languages below should match the languages listed in the
+[`lang` folder of
+ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-semgrep/tree/main/lang).
 
+<!-- This list can be regenerated with 'make -C lang links'. -->
+* [apex](https://github.com/returntocorp/semgrep-apex)
 * [bash](https://github.com/returntocorp/semgrep-bash)
 * [c](https://github.com/returntocorp/semgrep-c)
+* [clojure](https://github.com/returntocorp/semgrep-clojure)
 * [cpp](https://github.com/returntocorp/semgrep-cpp)
 * [c-sharp](https://github.com/returntocorp/semgrep-c-sharp)
+* [dart](https://github.com/returntocorp/semgrep-dart)
 * [dockerfile](https://github.com/returntocorp/semgrep-dockerfile)
+* [elixir](https://github.com/returntocorp/semgrep-elixir)
 * [go](https://github.com/returntocorp/semgrep-go)
 * [hack](https://github.com/returntocorp/semgrep-hack)
 * [hcl](https://github.com/returntocorp/semgrep-hcl)
 * [html](https://github.com/returntocorp/semgrep-html)
 * [java](https://github.com/returntocorp/semgrep-java)
 * [javascript](https://github.com/returntocorp/semgrep-javascript)
+* [jsonnet](https://github.com/returntocorp/semgrep-jsonnet)
+* [julia](https://github.com/returntocorp/semgrep-julia)
 * [kotlin](https://github.com/returntocorp/semgrep-kotlin)
 * [lua](https://github.com/returntocorp/semgrep-lua)
 * [ocaml](https://github.com/returntocorp/semgrep-ocaml)
 * [php](https://github.com/returntocorp/semgrep-php)
+* [python](https://github.com/returntocorp/semgrep-python)
 * [r](https://github.com/returntocorp/semgrep-r)
 * [ruby](https://github.com/returntocorp/semgrep-ruby)
 * [rust](https://github.com/returntocorp/semgrep-rust)
+* [solidity](https://github.com/returntocorp/semgrep-solidity)
 * [sqlite](https://github.com/returntocorp/semgrep-sqlite)
 * [swift](https://github.com/returntocorp/semgrep-swift)
 * [tsx](https://github.com/returntocorp/semgrep-tsx)
