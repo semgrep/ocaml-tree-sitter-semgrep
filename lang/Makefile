@@ -62,7 +62,6 @@ SUPPORTED_DIALECTS = \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   html \
   java \
@@ -84,6 +83,7 @@ SUPPORTED_DIALECTS = \
   tsx \
   typescript \
   vue
+#  hack
 
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.
@@ -96,7 +96,6 @@ STAT_LANGUAGES = \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   java \
   javascript \
@@ -114,6 +113,8 @@ STAT_LANGUAGES = \
   sqlite \
   tsx \
   typescript
+# Commented out due to hitting memory limits in CI:
+#  hack
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
