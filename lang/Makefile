@@ -90,7 +90,6 @@ SUPPORTED_DIALECTS = \
 #
 STAT_LANGUAGES = \
   bash \
-  c \
   c-sharp \
   cpp \
   dockerfile \
@@ -115,6 +114,8 @@ STAT_LANGUAGES = \
   typescript
 # Commented out due to hitting memory limits in CI:
 #  hack
+# Commented out to pass the 3h time limit in CI:
+#  c
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
