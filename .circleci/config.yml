@@ -20,28 +20,19 @@ jobs:
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
+      - run: git submodule update --init --recursive --depth 1
       - run:
-          name: fetch submodules
-          command: git submodule update --init --recursive --depth 1
-      - run:
-          name: set up node
+          name: install nodejs and cargo
           command: ./core/scripts/setup-node
-      - run:
-          name: install dependencies
-          command: opam exec -- make setup
-      - run:
-          name: build
-          command: opam exec -- make
-      - run:
-          name: install
-          command: opam exec -- make install
-      - run:
-          name: core tests
-          command: opam exec -- make -C core test
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
+      - run: opam exec -- make -C core test
       - run:
           name: test languages
           no_output_timeout: 60m
           command: opam exec -- make lang
+
   stat:
     docker:
       - image: returntocorp/ocaml:ubuntu
@@ -53,6 +44,9 @@ jobs:
     steps:
       - checkout
       - run: git submodule update --init --recursive --depth 1
+      - run:
+          name: install nodejs and cargo
+          command: ./core/scripts/setup-node
       - run: opam exec -- make setup
       - run: opam exec -- make
       - run: opam exec -- make install
