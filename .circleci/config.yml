@@ -52,31 +52,14 @@ jobs:
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
-      - run:
-          name: fetch submodules
-          command: git submodule update --init --recursive --depth 1
-      - run:
-          name: set up node
-          command: ./core/scripts/setup-node
-      - run:
-          name: install tree-sitter lib
-          command: ./core/scripts/install-tree-sitter-lib
-      - run:
-          name: install tree-sitter executable
-          command: ./core/scripts/install-tree-sitter-cli
-      - run:
-          name: install dependencies
-          command: opam exec -- make setup
-      - run:
-          name: build
-          command: opam exec -- make
-      - run:
-          name: install
-          command: opam exec -- make install
+      - run: git submodule update --init --recursive --depth 1
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
       - run:
           name: run parsing stats
-          no_output_timeout: 60m
-          command: opam exec -- make stat
+          no_output_timeout: 180m
+          command: opam exec -- make stat &> lang/stat.logs
       - run:
           name: upload parsing stats
           command: python3 ./scripts/upload-stat lang/stat.txt

@@ -91,7 +91,6 @@ SUPPORTED_DIALECTS = \
 STAT_LANGUAGES = \
   bash \
   c-sharp \
-  cpp \
   dockerfile \
   elixir \
   go \
@@ -109,13 +108,12 @@ STAT_LANGUAGES = \
   rust \
   sfapex \
   solidity \
-  sqlite \
   tsx \
   typescript
 # Commented out due to hitting memory limits in CI:
 #  hack
 # Commented out to pass the 3h time limit in CI:
-#  c
+#  c cpp sqlite
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
