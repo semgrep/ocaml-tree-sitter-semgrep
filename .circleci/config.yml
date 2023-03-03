@@ -33,7 +33,7 @@ jobs:
           no_output_timeout: 60m
           command: opam exec -- make lang
 
-  stat:
+  stat1:
     docker:
       - image: returntocorp/ocaml:ubuntu
 
@@ -53,7 +53,32 @@ jobs:
       - run:
           name: run parsing stats
           no_output_timeout: 180m
-          command: opam exec -- make stat &> lang/stat.logs
+          command: opam exec -- make stat1
+      - run:
+          name: upload parsing stats
+          command: python3 ./scripts/upload-stat lang/stat.txt
+      - store_artifacts:
+          path: lang/stat.txt
+
+  # Mostly a copy-paste of stat1 but with make stat2
+  stat2:
+    docker:
+      - image: returntocorp/ocaml:ubuntu
+    resource_class: xlarge
+    working_directory: ~/ocaml-tree-sitter
+    steps:
+      - checkout
+      - run: git submodule update --init --recursive --depth 1
+      - run:
+          name: install nodejs and cargo
+          command: ./core/scripts/setup-node
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
+      - run:
+          name: run parsing stats
+          no_output_timeout: 180m
+          command: opam exec -- make stat2
       - run:
           name: upload parsing stats
           command: python3 ./scripts/upload-stat lang/stat.txt
@@ -68,7 +93,7 @@ workflows:
     jobs:
       - build
 
-  scheduled-stats:
+  scheduled-stats1:
     triggers:
       - schedule:
           # Run at 00:00 every day, UTC.
@@ -78,7 +103,24 @@ workflows:
               only:
                 - main
     jobs:
-      - stat:
+      - stat1:
+          # Run only on these branches (each pushing different images)
+          filters:
+            branches:
+              only:
+                - main
+
+  scheduled-stats2:
+    triggers:
+      - schedule:
+          # Run at 06:00 every day, UTC.
+          cron: "6 0 * * *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - stat2:
           # Run only on these branches (each pushing different images)
           filters:
             branches:
@@ -89,7 +131,9 @@ workflows:
   # to a branch named 'stats'.
   stats-on-commit:
     jobs:
-      - stat:
+      # This just trigger stat1. We could have another special branch to
+      # trigger stat2 on-commit.
+      - stat1:
           filters:
             branches:
               only:
