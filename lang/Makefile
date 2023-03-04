@@ -62,7 +62,6 @@ SUPPORTED_DIALECTS = \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   html \
   java \
@@ -84,24 +83,30 @@ SUPPORTED_DIALECTS = \
   tsx \
   typescript \
   vue
+#  hack
 
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.
-#
-STAT_LANGUAGES = \
+# update: we split the list in 2 (STAT_LANGUAGES1 and STAT_LANGUAGES2) because
+# running all languages in CI takes more than 3h which is the performance-plan limit.
+# alt: parse languages in parallel, like we do in semgrep/stats/parsing-stats/
+STAT_LANGUAGES1 = \
   bash \
   c \
-  c-sharp \
   cpp \
+  c-sharp \
   dockerfile \
   elixir \
   go \
-  hack \
   hcl \
   java \
   javascript \
   julia \
-  kotlin \
+  kotlin
+# Commented out due to hitting memory limits in CI:
+#  hack
+
+STAT_LANGUAGES2 = \
   lua \
   ocaml \
   php \
@@ -111,9 +116,10 @@ STAT_LANGUAGES = \
   rust \
   sfapex \
   solidity \
-  sqlite \
   tsx \
   typescript
+
+STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
@@ -157,15 +163,27 @@ dry:
 	  ./release $$lang --dry-run; \
 	done
 
+.PHONY: stat
+stat:
+	$(MAKE) stat1
+	$(MAKE) stat2
+
 # Run parsing stats for each language.
 # Each needs a list of projects (projects.txt) and file extensions
 # (extensions.txt).
 #
-.PHONY: stat
-stat:
+.PHONY: stat1
+stat1:
 	set -eu; \
-	for lang in $(STAT_LANGUAGES); do $(MAKE) -C $$lang stat; done
-	../scripts/report-stat $(STAT_LANGUAGES) | tee stat.txt
+	for lang in $(STAT_LANGUAGES1); do $(MAKE) -C $$lang stat; done
+	../scripts/report-stat $(STAT_LANGUAGES1) | tee stat.txt
+	test -s stat.txt  # check that the pipeline above didn't fail
+
+.PHONY: stat2
+stat2:
+	set -eu; \
+	for lang in $(STAT_LANGUAGES2); do $(MAKE) -C $$lang stat; done
+	../scripts/report-stat $(STAT_LANGUAGES2) | tee stat.txt
 	test -s stat.txt  # check that the pipeline above didn't fail
 
 # Run stats on projects-priv.txt instead of projects.txt.

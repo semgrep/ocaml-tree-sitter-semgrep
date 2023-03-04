@@ -1,11 +1,21 @@
-#
-# Circle CI configuration. Runs each time we push a new commit to Github.
-#
-# This file is derived from the project's Dockerfile, which we use for
-# local testing.
-#
+###############################################################################
+# Prelude
+###############################################################################
+# The main goals of this pipeline are to:
+# - check that ocaml-tree-sitter builds correctly all our languages and
+#   make sure our core tests and language tests pass
+# - have a cron that update our tree-sitter parsing statistics
+#   which are then accessible at https://dashboard.semgrep.dev/metrics
+#   and also at https://metabase.corp.r2c.dev/collection/59-semgrep
+
 version: 2.1
+
+###############################################################################
+# The jobs
+###############################################################################
+
 jobs:
+
   build:
     docker:
       - image: returntocorp/ocaml:ubuntu
@@ -20,68 +30,81 @@ jobs:
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
+      - run: git submodule update --init --recursive --depth 1
       - run:
-          name: fetch submodules
-          command: git submodule update --init --recursive --depth 1
-      - run:
-          name: set up node
+          name: install nodejs and cargo
           command: ./core/scripts/setup-node
-      - run:
-          name: install dependencies
-          command: opam exec -- make setup
-      - run:
-          name: build
-          command: opam exec -- make
-      - run:
-          name: install
-          command: opam exec -- make install
-      - run:
-          name: core tests
-          command: opam exec -- make -C core test
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
+      - run: opam exec -- make -C core test
       - run:
           name: test languages
           no_output_timeout: 60m
           command: opam exec -- make lang
-  stat:
+
+  # The parsing stat crons is now split in 2 (stat1 and stat2) because
+  # even with performance circle CI plan, we hit the 3h limit.
+  # 
+  #alt: instead of redoing some of the work done in the build job,
+  # we could store build artifacts in this build job that we could
+  # just reuse here (which is what we do in semgrep CI).
+  #
+  #alt: instead of this split, we could run the parsing stats in parallel
+  # (like we do in semgrep CI)
+  stat1:
     docker:
       - image: returntocorp/ocaml:ubuntu
-
     # See earlier note about memory requirements.
     resource_class: xlarge
-
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
+      - run: git submodule update --init --recursive --depth 1
       - run:
-          name: fetch submodules
-          command: git submodule update --init --recursive --depth 1
-      - run:
-          name: set up node
+          name: install nodejs and cargo
           command: ./core/scripts/setup-node
-      - run:
-          name: install tree-sitter lib
-          command: ./core/scripts/install-tree-sitter-lib
-      - run:
-          name: install tree-sitter executable
-          command: ./core/scripts/install-tree-sitter-cli
-      - run:
-          name: install dependencies
-          command: opam exec -- make setup
-      - run:
-          name: build
-          command: opam exec -- make
-      - run:
-          name: install
-          command: opam exec -- make install
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
       - run:
           name: run parsing stats
-          no_output_timeout: 60m
-          command: opam exec -- make stat
+          no_output_timeout: 180m
+          command: opam exec -- make stat1
       - run:
           name: upload parsing stats
           command: python3 ./scripts/upload-stat lang/stat.txt
       - store_artifacts:
           path: lang/stat.txt
+
+  # Mostly a copy-paste of stat1 but with make stat2
+  stat2:
+    docker:
+      - image: returntocorp/ocaml:ubuntu
+    resource_class: xlarge
+    working_directory: ~/ocaml-tree-sitter
+    steps:
+      - checkout
+      - run: git submodule update --init --recursive --depth 1
+      - run:
+          name: install nodejs and cargo
+          command: ./core/scripts/setup-node
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
+      - run:
+          name: run parsing stats
+          no_output_timeout: 180m
+          command: opam exec -- make stat2
+      - run:
+          name: upload parsing stats
+          command: python3 ./scripts/upload-stat lang/stat.txt
+      - store_artifacts:
+          path: lang/stat.txt
+
+###############################################################################
+# The workflows
+###############################################################################
 
 workflows:
   version: 2
@@ -91,17 +114,48 @@ workflows:
     jobs:
       - build
 
-  scheduled-stats:
+  # We used to run this job everyday, but now we use a more expensive resource_class
+  # and we don't really need those stats to be up-to-date by the day, so
+  # we now run this cron twice a week.
+  # 
+  # cron table memento below
+  # (src: https://dev.to/anshuman_bhardwaj/free-cron-jobs-with-github-actions-31d6)
+  # ┌────────── minute (0 - 59)
+  # │ ┌────────── hour (0 - 23)
+  # │ │ ┌────────── day of the month (1 - 31)
+  # │ │ │ ┌────────── month (1 - 12)
+  # │ │ │ │ ┌────────── day of the week (0 - 6)
+  # │ │ │ │ │
+  # │ │ │ │ │
+  # │ │ │ │ │
+  # * * * * *
+  scheduled-stats1:
     triggers:
       - schedule:
-          # Run at 00:00 every day, UTC.
-          cron: "0 0 * * *"
+          # Run at 00:00 every monday and thursday, UTC.
+          cron: "0 0 * * 0,3"
           filters:
             branches:
               only:
                 - main
     jobs:
-      - stat:
+      - stat1:
+          # Run only on these branches (each pushing different images)
+          filters:
+            branches:
+              only:
+                - main
+
+  scheduled-stats2:
+    triggers:
+      - schedule:
+          cron: "0 6 * * 0,3"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - stat2:
           # Run only on these branches (each pushing different images)
           filters:
             branches:
@@ -112,7 +166,9 @@ workflows:
   # to a branch named 'stats'.
   stats-on-commit:
     jobs:
-      - stat:
+      # This just trigger stat1. We could have another special branch to
+      # trigger stat2 on-commit.
+      - stat1:
           filters:
             branches:
               only:
