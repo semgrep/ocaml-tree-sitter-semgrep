@@ -49,6 +49,17 @@ stat:
 	$(MAKE) -C lang
 	$(MAKE) -C lang stat
 
+# ugly: but split make stat in 2 to pass the 3h CI limit
+.PHONY: stat1
+stat1:
+	$(MAKE) -C lang
+	$(MAKE) -C lang stat1
+
+.PHONY: stat2
+stat2:
+	$(MAKE) -C lang
+	$(MAKE) -C lang stat2
+
 .PHONY: install
 install:
 	$(MAKE) -C core install
