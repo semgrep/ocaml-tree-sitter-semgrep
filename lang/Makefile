@@ -8,9 +8,9 @@
 #
 # For example, both typescript and tsx are provided by tree-sitter-typescript.
 # The list below only shows typescript, not tsx.
+# For similar reasons we list sfapex here, and not apex.
 #
 SUPPORTED_TS_LANGUAGES = \
-  apex \
   bash \
   c \
   c-sharp \
@@ -34,6 +34,7 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
+  sfapex \
   solidity \
   sqlite \
   swift \
@@ -46,6 +47,7 @@ SUPPORTED_TS_LANGUAGES = \
 #
 # This includes all language variants e.g. typescript and tsx that may
 # come from the same tree-sitter project.
+# Here we list apex, and not sfapex
 #
 # After updating this list, run 'make links' and update the
 # list of languages in the release readme (/doc/release.md).
