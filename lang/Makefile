@@ -10,6 +10,7 @@
 # The list below only shows typescript, not tsx.
 #
 SUPPORTED_TS_LANGUAGES = \
+  apex \
   bash \
   c \
   c-sharp \
@@ -33,7 +34,6 @@ SUPPORTED_TS_LANGUAGES = \
   r \
   ruby \
   rust \
-  sfapex \
   solidity \
   sqlite \
   swift \
@@ -107,6 +107,7 @@ STAT_LANGUAGES1 = \
 #  hack
 
 STAT_LANGUAGES2 = \
+  apex \
   lua \
   ocaml \
   php \
@@ -114,7 +115,6 @@ STAT_LANGUAGES2 = \
   r \
   ruby \
   rust \
-  sfapex \
   solidity \
   tsx \
   typescript
