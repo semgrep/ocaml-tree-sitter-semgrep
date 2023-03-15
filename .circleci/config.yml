@@ -25,6 +25,7 @@ jobs:
     # - medium+: 6 GB
     # - large: 8 GB
     # - xlarge: 16 GB
+    # Seems there are now also "2xlarge" and "2xlarge+" options?
     resource_class: 2xlarge+
 
     working_directory: ~/ocaml-tree-sitter
