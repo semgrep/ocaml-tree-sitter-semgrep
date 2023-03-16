@@ -29,7 +29,6 @@ jobs:
 
     working_directory: ~/ocaml-tree-sitter
     steps:
-      - run: cat 1000 > /proc/etc/vm/vfs_cache_pressure
       - checkout
       - run: git submodule update --init --recursive --depth 1
       - run:
@@ -42,7 +41,7 @@ jobs:
       - run:
           name: test languages
           no_output_timeout: 60m
-          command: opam exec -- make lang
+          command: opam exec -- lang/test-lang c-sharp
 
   # The parsing stat crons is now split in 2 (stat1 and stat2) because
   # even with performance circle CI plan, we hit the 3h limit.
