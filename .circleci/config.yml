@@ -41,7 +41,7 @@ jobs:
       - run:
           name: test languages
           no_output_timeout: 60m
-          command: opam exec -- cd lang && ./test-lang c-sharp
+          command: cd lang && opam exec -- ./test-lang c-sharp
 
   # The parsing stat crons is now split in 2 (stat1 and stat2) because
   # even with performance circle CI plan, we hit the 3h limit.
