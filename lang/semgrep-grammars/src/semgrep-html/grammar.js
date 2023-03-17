@@ -24,18 +24,37 @@ module.exports = grammar(base_grammar, {
   */
     rules: {
 
-    // XML extensions
-    _node: ($, previous) => choice(
-       $.xmldoctype,
-       previous
+     fragment: $ => repeat($._toplevel_node),
+
+    // like _node, but without $.text and with new entries
+    _toplevel_node: $ => choice(
+      $.doctype,
+      //nope: $.text,
+      $.element,
+      $.script_element,
+      $.style_element,
+      $.erroneous_end_tag,
+      //NEW:
+      $.toplevel_attribute,
+      $.xmldoctype
     ),
-    
+
+    // similar to $.attribute, but with mandatory '='
+    toplevel_attribute: $ => seq(
+        $.attribute_name,
+       '=',
+        choice(
+          $.attribute_value,
+          $.quoted_attribute_value
+        )
+      ),
+
     xmldoctype: $ => seq(
       '<?xml',
       repeat($.attribute),
       '?>'
     ),
-	
+
     //alt: redefine instead _start_tag_name and _end_tag_name?
     start_tag: ($, previous) => choice(
       $.semgrep_start_tag,
