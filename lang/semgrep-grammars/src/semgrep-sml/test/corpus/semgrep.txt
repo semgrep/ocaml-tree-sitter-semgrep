@@ -12,13 +12,9 @@ val x = $X
 			(vid_pat
 				(longvid
 					(vid)))
-			(app_exp
-				(vid_exp
-					(longvid
-						(vid)))
-				(vid_exp
-					(longvid
-						(vid)))))))
+			(vid_exp
+				(longvid
+					(vid))))))
 
 =====================================
 Simple Metavariable Binding
@@ -31,13 +27,9 @@ val $X = 2
 (source_file
 	(val_dec
 		(valbind
-			(app_pat
-				(vid_pat
-					(longvid
-						(vid)))
-				(vid_pat
-					(longvid
-						(vid))))
+			(vid_pat
+				(longvid
+					(vid)))
 			(scon_exp
 				(integer_scon)))))
 
