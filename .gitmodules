@@ -91,3 +91,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-clojure"]
 	path = lang/semgrep-grammars/src/tree-sitter-clojure
 	url = https://github.com/sogaiu/tree-sitter-clojure
+[submodule "lang/semgrep-grammars/src/tree-sitter-sml"]
+	path = lang/semgrep-grammars/src/tree-sitter-sml
+	url = https://github.com/MatthewFluet/tree-sitter-sml
