@@ -1,0 +1,18 @@
+# Git URLs of publicly-accessible projects to be used for parsing stats,
+# one per line.
+#
+https://github.com/standardml/parcom
+https://github.com/shygoo/n64sym
+https://github.com/robsimmons/sml-lib
+https://github.com/SMLFamily/BasisLibrary
+https://github.com/standardml/cmlib
+https://github.com/standardml/twelf
+https://github.com/Quantomatic/quantomatic
+https://github.com/RedPRL/sml-redprl
+https://github.com/urweb/urweb
+
+# This one's for you, Sam.
+https://github.com/shwestrick/smlfmt
+
+# :^)
+https://github.com/brandonspark/mulligan
