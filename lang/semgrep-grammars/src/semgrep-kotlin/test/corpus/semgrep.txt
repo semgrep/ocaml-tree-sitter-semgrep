@@ -33,6 +33,24 @@ class $CLASS {
 
 
 =====================================
+Typed Metavariables
+=====================================
+
+val x = ($X : int)
+
+---
+
+(source_file
+	(property_declaration
+		(variable_declaration
+			(simple_identifier))
+		(typed_metavar
+			(simple_identifier)
+			(user_type
+				(type_identifier)))))
+
+
+=====================================
 Expression Ellipsis 
 =====================================
 
