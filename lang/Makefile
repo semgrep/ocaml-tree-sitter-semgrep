@@ -8,6 +8,7 @@
 #
 # For example, both typescript and tsx are provided by tree-sitter-typescript.
 # The list below only shows typescript, not tsx.
+# For similar reasons we list sfapex here, and not apex.
 #
 SUPPORTED_TS_LANGUAGES = \
   bash \
@@ -47,6 +48,7 @@ SUPPORTED_TS_LANGUAGES = \
 #
 # This includes all language variants e.g. typescript and tsx that may
 # come from the same tree-sitter project.
+# Here we list apex, and not sfapex
 #
 # After updating this list, run 'make links' and update the
 # list of languages in the release readme (/doc/release.md).
@@ -109,6 +111,7 @@ STAT_LANGUAGES1 = \
 #  hack
 
 STAT_LANGUAGES2 = \
+  apex \
   lua \
   ocaml \
   php \
@@ -116,7 +119,6 @@ STAT_LANGUAGES2 = \
   r \
   ruby \
   rust \
-  sfapex \
   solidity \
   tsx \
   typescript

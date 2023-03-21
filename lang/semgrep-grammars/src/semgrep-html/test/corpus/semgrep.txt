@@ -90,3 +90,14 @@ XML constructs
               (attribute_value))))
         (end_tag
           (tag_name))))
+
+===================================
+Attribute pattern
+===================================
+foo="true"
+---
+(fragment
+      (toplevel_attribute
+        (attribute_name)
+        (quoted_attribute_value
+          (attribute_value))))
