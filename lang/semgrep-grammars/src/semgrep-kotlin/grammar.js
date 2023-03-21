@@ -31,12 +31,17 @@ module.exports = grammar(standard_grammar, {
             )
         },
 
+        typed_metavar: $ =>  seq(
+          "(", $.simple_identifier, ":", $._type, ")"
+        ), 
+
         // Statement ellipsis: '...' not followed by ';'
         _expression: ($, previous) => {
             return choice(
                 previous,
                 $.ellipsis,  // statement ellipsis
-                $.deep_ellipsis
+                $.deep_ellipsis,
+							  $.typed_metavar
             );
         },
 
