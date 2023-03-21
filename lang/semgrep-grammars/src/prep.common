@@ -15,6 +15,7 @@ mkdir -p src
   rm -f scanner.c scanner.cc
   scanner_c=../../tree-sitter-"$name"/src/scanner.c
   scanner_cc="$scanner_c"c
+  unicode_h=../../tree-sitter-"$name"/src/unicode.h
   if [[ -e "$scanner_c" ]]; then
     ln -sf "$scanner_c" .
   elif [[ -e "$scanner_cc" ]]; then

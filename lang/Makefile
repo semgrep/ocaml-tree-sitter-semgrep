@@ -22,6 +22,7 @@ SUPPORTED_TS_LANGUAGES = \
   go \
   hcl \
   html \
+  haskell \
   java \
   julia \
   javascript \
@@ -100,6 +101,7 @@ STAT_LANGUAGES1 = \
   dockerfile \
   elixir \
   go \
+  haskell \
   hcl \
   java \
   javascript \
