@@ -189,7 +189,7 @@ $COOKIE.setValue("")
   (call_expression
     (navigation_expression (simple_identifier)
        (navigation_suffix (simple_identifier)))
-    (call_suffix (value_arguments (value_argument (line_string_literal)))))
+    (call_suffix (value_arguments (value_argument (string_literal)))))
   (ellipsis))
 
 =====================================
