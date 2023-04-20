@@ -49,6 +49,21 @@ val x = ($X : int)
       (user_type
         (type_identifier)))))
 
+=====================================
+Ellipsis Metavariable
+=====================================
+
+$...X 
+val x = 2
+
+---
+
+(source_file
+  (semgrep_named_ellipsis)
+  (property_declaration
+    (variable_declaration
+      (simple_identifier))
+    (integer_literal)))
 
 =====================================
 Expression Ellipsis 
