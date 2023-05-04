@@ -97,3 +97,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-sml"]
 	path = lang/semgrep-grammars/src/tree-sitter-sml
 	url = https://github.com/MatthewFluet/tree-sitter-sml
+[submodule "lang/semgrep-grammars/src/tree-sitter-cairo"]
+	path = lang/semgrep-grammars/src/tree-sitter-cairo
+	url = https://github.com/avnu-labs/tree-sitter-cairo
