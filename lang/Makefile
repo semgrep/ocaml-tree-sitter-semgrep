@@ -13,6 +13,7 @@
 SUPPORTED_TS_LANGUAGES = \
   bash \
   c \
+  cairo \
   c-sharp \
   clojure \
   cpp \
@@ -96,6 +97,7 @@ SUPPORTED_DIALECTS = \
 STAT_LANGUAGES1 = \
   bash \
   c \
+  cairo \
   cpp \
   c-sharp \
   dockerfile \
