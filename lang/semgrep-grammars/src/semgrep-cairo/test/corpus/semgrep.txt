@@ -1,0 +1,101 @@
+===================
+Semgrep Constructs
+===================
+
+#[derive(..., Unsafe, ...)]
+struct foo;
+
+fn $FOO() {}
+fn foo(..., x: usize, ...) {}
+fn foo(...) {}
+
+fn foo() {
+    let $X = 42;
+
+    if $X < $Y {}
+    if <... $X == true ...> {}
+
+    ...;
+    let $X = $Y;
+    ...;
+}
+
+---
+
+(source_file
+    (struct_declaration
+        (attribute_list
+            (attribute 
+                (path (name))
+                (attribute_argument (ellipsis))
+                (attribute_argument (name))
+                (attribute_argument (ellipsis))
+            )
+        )
+        (name)
+    )
+    (function_declaration 
+        (function_signature
+            (semgrep_var)
+            (parameter_list)
+        )
+        (block)
+    )
+    (function_declaration 
+        (function_signature
+            (name)
+            (parameter_list
+                (parameter_declaration (ellipsis))
+                (parameter_declaration 
+                    (name) 
+                    (type_identifier (qualified_name (name)))
+                )
+                (parameter_declaration (ellipsis))
+            )
+        )
+        (block)
+    )
+    (function_declaration 
+        (function_signature
+            (name)
+            (parameter_list
+                (parameter_declaration (ellipsis))
+            )
+        )
+        (block)
+    )
+    (function_declaration 
+        (function_signature
+            (name)
+            (parameter_list)
+        )
+        (block
+            (let_statement
+                (identifier)
+                (number (integer))
+            )
+            (if_expression
+                (binary_expression
+                    (qualified_name (semgrep_var))
+                    (qualified_name (semgrep_var))
+                )
+                (block)
+            )
+            (if_expression
+                (deep_ellipsis
+                    (binary_expression
+                        (qualified_name (semgrep_var))
+                        (true)
+                    )
+                )
+                (block)
+            )
+            (ellipsis)
+            (let_statement
+                (identifier)
+                (qualified_name (semgrep_var))
+            )
+            (ellipsis)
+        )
+    )
+)
