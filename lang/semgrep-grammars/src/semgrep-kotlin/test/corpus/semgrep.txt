@@ -16,10 +16,11 @@ class $CLASS {
     (class_body
       (function_declaration
         (simple_identifier)
-        (parameter
-          (simple_identifier)
-          (user_type
-            (type_identifier)))
+        (function_value_parameters
+          (parameter
+            (simple_identifier)
+            (user_type
+              (type_identifier))))
         (function_body
           (statements
             (call_expression
@@ -83,6 +84,7 @@ class Foo {
     (class_body
       (function_declaration
         (simple_identifier)
+        (function_value_parameters)
         (function_body
           (statements
             (ellipsis)))))))
@@ -106,6 +108,7 @@ class Foo {
     (class_body
       (function_declaration
         (simple_identifier)
+        (function_value_parameters)
         (function_body
           (statements
             (property_declaration
@@ -155,9 +158,10 @@ fun foo(..., bar: String, ...) {}
 
 (source_file
   (function_declaration (simple_identifier)
-     (ellipsis)
-     (parameter (simple_identifier) (user_type (type_identifier)))
-     (ellipsis)
+     (function_value_parameters
+      (ellipsis)
+      (parameter (simple_identifier) (user_type (type_identifier)))
+      (ellipsis))
      (function_body))) 
 
 =====================================
@@ -185,6 +189,7 @@ fun foo() {
 ---
 (source_file
   (function_declaration (simple_identifier)
+    (function_value_parameters)
     (function_body
       (statements
         (call_expression (simple_identifier) (call_suffix (value_arguments)))

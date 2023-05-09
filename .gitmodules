@@ -9,7 +9,7 @@
 	url = https://github.com/tree-sitter/tree-sitter-ruby.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-kotlin"]
 	path = lang/semgrep-grammars/src/tree-sitter-kotlin
-	url = https://github.com/fwcd/tree-sitter-kotlin.git
+	url = https://github.com/returntocorp/tree-sitter-kotlin.git 
 [submodule "lang/semgrep-grammars/src/tree-sitter-c-sharp"]
 	path = lang/semgrep-grammars/src/tree-sitter-c-sharp
 	url = https://github.com/tree-sitter/tree-sitter-c-sharp.git
@@ -97,3 +97,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-sml"]
 	path = lang/semgrep-grammars/src/tree-sitter-sml
 	url = https://github.com/MatthewFluet/tree-sitter-sml
+[submodule "lang/semgrep-grammars/src/tree-sitter-cairo"]
+	path = lang/semgrep-grammars/src/tree-sitter-cairo
+	url = https://github.com/avnu-labs/tree-sitter-cairo
