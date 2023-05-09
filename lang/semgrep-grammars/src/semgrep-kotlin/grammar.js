@@ -5,6 +5,11 @@
  * Ellipsis are in the kotlin grammar, so no need to extend for ellipsis.
  */
 
+// INVARIATN: Make sure that you are merging any commits into the `semgrep`
+// branch of `tree-sitter-kotlin`! This is because our version of 
+// `tree-sitter-kotlin` is forked from the original repository, and we
+// want our branch to be kept separate.
+
 const standard_grammar = require('tree-sitter-kotlin/grammar');
 
 module.exports = grammar(standard_grammar, {
