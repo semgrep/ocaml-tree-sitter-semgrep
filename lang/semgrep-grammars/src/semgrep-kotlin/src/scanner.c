@@ -1,6 +1,10 @@
 //INVARIANT: THIS SHOULD BE ALMOST EXACTLY THE SAME FILE THAN
 //../../tree-sitter-kotlin/src/scanner.c EXCEPT FOR A FEW SEMGREP-SPECIFIC
 //EXTENSIONS
+// Also: Make sure that you are merging any commits into the `semgrep`
+// branch of `tree-sitter-kotlin`! This is because our version of 
+// `tree-sitter-kotlin` is forked from the original repository, and we
+// want our branch to be kept separate.
 #include <string.h>
 #include <tree_sitter/parser.h>
 #include <wctype.h>
