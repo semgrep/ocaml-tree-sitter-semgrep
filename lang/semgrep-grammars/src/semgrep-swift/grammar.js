@@ -64,13 +64,21 @@ module.exports = grammar(base_grammar, {
     ),
 
     _type_level_declaration: ($, previous) => choice (
-      previous, 
+      previous,
       $.semgrep_ellipsis,
     ),
 
     type_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+    ),
+
+    navigation_suffix: ($, previous) => choice(
+      previous,
+      seq(
+        $._dot,
+        field("suffix", $.semgrep_ellipsis),
+      ),
     ),
   }
 });
