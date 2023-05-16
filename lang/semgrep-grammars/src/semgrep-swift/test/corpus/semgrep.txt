@@ -170,3 +170,30 @@ foo
 (source_file
   (simple_identifier)
   (fully_open_range))
+
+================================================================================
+Field Access with Ellipsis
+================================================================================
+
+$FOO. ... .bar(startNum..<endData.count)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    (navigation_expression
+      (navigation_expression
+        (simple_identifier)
+        (navigation_suffix
+          (semgrep_ellipsis)))
+      (navigation_suffix
+        (simple_identifier)))
+    (call_suffix
+      (value_arguments
+        (value_argument
+          (range_expression
+            (simple_identifier)
+            (navigation_expression
+              (simple_identifier)
+              (navigation_suffix
+                (simple_identifier)))))))))
