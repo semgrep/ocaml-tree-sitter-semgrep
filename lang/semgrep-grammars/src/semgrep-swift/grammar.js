@@ -30,6 +30,8 @@ module.exports = grammar(base_grammar, {
     // understand.
     semgrep_ellipsis: $ => "...",
 
+    semgrep_ellipsis_metavar : $ => /\$\.\.\.[a-zA-Z_][a-zA-Z_0-9]*/,
+
     /*
     * Unfortunately, `...>` is a valid custom operator in Swift, and it can
     * occur as part of an expression. So, for the pattern `<... 5 ...>`, it gets
@@ -55,6 +57,7 @@ module.exports = grammar(base_grammar, {
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_expression_ellipsis,
+      $.semgrep_ellipsis_metavar,
       $.semgrep_deep_ellipsis,
     ),
 
