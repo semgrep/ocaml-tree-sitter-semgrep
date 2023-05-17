@@ -47,6 +47,32 @@ foo(..., 1, ...);
         (value_argument (fully_open_range))))))
 
 ================================================================================
+Ellipsis Metavariable
+================================================================================
+
+foo($...ARGS);
+foo($...ARGS1, 1, $...ARGS2);
+$...FOO + 1;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    (simple_identifier)
+    (call_suffix
+      (value_arguments (value_argument (semgrep_ellipsis_metavar)))))
+  (call_expression
+    (simple_identifier)
+    (call_suffix
+      (value_arguments
+        (value_argument (semgrep_ellipsis_metavar))
+        (value_argument (integer_literal))
+        (value_argument (semgrep_ellipsis_metavar)))))
+  (additive_expression
+    (semgrep_ellipsis_metavar)
+    (integer_literal)))
+
+================================================================================
 Type Ellipsis
 ================================================================================
 
