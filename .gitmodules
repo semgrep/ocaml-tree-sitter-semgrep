@@ -45,7 +45,7 @@
 	url = https://github.com/MichaHoffmann/tree-sitter-hcl.git
 [submodule "core"]
 	path = core
-	url = git@github.com:returntocorp/ocaml-tree-sitter-core.git
+	url = https://github.com/returntocorp/ocaml-tree-sitter-core.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-vue"]
 	path = lang/semgrep-grammars/src/tree-sitter-vue
 	url = https://github.com/ikatyang/tree-sitter-vue.git
