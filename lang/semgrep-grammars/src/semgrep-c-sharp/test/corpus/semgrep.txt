@@ -157,6 +157,22 @@ __SEMGREP_EXPRESSION
 (compilation_unit (semgrep_expression (integer_literal)))
 
 =====================================
+Ellipsis for enums
+=====================================
+
+public enum $ENUM { ... }
+
+---
+
+(compilation_unit
+      (enum_declaration
+        (modifier)
+        (identifier)
+        (enum_member_declaration_list
+          (enum_member_declaration
+            (ellipsis)))))
+
+=====================================
 Argument ellipsis
 =====================================
 

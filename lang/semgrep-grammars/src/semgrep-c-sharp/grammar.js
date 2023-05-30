@@ -75,6 +75,11 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    enum_member_declaration: ($, previous) => choice(
+          previous,
+	  $.ellipsis,
+    ),
+
     // Statement ellipsis: '...' not followed by ';'
     expression_statement: ($, previous) => {
       return choice(
