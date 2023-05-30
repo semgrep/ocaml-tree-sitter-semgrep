@@ -41,6 +41,7 @@ module.exports = grammar(base_grammar, {
       previous,
       $.constructor_declaration,
       $.expression,
+      $.partials
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -58,6 +59,21 @@ module.exports = grammar(base_grammar, {
     formal_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+    ),
+
+    _class_body_declaration: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis
+    ),
+
+    partials: $ => choice(
+       $.partial_method,
+    ),
+
+    // partial of method_declaration 
+    partial_method: $ => seq(
+      optional($.modifiers),
+      $._method_header
     ),
   }
 });
