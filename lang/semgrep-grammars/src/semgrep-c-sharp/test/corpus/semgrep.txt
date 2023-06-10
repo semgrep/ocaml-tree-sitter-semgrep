@@ -4,7 +4,7 @@ Metavariables
 
 class $CLASS {
   void $FUNC($TYPE $PARAM) {
-    $COND ? $V1 : $V2;
+    int x = $COND ? $V1 : $V2;
   }
 }
 
@@ -15,18 +15,20 @@ class $CLASS {
     (identifier)
     (declaration_list
       (method_declaration
-        (void_keyword)
+        (predefined_type)
         (identifier)
         (parameter_list (parameter (identifier) (identifier)))
         (block
-          (expression_statement
-            (conditional_expression (identifier) (identifier) (identifier))
-          )
-        )
-      )
-    )
-  )
-)
+          (local_declaration_statement
+            (variable_declaration
+              (predefined_type)
+              (variable_declarator
+                (identifier)
+                (equals_value_clause
+                  (conditional_expression
+                    (identifier)
+                    (identifier)
+                    (identifier)))))))))))
 
 =====================================
 Ellipsis for expression
@@ -47,7 +49,7 @@ class Foo {
     (identifier)
     (declaration_list
       (method_declaration
-        (void_keyword)
+        (predefined_type)
         (identifier)
         (parameter_list)
         (block
@@ -86,7 +88,7 @@ class Foo {
     (identifier)
     (declaration_list
       (method_declaration
-        (void_keyword)
+        (predefined_type)
         (identifier)
         (parameter_list)
         (block
@@ -128,7 +130,7 @@ class Foo {
     (identifier)
     (declaration_list
       (method_declaration
-        (void_keyword)
+        (predefined_type)
         (identifier)
         (parameter_list)
         (block
@@ -207,7 +209,7 @@ class A {
     (declaration_list
       (method_declaration
         (modifier)
-        (void_keyword)
+        (predefined_type)
         (identifier)
         (parameter_list
           (parameter
