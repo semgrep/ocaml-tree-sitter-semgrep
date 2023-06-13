@@ -1,6 +1,6 @@
-=====================================
+================================================================================
 Metavariables
-=====================================
+================================================================================
 
 class $CLASS {
   void $FUNC($TYPE $PARAM) {
@@ -8,7 +8,7 @@ class $CLASS {
   }
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -17,7 +17,10 @@ class $CLASS {
       (method_declaration
         (predefined_type)
         (identifier)
-        (parameter_list (parameter (identifier) (identifier)))
+        (parameter_list
+          (parameter
+            (identifier)
+            (identifier)))
         (block
           (local_declaration_statement
             (variable_declaration
@@ -30,9 +33,9 @@ class $CLASS {
                     (identifier)
                     (identifier)))))))))))
 
-=====================================
+================================================================================
 Ellipsis for expression
-=====================================
+================================================================================
 
 class Foo {
   void Bar() {
@@ -42,7 +45,7 @@ class Foo {
   }
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -55,23 +58,20 @@ class Foo {
         (block
           (expression_statement
             (assignment_expression
-              (identifier) (assignment_operator) (integer_literal))
-          )
-          (expression_statement (ellipsis))
+              (identifier)
+              (assignment_operator)
+              (integer_literal)))
+          (expression_statement
+            (ellipsis))
           (expression_statement
             (assignment_expression
-              (identifier) (assignment_operator) (integer_literal)
-            )
-          )
-        )
-      )
-    )
-  )
-)
+              (identifier)
+              (assignment_operator)
+              (integer_literal))))))))
 
-=====================================
+================================================================================
 Ellipsis for statements
-=====================================
+================================================================================
 
 class Foo {
   void Bar() {
@@ -81,7 +81,7 @@ class Foo {
   }
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -96,26 +96,18 @@ class Foo {
             (assignment_expression
               (identifier)
               (assignment_operator)
-              (integer_literal)
-            )
-          )
-          (expression_statement (ellipsis))
+              (integer_literal)))
+          (expression_statement
+            (ellipsis))
           (expression_statement
             (assignment_expression
               (identifier)
               (assignment_operator)
-              (integer_literal)
-            )
-          )
-        )
-      )
-    )
-  )
-)
+              (integer_literal))))))))
 
-=====================================
+================================================================================
 Deep expression ellipsis
-=====================================
+================================================================================
 
 class Foo {
   void Bar() {
@@ -123,7 +115,7 @@ class Foo {
   }
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -138,70 +130,65 @@ class Foo {
             (assignment_expression
               (identifier)
               (assignment_operator)
-              (deep_ellipsis (integer_literal))
-            )
-          )
-        )
-      )
-    )
-  )
-)
+              (deep_ellipsis
+                (integer_literal)))))))))
 
-=====================================
+================================================================================
 Toplevel expression
-=====================================
+================================================================================
 
 __SEMGREP_EXPRESSION
 42
 
----
+--------------------------------------------------------------------------------
 
-(compilation_unit (semgrep_expression (integer_literal)))
+(compilation_unit
+  (semgrep_expression
+    (integer_literal)))
 
-=====================================
+================================================================================
 Ellipsis for enums
-=====================================
+================================================================================
 
 public enum $ENUM { ... }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
-      (enum_declaration
-        (modifier)
-        (identifier)
-        (enum_member_declaration_list
-          (enum_member_declaration
-            (ellipsis)))))
+  (enum_declaration
+    (modifier)
+    (identifier)
+    (enum_member_declaration_list
+      (enum_member_declaration
+        (ellipsis)))))
 
-=====================================
+================================================================================
 Argument ellipsis
-=====================================
+================================================================================
 
 __SEMGREP_EXPRESSION
 foo(...)
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (semgrep_expression
     (invocation_expression
       (identifier)
-      (argument_list (argument (ellipsis)))
-    )
-  )
-)
+      (argument_list
+        (argument
+          (ellipsis))))))
 
-=====================================
+================================================================================
 Parameter ellipsis in method definition
-=====================================
+================================================================================
 
 class A {
   public void SomeMethod(..., string p, ...) {
   }
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -221,15 +208,15 @@ class A {
             (ellipsis)))
         (block)))))
 
-=====================================
+================================================================================
 Ellipsis in class declaration
-=====================================
+================================================================================
 
 class A {
   ...
 }
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (class_declaration
@@ -237,53 +224,56 @@ class A {
     (declaration_list
       (ellipsis))))
 
-=====================================
+================================================================================
 Ellipsis in method chain
-=====================================
+================================================================================
 $X = $O.foo(). ... .bar();
 
----
+--------------------------------------------------------------------------------
+
 (compilation_unit
   (global_statement
-   (expression_statement
-     (assignment_expression
-       (identifier)
-       (assignment_operator)
-       (invocation_expression
-         (member_access_expression
-           (member_access_ellipsis_expression
+    (expression_statement
+      (assignment_expression
+        (identifier)
+        (assignment_operator)
+        (invocation_expression
+          (member_access_expression
+            (member_access_ellipsis_expression
               (invocation_expression
-                (member_access_expression (identifier) (identifier))
-               (argument_list))
+                (member_access_expression
+                  (identifier)
+                  (identifier))
+                (argument_list))
               (ellipsis))
-          (identifier))
-         (argument_list))))))
+            (identifier))
+          (argument_list))))))
 
-=====================================
+================================================================================
 Typed metavariable
-=====================================
+================================================================================
 
 __SEMGREP_EXPRESSION
 (FooClass $FOO).method()
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
-   (semgrep_expression
-      (invocation_expression
-         (member_access_expression
-	    (typed_metavariable (identifier))
-	    (identifier))
-	 (argument_list)))) 
+  (semgrep_expression
+    (invocation_expression
+      (member_access_expression
+        (typed_metavariable
+          (identifier))
+        (identifier))
+      (argument_list))))
 
-
-==========================
+================================================================================
 Ellipses + metavariables as args
-==========================
+================================================================================
 
 foo($...ARGS, 3, $...ARGS);
 
----
+--------------------------------------------------------------------------------
 
 (compilation_unit
   (global_statement
@@ -297,3 +287,58 @@ foo($...ARGS, 3, $...ARGS);
             (integer_literal))
           (argument
             (semgrep_variadic_metavariable)))))))
+
+================================================================================
+Metavariable expression statement
+================================================================================
+
+$X;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement)))
+
+================================================================================
+Typed metavariable expression statement
+================================================================================
+
+(int $X);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (typed_metavariable
+        (predefined_type)))))
+
+================================================================================
+Deep ellipsis expression statement
+================================================================================
+
+<... foo ...>;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (deep_ellipsis
+        (identifier)))))
+
+================================================================================
+Deep ellipsis expression statement
+================================================================================
+
+foo->...;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (member_access_ellipsis_expression
+        (identifier)
+        (ellipsis)))))
