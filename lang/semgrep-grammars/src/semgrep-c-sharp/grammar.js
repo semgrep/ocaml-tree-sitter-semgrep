@@ -86,6 +86,10 @@ module.exports = grammar(standard_grammar, {
         previous,
         prec.right(100, seq($.ellipsis, ';')),  // expression ellipsis
         prec.right(100, $.ellipsis),  // statement ellipsis
+        seq($.deep_ellipsis, ';'),
+        seq($.member_access_ellipsis_expression, ';'),
+        seq($._semgrep_metavariable, ';'),
+        seq($.typed_metavariable, ';')
       );
     },
 

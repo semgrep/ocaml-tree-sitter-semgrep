@@ -16,6 +16,7 @@ SUPPORTED_TS_LANGUAGES = \
   cairo \
   clojure \
   cpp \
+	c-sharp \
   dart \
   dockerfile \
   elixir \
@@ -42,7 +43,7 @@ SUPPORTED_TS_LANGUAGES = \
   typescript \
   vue
 # Commented out due to hitting memory limits in CI:
-#  hack c-sharp
+#  hack 
 
 
 # List of all language variants, as they're made available to semgrep.
@@ -61,6 +62,7 @@ SUPPORTED_DIALECTS = \
   c \
   clojure \
   cpp \
+	c-sharp \
   dart \
   dockerfile \
   elixir \
@@ -86,7 +88,7 @@ SUPPORTED_DIALECTS = \
   tsx \
   typescript \
   vue
-#  hack c-sharp
+#  hack
 
 
 # Languages which are set up to run parsing stats. Ideally, this is all
@@ -99,6 +101,7 @@ STAT_LANGUAGES1 = \
   c \
   cairo \
   cpp \
+	c-sharp \
   dockerfile \
   elixir \
   go \
@@ -109,7 +112,7 @@ STAT_LANGUAGES1 = \
   julia \
   kotlin
 # Commented out due to hitting memory limits in CI:
-#  hack c-sharp
+#  hack 
 
 STAT_LANGUAGES2 = \
   apex \
