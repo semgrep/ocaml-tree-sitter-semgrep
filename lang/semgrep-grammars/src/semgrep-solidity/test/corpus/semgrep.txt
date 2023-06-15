@@ -1,6 +1,26 @@
 =====================================
-Metavariables
+Metavariable for version
 =====================================
+pragma solidity ^ $VER;
+---
+(source_file
+  (pragma_directive
+    (solidity_pragma_token
+      (solidity_version_comparison_operator)
+      (identifier))))
+
+=====================================
+Metavariable for versions range
+=====================================
+pragma solidity >= $VER_FROM <= $VER_TO;
+---
+(source_file
+  (pragma_directive
+    (solidity_pragma_token
+      (solidity_version_comparison_operator)
+      (identifier)
+      (solidity_version_comparison_operator)
+      (identifier))))
 
 =====================================
 Ellipsis for contract
