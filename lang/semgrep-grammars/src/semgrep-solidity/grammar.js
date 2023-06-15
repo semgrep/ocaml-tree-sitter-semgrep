@@ -32,8 +32,21 @@ module.exports = grammar(base_grammar, {
           );
         },
 
-      // Metavariables. No need to patch the identifier rule because
-      // Solidity already accepts '$' as part of an identifier
+        // Metavariables. No need to patch the identifier rule because
+        // Solidity already accepts '$' as part of an identifier
+
+        // Metavariables for Solidity versions
+        _pragma_version_constraint: ($, previous) => {
+            return choice(
+                previous,
+                seq(
+                    optional(
+                        $.solidity_version_comparison_operator
+                    ),
+                    $.identifier
+                ),
+            )
+        },
       
       // Ellipsis
         _expression: ($, previous) => {
