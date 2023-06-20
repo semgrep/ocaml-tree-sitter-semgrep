@@ -342,3 +342,40 @@ foo->...;
       (member_access_ellipsis_expression
         (identifier)
         (ellipsis)))))
+
+================================================================================
+Namespace declarations and ellipses
+================================================================================
+
+...
+namespace $N { };
+...
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (ellipsis)))
+  (namespace_declaration
+    (identifier)
+    (declaration_list))
+  (ellipsis))
+
+================================================================================
+File scoped namespace declarations and ellipses
+================================================================================
+
+...
+namespace $N;
+...
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (file_scoped_namespace_declaration
+    (global_statement
+      (expression_statement
+        (ellipsis)))
+    (identifier)
+    (ellipsis)))
