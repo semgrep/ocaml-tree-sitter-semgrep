@@ -100,3 +100,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-cairo"]
 	path = lang/semgrep-grammars/src/tree-sitter-cairo
 	url = https://github.com/avnu-labs/tree-sitter-cairo
+[submodule "lang/semgrep-grammars/src/tree-sitter-proto"]
+	path = lang/semgrep-grammars/src/tree-sitter-proto
+	url = https://github.com/mitchellh/tree-sitter-proto.git
