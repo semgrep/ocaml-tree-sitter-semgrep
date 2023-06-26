@@ -26,14 +26,9 @@ module.exports = grammar(base_grammar, {
     ),
   */
     // Metavariables
-    identifier: ($, previous) => {
-      return choice(
-        previous,
-        $._semgrep_metavariable
-      );
-    },
 
-    _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/)
+    
+    identifier: $ => /\$?[_\p{XID_Start}][_\p{XID_Continue}]*/,
       
   }
 });
