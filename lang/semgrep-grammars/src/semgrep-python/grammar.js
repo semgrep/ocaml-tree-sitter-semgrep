@@ -25,5 +25,15 @@ module.exports = grammar(base_grammar, {
       ...previous.members
     ),
   */
+    // Metavariables
+    identifier: ($, previous) => {
+      return choice(
+        previous,
+        $._semgrep_metavariable
+      );
+    },
+
+    _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/)
+      
   }
 });
