@@ -1,0 +1,22 @@
+====================================
+Metavariable in match
+====================================
+
+ match $X:
+        case str():
+          print("oh no")
+---
+ (module
+      (match_statement
+        (identifier)
+        (case_clause
+          (case_pattern
+            (call
+              (identifier)
+              (argument_list)))
+          (block
+            (expression_statement
+              (call
+                (identifier)
+                (argument_list
+                  (string))))))))
