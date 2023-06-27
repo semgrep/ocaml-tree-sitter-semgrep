@@ -27,7 +27,13 @@ module.exports = grammar(base_grammar, {
   */
     // Metavariables
 
-    
+   // Rather than creating a separate metavariable term 
+   // and adding it to identifiers, this instead overrides the
+   // regex that is defined in the original tree-sitter grammar. 
+   // this is needed since currently in the original tree-sitter grammar, 
+   // identifier is a terminal, and thus can't do
+   // the usual choice/previous shadowing definition.
+
     identifier: $ => /\$?[_\p{XID_Start}][_\p{XID_Continue}]*/,
       
   }
