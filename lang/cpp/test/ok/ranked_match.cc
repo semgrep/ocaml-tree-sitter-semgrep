@@ -169,8 +169,10 @@ RankedMatch::RankedMatch(StringView candidate, StringView query, TestFunc func)
 RankedMatch::RankedMatch(StringView candidate, UsedLetters candidate_letters,
                          StringView query, UsedLetters query_letters)
     : RankedMatch{candidate, query, [&] {
-        return matches(to_lower(query_letters), to_lower(candidate_letters)) and
-               matches(query_letters & upper_mask, candidate_letters & upper_mask);
+// Original code, doesn't parse and produces a MISSING node (semicolon ';'):
+//        return matches(to_lower(query_letters), to_lower(candidate_letters)) and
+//               matches(query_letters & upper_mask, candidate_letters & upper_mask);
+        return matches(to_lower(query_letters), to_lower(candidate_letters));
     }} {}
 
 
