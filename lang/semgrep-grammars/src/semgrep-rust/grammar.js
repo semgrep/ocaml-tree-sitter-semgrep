@@ -32,7 +32,8 @@ module.exports = grammar(standard_grammar, {
       return token(
         choice(
           previous,
-          /\$[A-Z_][A-Z_0-9]*/
+          /\$[A-Z_][A-Z_0-9]*/,
+          /\$\.\.\.[A-Z_][A-Z_0-9]*/,
         )
       );
     },
