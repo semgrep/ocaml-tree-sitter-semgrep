@@ -19,14 +19,14 @@ bar()
 
 --------------------------------------------------------------------------------
 
-  (source_file
-    (call_expression
-      (identifier)
-      (argument_list))
-    (semgrep_ellipsis)
-    (call_expression
-      (identifier)
-      (argument_list)))
+(source_file
+  (call_expression
+    (identifier)
+    (argument_list))
+  (semgrep_ellipsis)
+  (call_expression
+    (identifier)
+    (argument_list)))
 
 ================================================================================
 Top level public constructor
@@ -48,7 +48,7 @@ end
       (integer_literal))))
 
 ================================================================================
-Abstract type metavariable 
+Abstract type metavariable
 ================================================================================
 
 abstract type $TY end
@@ -133,3 +133,46 @@ end
     (return_statement
       (interpolation_expression
         (identifier)))))
+
+================================================================================
+Catch ellipsis
+================================================================================
+
+try 
+  x = 3
+catch ... 
+  ...
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (try_statement
+    (assignment
+      (identifier)
+      (operator)
+      (integer_literal))
+    (catch_clause
+      (catch_ellipsis)
+      (semgrep_ellipsis))))
+
+================================================================================
+Empty catch followed by ellipsis
+================================================================================
+
+try 
+  x = 3
+catch
+  ...
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (try_statement
+    (assignment
+      (identifier)
+      (operator)
+      (integer_literal))
+    (catch_clause
+      (semgrep_ellipsis))))
