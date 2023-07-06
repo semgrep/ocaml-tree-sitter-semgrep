@@ -27,6 +27,13 @@ module.exports = grammar(standard_grammar, {
     // Alternate "entry point". Allows parsing a standalone list of statements.
     semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1($._statement)),
 
+    semgrep_typed_metavar: $ =>
+      seq(
+        $.identifier,
+        ':',
+        $._type,
+      ),
+
     // Metavariables
     identifier: ($, previous) => {
       return token(
@@ -69,6 +76,12 @@ module.exports = grammar(standard_grammar, {
         $.member_access_ellipsis_expression,
       );
     },
+
+    parenthesized_expression: ($, previous) => seq(
+      '(',
+      choice($._expression, $.semgrep_typed_metavar),
+      ')'
+    ),
 
     // TODO: have to use 13 instead of PREC.field because the Rust grammar
     // doesn't export precedences. Should we use something like
