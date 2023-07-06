@@ -55,6 +55,7 @@ module.exports = grammar(base_grammar, {
             "default",
             choice(
               $.double_quoted_string,
+              $.single_quoted_string,
               $.unquoted_string
             )
           )
@@ -74,7 +75,13 @@ module.exports = grammar(base_grammar, {
           )
         ),
         token.immediate("="),
-        field("value", choice($.double_quoted_string, $.unquoted_string))
+        field(
+          "value",
+          choice(
+            $.double_quoted_string,
+            $.single_quoted_string,
+            $.unquoted_string
+          ))
       )
     ),
 
