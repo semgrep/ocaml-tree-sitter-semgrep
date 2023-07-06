@@ -20,7 +20,7 @@ module.exports = grammar(base_grammar, {
     ),
 
     // overrides the original definition
-    string_array: ($) =>
+    json_string_array: ($) =>
       seq(
         "[",
         optional(
@@ -30,7 +30,7 @@ module.exports = grammar(base_grammar, {
       ),
 
     _array_element: ($) => choice(
-      $.double_quoted_string,
+      $.json_string,
       $.semgrep_ellipsis,
       $.semgrep_metavariable
     ),

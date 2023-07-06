@@ -46,10 +46,10 @@ RUN ["a", ..., "b"]
 
 (source_file
   (run_instruction
-    (string_array
-      (double_quoted_string)
+    (json_string_array
+      (json_string)
       (semgrep_ellipsis)
-      (double_quoted_string))))
+      (json_string))))
 
 =============================================
 Shell or argv ellipsis
@@ -74,10 +74,10 @@ RUN ["a", $X, "b"]
 
 (source_file
   (run_instruction
-    (string_array
-      (double_quoted_string)
+    (json_string_array
+      (json_string)
       (semgrep_metavariable)
-      (double_quoted_string))))
+      (json_string))))
 
 =============================================
 Param metavariable
