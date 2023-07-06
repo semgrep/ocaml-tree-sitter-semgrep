@@ -20,7 +20,7 @@ module.exports = grammar(base_grammar, {
     ),
 
     // overrides the original definition
-    string_array: ($) =>
+    json_string_array: ($) =>
       seq(
         "[",
         optional(
@@ -30,7 +30,7 @@ module.exports = grammar(base_grammar, {
       ),
 
     _array_element: ($) => choice(
-      $.double_quoted_string,
+      $.json_string,
       $.semgrep_ellipsis,
       $.semgrep_metavariable
     ),
@@ -55,6 +55,7 @@ module.exports = grammar(base_grammar, {
             "default",
             choice(
               $.double_quoted_string,
+              $.single_quoted_string,
               $.unquoted_string
             )
           )
@@ -74,7 +75,13 @@ module.exports = grammar(base_grammar, {
           )
         ),
         token.immediate("="),
-        field("value", choice($.double_quoted_string, $.unquoted_string))
+        field(
+          "value",
+          choice(
+            $.double_quoted_string,
+            $.single_quoted_string,
+            $.unquoted_string
+          ))
       )
     ),
 
