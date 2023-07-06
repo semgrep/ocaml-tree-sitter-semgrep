@@ -24,6 +24,20 @@ impl $CLASS {
 	  	 (block (identifier))
 		 (else_clause (block (identifier)))))))))
 
+=====================================
+Typed Metavariables
+=====================================
+
+x == ($Y : String);
+
+---
+(source_file
+  (binary_expression
+    (identifier)
+    (parenthesized_expression
+      (semgrep_typed_metavar
+        (identifier)
+        (type_identifier)))))
 
 =====================================
 Ellipsis for expression
