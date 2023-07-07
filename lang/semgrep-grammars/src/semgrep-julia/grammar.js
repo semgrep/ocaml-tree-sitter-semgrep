@@ -20,6 +20,28 @@ module.exports = grammar(base_grammar, {
   rules: {
     semgrep_ellipsis: $ => '...',
 
+    // Metavariables
+    identifier: ($, previous) => {
+      return token(
+        choice(
+          previous,
+          // We allow an identifier to be the same as an identifier, but prefixed
+          // with a dollar sign.
+          // We could use a more specific regular expression, which would match
+          // metavariables more faithfully, but either:
+          // 1) this would result in cases where we tokenize as an identifier or
+          // an interpolation expression where we don't want to, depending on how
+          // we set up the precedence.
+          // 2) this causes tokenization issues with interpolation expression that
+          // have prefixes which are metavariables, such as $Pack, which is parsed
+          // as two tokens -- an identifier "$P" and an identifier "ack".
+
+          // It's better to allow anything prefixed with a dollar sign to be an identifier,
+          // then sort it out in generic translation.
+          seq("$", previous)
+        ));
+    },
+
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
