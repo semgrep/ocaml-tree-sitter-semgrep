@@ -69,6 +69,8 @@ ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-sem
 * [lua](https://github.com/returntocorp/semgrep-lua)
 * [ocaml](https://github.com/returntocorp/semgrep-ocaml)
 * [php](https://github.com/returntocorp/semgrep-php)
+* [promql](https://github.com/returntocorp/semgrep-promql)
+* [proto](https://github.com/returntocorp/semgrep-proto)
 * [python](https://github.com/returntocorp/semgrep-python)
 * [r](https://github.com/returntocorp/semgrep-r)
 * [ruby](https://github.com/returntocorp/semgrep-ruby)
