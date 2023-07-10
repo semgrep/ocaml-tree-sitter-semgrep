@@ -103,3 +103,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-proto"]
 	path = lang/semgrep-grammars/src/tree-sitter-proto
 	url = https://github.com/mitchellh/tree-sitter-proto.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-promql"]
+	path = lang/semgrep-grammars/src/tree-sitter-promql
+	url = https://github.com/MichaHoffmann/tree-sitter-promql.git
