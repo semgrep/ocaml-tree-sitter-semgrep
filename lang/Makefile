@@ -32,6 +32,7 @@ SUPPORTED_TS_LANGUAGES = \
   lua \
   ocaml \
   php \
+  promql \
   proto \
   python \
   r \
@@ -79,6 +80,7 @@ SUPPORTED_DIALECTS = \
   lua \
   ocaml \
   php \
+  promql \
   proto \
   python \
   r \
