@@ -13,3 +13,22 @@ $F($S[10m])
       (range_vector_selector
         (metric_name)
         (range_selection)))))
+
+================================================================================
+metavariables - more
+================================================================================
+
+$SUM by ($L) ($RATE($SERIES))
+
+--------------------------------------------------------------------------------
+
+(query
+  (function_call
+    (function_name)
+    (grouping
+      (label_name))
+    (function_args
+      (function_call
+        (function_name)
+        (function_args
+          (float_literal))))))
