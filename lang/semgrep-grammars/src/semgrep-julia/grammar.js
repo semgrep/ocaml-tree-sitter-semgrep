@@ -20,6 +20,13 @@ module.exports = grammar(base_grammar, {
   rules: {
     semgrep_ellipsis: $ => '...',
 
+    catch_clause: $ => prec(1, seq(
+      'catch',
+      optional(choice($.identifier, alias($.semgrep_ellipsis, $.catch_ellipsis))),
+      optional($._terminator),
+      optional($._block),
+    )),
+
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
