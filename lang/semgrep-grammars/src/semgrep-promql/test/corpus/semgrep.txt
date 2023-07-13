@@ -32,3 +32,69 @@ $SUM by ($L) ($RATE($SERIES))
         (function_name)
         (function_args
           (float_literal))))))
+
+================================================================================
+metavariables - duration
+================================================================================
+
+rate($SERIES[$DURATION])
+
+--------------------------------------------------------------------------------
+
+(query
+  (function_call
+    (function_name)
+    (function_args
+      (range_vector_selector
+        (metric_name)
+        (range_selection)))))
+
+================================================================================
+ellipsis - function args
+================================================================================
+
+rate(...)
+
+--------------------------------------------------------------------------------
+
+(query
+  (function_call
+    (function_name)
+    (function_args
+      (semgrep_ellipsis))))
+
+================================================================================
+ellipsis - aggregation grouping
+================================================================================
+
+sum by (..., a, ...) (...)
+
+--------------------------------------------------------------------------------
+
+(query
+  (function_call
+    (function_name)
+    (grouping
+      (semgrep_ellipsis)
+      (label_name)
+      (semgrep_ellipsis))
+    (function_args
+      (semgrep_ellipsis))))
+
+================================================================================
+ellipsis - label matcher
+================================================================================
+
+$METRIC{..., $LABEL=~$VALUE,...}
+
+--------------------------------------------------------------------------------
+
+(query
+  (instant_vector_selector
+    (metric_name)
+    (label_selectors
+      (semgrep_ellipsis)
+      (label_matcher
+        (label_name)
+        (label_value))
+      (semgrep_ellipsis))))
