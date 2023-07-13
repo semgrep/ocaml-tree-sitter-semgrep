@@ -171,3 +171,40 @@ end
       (integer_literal))
     (catch_clause
       (semgrep_ellipsis))))
+
+================================================================================
+Using on metavariable
+================================================================================
+
+using $MODULE: $X
+using $MODULE: $X as $Y
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (import_statement
+    (selected_import
+      (identifier)
+      (identifier)))
+  (import_statement
+    (selected_import
+      (identifier)
+      (import_alias
+        (identifier)
+        (identifier)))))
+
+================================================================================
+Import on metavariable
+================================================================================
+
+import $MODULE: $X as $Y
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (import_statement
+    (selected_import
+      (identifier)
+      (import_alias
+        (identifier)
+        (identifier)))))
