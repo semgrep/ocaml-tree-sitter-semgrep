@@ -205,6 +205,39 @@ let $L = $X.iter(). ... .count();
         (field_identifier))
       (arguments))))
 
+
+================================================================================
+Ellipsis for attribute arguments
+================================================================================
+
+#[foo(...)]
+#[foo(bar, ...)]
+#[foo(..., baz, ...)]
+
+--------------------------------------------------------------------------------
+
+(source_file
+      (attribute_item
+        (meta_item
+          (identifier)
+          (meta_arguments
+            (ellipsis))))
+      (attribute_item
+        (meta_item
+          (identifier)
+          (meta_arguments
+            (meta_item
+              (identifier))
+            (ellipsis))))
+      (attribute_item
+        (meta_item
+          (identifier)
+          (meta_arguments
+            (ellipsis)
+            (meta_item
+              (identifier))
+            (ellipsis)))))
+
 ================================================================================
 Toplevel expression
 ================================================================================
