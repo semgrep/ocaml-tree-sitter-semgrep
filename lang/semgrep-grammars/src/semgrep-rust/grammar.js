@@ -84,6 +84,17 @@ module.exports = grammar(standard_grammar, {
       ')'
     ),
 
+    meta_arguments: ($, previous) => seq(
+      '(',
+      sepBy(',', choice(
+	$.ellipsis,
+	$.meta_item,
+        $._literal
+      )),
+      optional(','),
+      ')'
+    ),
+
     // TODO: have to use 13 instead of PREC.field because the Rust grammar
     // doesn't export precedences. Should we use something like
     // https://github.com/jhnns/rewire to access this directly?
@@ -100,3 +111,12 @@ module.exports = grammar(standard_grammar, {
     ellipsis: $ => '...',
   }
 });
+
+
+function sepBy1(sep, rule) {
+  return seq(rule, repeat(seq(sep, rule)))
+}
+
+function sepBy(sep, rule) {
+  return optional(sepBy1(sep, rule))
+}
