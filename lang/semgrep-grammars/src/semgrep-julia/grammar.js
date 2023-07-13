@@ -38,7 +38,7 @@ module.exports = grammar(base_grammar, {
 
           // It's better to allow anything prefixed with a dollar sign to be an identifier,
           // then sort it out in generic translation.
-          seq("$", previous)
+          token.immediate(seq("$", previous))
         ));
     },
 
