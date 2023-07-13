@@ -6,6 +6,8 @@ set -eu -o pipefail
 
 prog_name=$(basename "$0")
 
+xfail_langs=('julia')
+
 usage() {
   cat <<EOF
 Build and test support for a language. For example,
@@ -54,7 +56,22 @@ echo "Building the extended parser semgrep-$lang."
   cd semgrep-grammars/src/semgrep-"$lang"
   make clean
   make
-  make test
+  if make test; then
+    true
+  else
+    for xfail_candidate in "${xfail_langs[@]}"; do
+      if [[ "$lang" == "$xfail_candidate" ]]; then
+        echo ""
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo "This is an xfail language, which means if your tests"
+        echo "fail, nothing might be wrong. Consult the instructions"
+        echo "printed above on what you need to specially consider."
+        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        echo ""
+      fi
+    done
+    exit 1
+  fi
 )
 
 sublangs="$lang"

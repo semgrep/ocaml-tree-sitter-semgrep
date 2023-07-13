@@ -33,14 +33,14 @@ mkdir -p test/corpus
   for dir in test/corpus corpus; do
     corpus=../../../tree-sitter-"$name"/$dir
     if [[ -e "$corpus" ]]; then
-      # A copy, so we can run `tree-sitter test -u` and not modify the original
-      # in tree-sitter-julia
-      cp -r "$corpus" inherited
+      ln -sf "$corpus" inherited
+      echo ""
       echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "Your Julia tests may fail due to us changing the syntax tree slightly."
       echo "If you have a failing test due to 'interpolation_expression' being"
-      echo "parsed as 'identifier', simply patch the test before you commit."
+      echo "parsed as 'identifier', ignore it, as it is expected behavior."
       echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+      echo ""
     fi
   done
 )
