@@ -32,7 +32,7 @@ bar()
 Top level public constructor
 ================================================================================
 
-function f(...) 
+function f(...)
   return 1
 end
 
@@ -63,7 +63,7 @@ abstract type $TY end
 Struct metavariable
 ================================================================================
 
-struct $FOO 
+struct $FOO
   a
   b
 end
@@ -95,7 +95,7 @@ foo(..., 5)
 Ellipsis in if
 ================================================================================
 
-if (...) 
+if (...)
   ...
 end
 
@@ -130,21 +130,44 @@ end
       (identifier))))
 
 ================================================================================
-Metavariable where only an identifier can appear
+Catch ellipsis
 ================================================================================
 
-$FUN(...) do $X 
+try
+  x = 3
+catch ...
   ...
 end
 
 --------------------------------------------------------------------------------
 
 (source_file
-  (call_expression
-    (identifier)
-    (argument_list
-      (semgrep_ellipsis))
-    (do_clause
-      (parameter_list
-        (identifier))
+  (try_statement
+    (assignment
+      (identifier)
+      (operator)
+      (integer_literal))
+    (catch_clause
+      (catch_ellipsis)
+      (semgrep_ellipsis))))
+
+================================================================================
+Empty catch followed by ellipsis
+================================================================================
+
+try
+  x = 3
+catch
+  ...
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (try_statement
+    (assignment
+      (identifier)
+      (operator)
+      (integer_literal))
+    (catch_clause
       (semgrep_ellipsis))))

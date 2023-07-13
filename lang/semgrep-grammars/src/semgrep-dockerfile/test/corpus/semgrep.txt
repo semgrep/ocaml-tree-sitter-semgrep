@@ -46,10 +46,10 @@ RUN ["a", ..., "b"]
 
 (source_file
   (run_instruction
-    (string_array
-      (double_quoted_string)
+    (json_string_array
+      (json_string)
       (semgrep_ellipsis)
-      (double_quoted_string))))
+      (json_string))))
 
 =============================================
 Shell or argv ellipsis
@@ -74,10 +74,10 @@ RUN ["a", $X, "b"]
 
 (source_file
   (run_instruction
-    (string_array
-      (double_quoted_string)
+    (json_string_array
+      (json_string)
       (semgrep_metavariable)
-      (double_quoted_string))))
+      (json_string))))
 
 =============================================
 Param metavariable
@@ -477,3 +477,55 @@ HEALTHCHECK $X
         (shell_fragment))))
   (healthcheck_instruction
     (semgrep_metavariable)))
+
+=============================================
+Various string literals
+=============================================
+
+ARG key="\"a${VAR}b\"\\"
+ARG key='\'a\'\\'
+ARG key=a
+LABEL key="\"a${VAR}b\"\\"
+LABEL key='\'a\'\\'
+LABEL key=a
+
+---
+
+(source_file
+  (arg_instruction
+    (unquoted_string)
+    (double_quoted_string
+      (escape_sequence)
+      (expansion
+        (variable))
+      (escape_sequence)
+      (escape_sequence)))
+  (arg_instruction
+    (unquoted_string)
+    (single_quoted_string
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)))
+  (arg_instruction
+    (unquoted_string)
+    (unquoted_string))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (double_quoted_string
+        (escape_sequence)
+        (expansion
+          (variable))
+        (escape_sequence)
+        (escape_sequence))))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (single_quoted_string
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence))))
+  (label_instruction
+    (label_pair
+      (unquoted_string)
+      (unquoted_string))))
