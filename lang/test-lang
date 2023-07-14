@@ -8,6 +8,9 @@ prog_name=$(basename "$0")
 
 xfail_langs=('julia')
 
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
 usage() {
   cat <<EOF
 Build and test support for a language. For example,
@@ -51,26 +54,26 @@ if [[ -z "$lang" ]]; then
   error "Missing language name."
 fi
 
+is_xfail_language () {
+  for xfail_candidate in "${xfail_langs[@]}"; do
+    if [[ "$1" == "$xfail_candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 echo "Building the extended parser semgrep-$lang."
 (
   cd semgrep-grammars/src/semgrep-"$lang"
   make clean
   make
-  if make test; then
-    true
+  if is_xfail_language "$lang"; then
+    if make test; then
+      true
+    fi
   else
-    for xfail_candidate in "${xfail_langs[@]}"; do
-      if [[ "$lang" == "$xfail_candidate" ]]; then
-        echo ""
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        echo "This is an xfail language, which means if your tests"
-        echo "fail, nothing might be wrong. Consult the instructions"
-        echo "printed above on what you need to specially consider."
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        echo ""
-      fi
-    done
-    exit 1
+    make test
   fi
 )
 
@@ -124,3 +127,15 @@ for sublang in $sublangs; do
     check_for_blanks
   )
 done
+
+if is_xfail_language "$lang"; then
+    echo -e "${RED}"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "This is an xfail language, which means that the 'make test' step will"
+    echo "unconditionally succeed. The test output needs to be inspected to"
+    echo "judge if it is a true failure or not."
+    echo "Consult the instructions above (in exclamations) for what you need"
+    echo "to specially consider."
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo -e "${NC}"
+fi

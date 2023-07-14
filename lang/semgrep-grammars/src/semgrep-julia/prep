@@ -7,6 +7,9 @@
 #
 set -eu -o pipefail
 
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
 name=$(basename "$(pwd)" | sed -e 's/semgrep-//')
 echo $(pwd)
 
@@ -34,13 +37,13 @@ mkdir -p test/corpus
     corpus=../../../tree-sitter-"$name"/$dir
     if [[ -e "$corpus" ]]; then
       ln -sf "$corpus" inherited
-      echo ""
+      echo -e "${RED}"
       echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
       echo "Your Julia tests may fail due to us changing the syntax tree slightly."
       echo "If you have a failing test due to 'interpolation_expression' being"
       echo "parsed as 'identifier', ignore it, as it is expected behavior."
       echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-      echo ""
+      echo -e "${NC}"
     fi
   done
 )
