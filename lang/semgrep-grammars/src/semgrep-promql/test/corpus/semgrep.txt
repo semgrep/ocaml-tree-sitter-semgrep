@@ -98,3 +98,47 @@ $METRIC{..., $LABEL=~$VALUE,...}
         (label_name)
         (label_value))
       (semgrep_ellipsis))))
+
+================================================================================
+ellipsis - binary expression left
+================================================================================
+
+... + sum(some_metric)
+
+--------------------------------------------------------------------------------
+
+(query
+  (binary_expression
+    (semgrep_ellipsis)
+    (function_call
+      (function_name)
+      (function_args
+        (instant_vector_selector
+          (metric_name))))))
+
+================================================================================
+ellipsis - binary expression right
+================================================================================
+
+some_metric / ...
+
+--------------------------------------------------------------------------------
+
+(query
+  (binary_expression
+    (instant_vector_selector
+      (metric_name))
+    (semgrep_ellipsis)))
+
+================================================================================
+ellipsis - binary expression both sides
+================================================================================
+
+... / ...
+
+--------------------------------------------------------------------------------
+
+(query
+  (binary_expression
+    (semgrep_ellipsis)
+    (semgrep_ellipsis)))
