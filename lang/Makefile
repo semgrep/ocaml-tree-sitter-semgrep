@@ -30,6 +30,7 @@ SUPPORTED_TS_LANGUAGES = \
   jsonnet \
   kotlin \
   lua \
+  make \
   ocaml \
   php \
   promql \
@@ -78,6 +79,7 @@ SUPPORTED_DIALECTS = \
   julia \
   kotlin \
   lua \
+  make \
   ocaml \
   php \
   promql \
