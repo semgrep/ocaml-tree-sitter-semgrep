@@ -39,6 +39,31 @@ module.exports = grammar(base_grammar, {
 
     function_args: ($) =>
       seq("(", commaSep(choice($.semgrep_ellipsis, $._query)), ")"),
+
+    binary_expression: ($) => {
+      const table = [
+        [6, choice("^")],
+        [5, choice("*", "/", "%")],
+        [4, choice("+", "-")],
+        [3, seq(choice("==", "!=", ">", ">=", "<", "<="), optional("bool"))],
+        [2, choice("and", "or", "unless")],
+        [1, choice("atan2")],
+      ];
+
+      return choice(
+        ...table.map(([precedence, operator]) =>
+          prec.left(
+            precedence,
+            seq(
+              choice($.semgrep_ellipsis, $._query),
+              operator,
+              optional($.binary_grouping),
+              choice($.semgrep_ellipsis, $._query),
+            ),
+          ),
+        ),
+      );
+    },
   },
 });
 
