@@ -125,6 +125,7 @@ STAT_LANGUAGES2 = \
   lua \
   ocaml \
   php \
+  promql \
   python \
   r \
   ruby \

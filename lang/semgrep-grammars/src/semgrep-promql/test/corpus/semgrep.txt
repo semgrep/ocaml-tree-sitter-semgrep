@@ -142,3 +142,16 @@ ellipsis - binary expression both sides
   (binary_expression
     (semgrep_ellipsis)
     (semgrep_ellipsis)))
+
+================================================================================
+ellipsis - empty series matcher
+================================================================================
+
+{...}
+
+--------------------------------------------------------------------------------
+
+(query
+  (instant_vector_selector
+    (label_selectors
+      (semgrep_ellipsis))))

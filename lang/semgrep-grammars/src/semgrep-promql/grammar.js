@@ -26,12 +26,16 @@ module.exports = grammar(base_grammar, {
     _duration: ($, prev) => choice($._semgrep_metavariable, prev),
 
     // Ellipsis
+    /*
+     TODO: this is getting unwieldly, find a better way to handle the ellipsis
+    */
+
     label_selectors: ($, _) =>
       seq("{", commaSep(choice($.semgrep_ellipsis, $.label_matcher)), "}"),
 
     grouping: ($) =>
       seq(
-        choice("by", "without"),
+        choice(caseInsensitive("by"), caseInsensitive("without")),
         "(",
         commaSep(choice($.semgrep_ellipsis, $.label_name)),
         ")",
@@ -45,9 +49,22 @@ module.exports = grammar(base_grammar, {
         [6, choice("^")],
         [5, choice("*", "/", "%")],
         [4, choice("+", "-")],
-        [3, seq(choice("==", "!=", ">", ">=", "<", "<="), optional("bool"))],
-        [2, choice("and", "or", "unless")],
-        [1, choice("atan2")],
+        [
+          3,
+          seq(
+            choice("==", "!=", ">", ">=", "<", "<="),
+            optional(caseInsensitive("bool")),
+          ),
+        ],
+        [
+          2,
+          choice(
+            caseInsensitive("and"),
+            caseInsensitive("or"),
+            caseInsensitive("unless"),
+          ),
+        ],
+        [1, choice(caseInsensitive("atan2"))],
       ];
 
       return choice(
@@ -73,4 +90,15 @@ function commaSep(rule) {
 
 function commaSep1(rule) {
   return seq(rule, repeat(seq(",", rule)), optional(","));
+}
+
+// taken from https://github.com/stadelmanma/tree-sitter-fortran/blob/a9c79b20a84075467d705ebe714c90f275dd5835/grammar.js#L1125C1-L1133C2
+function caseInsensitive(keyword) {
+  let result = new RegExp(
+    keyword
+      .split("")
+      .map((l) => (l !== l.toUpperCase() ? `[${l}${l.toUpperCase()}]` : l))
+      .join(""),
+  );
+  return result;
 }
