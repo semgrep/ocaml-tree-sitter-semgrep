@@ -23,6 +23,13 @@ module.exports = grammar(base_grammar, {
     // As it turns out, $x parses as the application of `$` to an identifier.
     // We'll just allow it to parse like that, and then fix it in generic translation.
 
+    _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+
+    _alphaAlphaNumeric_ident: ($, previous) => choice(
+      $._semgrep_metavariable,
+      previous
+    ),
+
     _dec_no_local: ($, previous) => choice(
       $.semgrep_ellipsis,
       previous
