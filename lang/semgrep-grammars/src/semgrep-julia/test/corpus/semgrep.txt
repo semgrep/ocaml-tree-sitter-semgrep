@@ -32,7 +32,7 @@ bar()
 Top level public constructor
 ================================================================================
 
-function f(...) 
+function f(...)
   return 1
 end
 
@@ -64,7 +64,7 @@ abstract type $TY end
 Struct metavariable
 ================================================================================
 
-struct $FOO 
+struct $FOO
   a
   b
 end
@@ -97,7 +97,7 @@ foo(..., 5)
 Ellipsis in if
 ================================================================================
 
-if (...) 
+if (...)
   ...
 end
 
@@ -138,9 +138,9 @@ end
 Catch ellipsis
 ================================================================================
 
-try 
+try
   x = 3
-catch ... 
+catch ...
   ...
 end
 
@@ -160,7 +160,7 @@ end
 Empty catch followed by ellipsis
 ================================================================================
 
-try 
+try
   x = 3
 catch
   ...
@@ -176,3 +176,49 @@ end
       (integer_literal))
     (catch_clause
       (semgrep_ellipsis))))
+
+================================================================================
+Metavariable in import
+================================================================================
+
+using $MODULE: $X
+using $MODULE: $X as $Y
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (import_statement
+    (selected_import
+      (interpolation_expression
+        (identifier))
+      (interpolation_expression
+        (identifier))))
+  (import_statement
+    (selected_import
+      (interpolation_expression
+        (identifier))
+      (import_alias
+        (interpolation_expression
+          (identifier))
+        (identifier)))))
+
+================================================================================
+Metavariable in do block
+================================================================================
+
+map([]) do $X
+    return x
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    (identifier)
+    (argument_list
+      (vector_expression))
+    (do_clause
+      (parameter_list
+        (identifier))
+      (return_statement
+        (identifier)))))
