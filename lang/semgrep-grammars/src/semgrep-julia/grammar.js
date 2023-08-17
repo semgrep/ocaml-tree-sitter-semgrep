@@ -31,7 +31,7 @@ module.exports = grammar(base_grammar, {
     // We allow an identifier to be a simple metavariable regex, so that
     // we properly support metavariables.
     // Low precedence, so that we take less priority than parsing as
-    // an interpolation expression. See the comments below.
+    // an interpolation expression, if possible. See the comments below.
     identifier: ($, previous) =>
       prec(1, choice(
         previous,
@@ -57,7 +57,7 @@ module.exports = grammar(base_grammar, {
     interpolation_expression: ($, previous) => choice(
       previous,
       // We alias the included metavariable to an $.identifier so that the parse
-      // tree stays the same.
+      // tree stays the same. Otherwise, we will fail `tree-sitter` tests.
       alias(prec(999, /\$[A-Z][a-zA-Z0-9]*/), $.identifier)
     ),
 
