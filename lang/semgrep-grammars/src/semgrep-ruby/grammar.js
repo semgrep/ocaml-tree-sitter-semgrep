@@ -62,6 +62,9 @@ module.exports = grammar(standard_grammar, {
   // word: $ => $.old_identifier,
 
   externals: ($, previous) => previous.concat([
+    // See the "sgrep-ext" in scanner.cc for more on how this
+    // works. Just assume that this token is correctly put in
+    // for all instances of a real Semgrep ellipsis.
     $.semgrep_ellipsis
   ]),
 
@@ -85,6 +88,8 @@ module.exports = grammar(standard_grammar, {
         // Need a high precedence here, so that "$...X" is not parsed
         // as a range expression from $ to X.
         token(prec(1000, /\$\.\.\.[A-Z_][A-Z_0-9]*/)),
+        // Same here, so it works within dot accesses.
+        alias(token(prec(1000, /\.\.\./)), $.semgrep_ellipsis)
      ))
     ),
 
