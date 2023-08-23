@@ -1,3 +1,6 @@
+//INVARIANT: THIS SHOULD BE ALMOST EXACTLY THE SAME FILE THAN
+//../../tree-sitter-ruby/src/scanner.cc EXCEPT FOR A FEW SEMGREP-SPECIFIC
+//EXTENSIONS
 // auto-formatted based on Google-style with 2 space indentation
 #include <tree_sitter/parser.h>
 
@@ -47,6 +50,7 @@ enum TokenType {
   ELEMENT_REFERENCE_BRACKET,
   SHORT_INTERPOLATION,
 
+  // sgrep-ext:
   SEMGREP_ELLIPSIS,
 
   NONE
@@ -868,6 +872,7 @@ struct Scanner {
       return true;
 
     switch (lexer->lookahead) {
+      // sgrep-ext:
       case '.':
         advance(lexer);
         if (lexer->lookahead == '.') {
