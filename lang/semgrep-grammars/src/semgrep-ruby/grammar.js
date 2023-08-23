@@ -61,6 +61,10 @@ module.exports = grammar(standard_grammar, {
   name: 'ruby',
   // word: $ => $.old_identifier,
 
+  externals: ($, previous) => previous.concat([
+    $.semgrep_metavariable
+  ]),
+
   rules: {
     // old_identifier: $ => token(
     //  seq(
