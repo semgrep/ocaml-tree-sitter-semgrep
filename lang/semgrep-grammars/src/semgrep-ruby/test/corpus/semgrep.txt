@@ -7,7 +7,7 @@ Ellipsis
 --------------------------------------------------------------------------------
 
 (program
-  (semgrep_ellipsis))
+  (semgrep_ellipsis_followed_by_newline))
 
 ================================================================================
 Top level statements
@@ -23,7 +23,7 @@ bar()
   (call
     (identifier)
     (argument_list))
-  (semgrep_ellipsis)
+  (semgrep_ellipsis_followed_by_newline)
   (call
     (identifier)
     (argument_list)))
@@ -90,7 +90,7 @@ x = foo(1...2)
           (integer))))))
 
 ================================================================================
-Ellipsis as parameter
+Ellipsis as argument
 ================================================================================
 
 x = foo(1, ...)
@@ -105,6 +105,22 @@ x = foo(1, ...)
       (argument_list
         (integer)
         (forward_argument)))))
+
+================================================================================
+Ellipsis as parameter
+================================================================================
+
+def method (x, ...)
+end
+
+--------------------------------------------------------------------------------
+
+(program
+  (method
+    (identifier)
+    (method_parameters
+      (identifier)
+      (forward_parameter))))
 
 ================================================================================
 Ellipsis in dot chain
@@ -133,7 +149,7 @@ x = ...
 (program
   (assignment
     (identifier)
-    (semgrep_ellipsis)))
+    (semgrep_ellipsis_followed_by_newline)))
 
 ================================================================================
 Metavariable

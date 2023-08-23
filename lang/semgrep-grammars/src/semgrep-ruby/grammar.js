@@ -64,19 +64,40 @@ module.exports = grammar(standard_grammar, {
   externals: ($, previous) => previous.concat([
     // See the "sgrep-ext" in scanner.cc for more on how this
     // works. Just assume that this token is correctly put in
-    // for all instances of a real Semgrep ellipsis.
-    $.semgrep_ellipsis
+    // for all instances of a real Semgrep ellipsis, followed
+    // by a newline.
+    $.semgrep_ellipsis_followed_by_newline
   ]),
 
-  rules: {
-    // old_identifier: $ => token(
-    //  seq(
-    //    /[^\x00-\x1F\sA-Z0-9:;`"'@$#.,|^&<=>+\-*/\\%?!~()\[\]{}]/,
-    //    /[^\x00-\x1F\s:;`"'@$#.,|^&<=>+\-*/\\%?!~()\[\]{}]*/,
-    //    /(\?|\!)?/
-    //  )
-    // ),
+  /* There are a few cases for Semgrep ellipses that we would like to
+     be able to parse.
 
+     I identify the following situations as pertinent to us:
+     1) singular statements of Semgrep ellipses, e.g.
+          foo()
+          ...
+          bar()
+     2) ellipses in function arguments or function parameters, e.g.
+          foo(..., 1)
+          or
+          def method (x, ...)
+          end
+     3) ellipses in dot access chains
+     4) (less important) ellipses for standalone expressions
+
+     The former is hard because of conflating it with range expressions,
+     which look like e1 ... e2. See scanner.cc and our accompanying sgrep-ext
+     for how the $.semgrep_ellipsis_followed_by_newline solves this.
+
+     For the second, Ruby has a notion of "forward parameters", which happen
+     to look identical to this use case. So we can piggy-back off of that.
+
+     For the third, expressions in Ruby can be of the form <e>.<id>, meaning
+     that we can just permit identifiers to be ellipses, and this will be fine.
+     This actually solves the fourth as well.
+   */
+
+  rules: {
     /* Extend identifier to accept metavariable names
        The precedence on the token is -1 because global variables
        in Ruby also start with $. To satisfy tests, global_variable
@@ -98,7 +119,7 @@ module.exports = grammar(standard_grammar, {
     _expression: ($, previous) => {
       return choice(
         previous,
-        $.semgrep_ellipsis,
+        $.semgrep_ellipsis_followed_by_newline,
         $.deep_ellipsis
       );
     },

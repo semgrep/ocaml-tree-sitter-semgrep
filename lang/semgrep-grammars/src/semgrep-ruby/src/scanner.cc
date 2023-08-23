@@ -893,11 +893,8 @@ struct Scanner {
          a newline (modulo whitespace) following it, since Ruby is a language delimited
          by newlines.
 
-         This won't solve arguments or function parameters, but luckily Ruby already has
-         a construct called "forward parameters" that look exactly the same. So we can
-         piggy-back off of that.
-
-         This token will just solve the hard statement cases for us.
+         This token will just solve the hard statement cases for us. See grammar.js for
+         the other cases for Semgrep ellipses.
        */
       case '.':
         advance(lexer);
