@@ -47,9 +47,9 @@ enum TokenType {
   ELEMENT_REFERENCE_BRACKET,
   SHORT_INTERPOLATION,
 
-  NONE,
+  SEMGREP_ELLIPSIS,
 
-  SEMGREP_METAVARIABLE
+  NONE
 };
 
 struct Literal {
@@ -868,6 +868,28 @@ struct Scanner {
       return true;
 
     switch (lexer->lookahead) {
+      case '.':
+        advance(lexer);
+        if (lexer->lookahead == '.') {
+          advance(lexer);
+          if (lexer->lookahead == '.') {
+            advance(lexer);
+            if (lexer->lookahead == '\n') {
+              lexer->result_symbol = SEMGREP_ELLIPSIS;
+              return true;
+            }
+            while (iswspace(lexer->lookahead)) {
+              if (lexer->lookahead == '\n') {
+                lexer->result_symbol = SEMGREP_ELLIPSIS;
+                return true;
+              }
+              advance(lexer);
+            }
+          }
+        }
+        return false;
+        break;
+
       case '&':
         if (valid_symbols[BLOCK_AMPERSAND]) {
           advance(lexer);

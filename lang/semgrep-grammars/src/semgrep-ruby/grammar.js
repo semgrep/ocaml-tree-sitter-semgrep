@@ -62,7 +62,7 @@ module.exports = grammar(standard_grammar, {
   // word: $ => $.old_identifier,
 
   externals: ($, previous) => previous.concat([
-    $.semgrep_metavariable
+    $.semgrep_ellipsis
   ]),
 
   rules: {
@@ -78,13 +78,25 @@ module.exports = grammar(standard_grammar, {
        The precedence on the token is -1 because global variables
        in Ruby also start with $. To satisfy tests, global_variable
        needs to have higher precedence than identifier */
-    // identifier: ($, previous) => token(prec(-1,
-    //  seq(
-    //    /[^\x00-\x1F\sA-Z0-9:;`"'@#.,|^&<=>+\-*/\\%?!~()\[\]{}]/,
-    //    /[^\x00-\x1F\s:;`"'@$#.,|^&<=>+\-*/\\%?!~()\[\]{}]*/,
-    //    /(\?|\!)?/
-    //  ))
-    // ),
+    identifier: ($, previous) => token(prec(-1,
+      choice(
+        previous,
+        /\$[A-Z_][A-Z_0-9]*/,
+        // Need a high precedence here, so that "$...X" is not parsed
+        // as a range expression from $ to X.
+        token(prec(1000, /\$\.\.\.[A-Z_][A-Z_0-9]*/)),
+     ))
+    ),
+
+    deep_ellipsis: $ => seq('<...', $._expression, '...>'),
+
+    _expression: ($, previous) => {
+      return choice(
+        previous,
+        $.semgrep_ellipsis,
+        $.deep_ellipsis
+      );
+    },
 
     /* ellipsis: $ =>  '...',
 
