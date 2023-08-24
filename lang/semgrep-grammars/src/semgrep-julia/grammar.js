@@ -27,6 +27,8 @@ module.exports = grammar(base_grammar, {
       optional($._block),
     )),
 
+    deep_expression: $ => seq("<...", $._expression, "...>"),
+
     // Metavariables
     // We allow an identifier to be a simple metavariable regex, so that
     // we properly support metavariables.
@@ -64,6 +66,7 @@ module.exports = grammar(base_grammar, {
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+        $.deep_expression
     ),
 
     _statement: ($, previous) => choice(
