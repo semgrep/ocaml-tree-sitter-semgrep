@@ -110,7 +110,7 @@ module.exports = grammar(standard_grammar, {
         // as a range expression from $ to X.
         token(prec(1000, /\$\.\.\.[A-Z_][A-Z_0-9]*/)),
         // Same here, so it works within dot accesses.
-        alias(token(prec(1000, /\.\.\./)), $.semgrep_ellipsis)
+        alias(token(prec(1000, "...")), $.semgrep_ellipsis)
      ))
     ),
 
@@ -123,6 +123,22 @@ module.exports = grammar(standard_grammar, {
         $.deep_ellipsis
       );
     },
+
+    _statement: ($, previous) =>
+      // Theoretically, it should be possible to reach a "..." from a
+      // statement, because a statement includes expresisons which include
+      // identifiers.
+      // But this makes some more things parse -- in particular, the
+      // "Ellipsis in interpolation" test. So sure, why not.
+      choice(
+        previous,
+        alias("...", $.semgrep_ellipsis),
+        // High prec so that we prefer this over expressions.
+        // In theory this probably doesn't add anything, but it doesn't
+        // hurt to play it safe.
+        prec(1000, $.semgrep_ellipsis_followed_by_newline)
+      )
+    ,
 
     /* ellipsis: $ =>  '...',
 

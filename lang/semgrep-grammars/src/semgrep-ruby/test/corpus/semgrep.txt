@@ -276,7 +276,7 @@ bar()
     (argument_list)))
 
 ================================================================================
-Metavariable ellipsis with statements
+Metavariable ellipsis in function call
 ================================================================================
 
 foo($...X, 1)
@@ -289,3 +289,20 @@ foo($...X, 1)
     (argument_list
       (identifier)
       (integer))))
+
+================================================================================
+Ellipsis in interpolation
+================================================================================
+
+x = "...#{...}..."
+
+--------------------------------------------------------------------------------
+
+(program
+  (assignment
+    (identifier)
+    (string
+      (string_content)
+      (interpolation
+        (semgrep_ellipsis))
+      (string_content))))
