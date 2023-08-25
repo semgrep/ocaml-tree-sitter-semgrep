@@ -84,6 +84,7 @@ module.exports = grammar(standard_grammar, {
           end
      3) ellipses in dot access chains
      4) (less important) ellipses for standalone expressions
+     5) several other miscellaneous locations, such as inside of hashes {...}
 
      The former is hard because of conflating it with range expressions,
      which look like e1 ... e2. See scanner.cc and our accompanying sgrep-ext
@@ -97,48 +98,74 @@ module.exports = grammar(standard_grammar, {
      This actually solves the fourth as well.
    */
 
+  conflicts: $ => [
+  ],
+
   rules: {
     /* Extend identifier to accept metavariable names
        The precedence on the token is -1 because global variables
        in Ruby also start with $. To satisfy tests, global_variable
        needs to have higher precedence than identifier */
-    identifier: ($, previous) => token(prec(-1,
-      choice(
-        previous,
-        /\$[A-Z_][A-Z_0-9]*/,
-        // Need a high precedence here, so that "$...X" is not parsed
-        // as a range expression from $ to X.
-        token(prec(1000, /\$\.\.\.[A-Z_][A-Z_0-9]*/)),
-        // Same here, so it works within dot accesses.
-        alias(token(prec(1000, "...")), $.semgrep_ellipsis)
-     ))
-    ),
+    identifier: ($, previous) =>
+      token(prec(-1,
+        choice(
+          previous,
+          token(prec(1000, /\$[A-Z_][A-Z_0-9]*/)),
+          // Need a high precedence here, so that "$...X" is not parsed
+          // as a range expression from $ to X.
+          token(prec(1000, /\$\.\.\.[A-Z_][A-Z_0-9]*/)),
+          // Same here, so it works within dot accesses.
+          alias(token(prec(1000, "...")), $.semgrep_ellipsis)
+      ))
+      ),
+
+    semgrep_metavariable: $ => token(prec(1000, /\$[A-Z_][A-Z_0-9]*/)),
 
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
 
-    _expression: ($, previous) => {
+    _primary: ($, previous) => {
       return choice(
         previous,
+        // This allows us to do interpolations and just
+        // generally have ... wherever an expression is
+        // needed.
+        prec(1000, alias("...", $.semgrep_ellipsis)),
         $.semgrep_ellipsis_followed_by_newline,
         $.deep_ellipsis
       );
     },
 
     _statement: ($, previous) =>
-      // Theoretically, it should be possible to reach a "..." from a
-      // statement, because a statement includes expresisons which include
-      // identifiers.
-      // But this makes some more things parse -- in particular, the
-      // "Ellipsis in interpolation" test. So sure, why not.
       choice(
         previous,
-        alias("...", $.semgrep_ellipsis),
         // High prec so that we prefer this over expressions.
         // In theory this probably doesn't add anything, but it doesn't
         // hurt to play it safe.
         prec(1000, $.semgrep_ellipsis_followed_by_newline)
       )
     ,
+
+    // Constants can appear in some places that identifiers cannot. This
+    // includes the names of classes.
+    constant: ($, previous) =>
+      choice(previous,
+        $.semgrep_metavariable,
+      ),
+
+    // needed for "Hash Pattern Ellipsis"
+    keyword_pattern: ($, previous) =>
+        choice(previous,
+          // prec so we prefer as expression
+          alias(prec(999, "..."), $.semgrep_ellipsis)
+        ),
+
+    // needed for "Hash Ellipsis"
+    pair: ($, previous) =>
+        choice(previous,
+          alias("...", $.semgrep_ellipsis)
+        )
+
+
 
     /* ellipsis: $ =>  '...',
 
