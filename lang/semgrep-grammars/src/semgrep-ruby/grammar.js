@@ -69,6 +69,11 @@ module.exports = grammar(standard_grammar, {
     $.semgrep_ellipsis_followed_by_newline
   ]),
 
+  conflicts: ($, previous) => previous.concat([
+    [$.keyword_pattern, $.pair]
+  ]),
+
+
   /* There are a few cases for Semgrep ellipses that we would like to
      be able to parse.
 
@@ -98,8 +103,6 @@ module.exports = grammar(standard_grammar, {
      This actually solves the fourth as well.
    */
 
-  conflicts: $ => [
-  ],
 
   rules: {
     /* Extend identifier to accept metavariable names
@@ -119,6 +122,7 @@ module.exports = grammar(standard_grammar, {
       ))
       ),
 
+    // Need high precedence so this is preferred over global_variable.
     semgrep_metavariable: $ => token(prec(1000, /\$[A-Z_][A-Z_0-9]*/)),
 
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
@@ -129,24 +133,16 @@ module.exports = grammar(standard_grammar, {
         // This allows us to do interpolations and just
         // generally have ... wherever an expression is
         // needed.
+        // High precedence to disambiguate it from a pair.
         prec(1000, alias("...", $.semgrep_ellipsis)),
         $.semgrep_ellipsis_followed_by_newline,
         $.deep_ellipsis
       );
     },
 
-    _statement: ($, previous) =>
-      choice(
-        previous,
-        // High prec so that we prefer this over expressions.
-        // In theory this probably doesn't add anything, but it doesn't
-        // hurt to play it safe.
-        prec(1000, $.semgrep_ellipsis_followed_by_newline)
-      )
-    ,
-
     // Constants can appear in some places that identifiers cannot. This
     // includes the names of classes.
+    // Needed for "Class with ellipses"
     constant: ($, previous) =>
       choice(previous,
         $.semgrep_metavariable,
@@ -155,17 +151,49 @@ module.exports = grammar(standard_grammar, {
     // needed for "Hash Pattern Ellipsis"
     keyword_pattern: ($, previous) =>
         choice(previous,
-          // prec so we prefer as expression
-          alias(prec(999, "..."), $.semgrep_ellipsis)
+          alias('...', $.semgrep_ellipsis)
         ),
 
     // needed for "Hash Ellipsis"
     pair: ($, previous) =>
         choice(previous,
-          alias("...", $.semgrep_ellipsis)
-        )
+          alias('...', $.semgrep_ellipsis)
+        ),
 
+    // This is so that when we see something like
+    // foo ..., 3
+    // the parser is able to correctly identify that the
+    // foo ...
+    // is not a one-sided range expression. Otherwise, it would
+    // start to try and reduce to a range, and get confused.
+    command_argument_list: ($, previous) =>
+      choice(
+        seq(
+          // This lets us effectively fake another token of context.
+          // When parsing, it seem tree-sitter will only allow itself to look
+          // ahead by a single token, when choosing to reduce or shift.
+          // When we see something like
+          // foo ... ,
+          // we see an identifier, and our lookahead token is ..., and we don't
+          // see farther than that. That means that the following two things are
+          // indistinguishable:
+          // 1) a range expression
+          // foo ... bar
+          // 2) a command argument list with an ellipsis in it
+          // foo ..., 1, 2, ...
+          // We need  to make the correct choice,
+          // so what we will do is fake an additional token of context by folding
+          // the comma into the token of the ellipsis.
 
+          // WARNING: This will cause one particular strange case of the translation,
+          // which is the interpretation of "x ..." as the application of x to a
+          // semgrep ellipsis.
+          alias(token(prec(1000, seq("...", ","))), $.semgrep_ellipsis_and_comma),
+          previous
+        ),
+        previous
+      )
+    ,
 
     /* ellipsis: $ =>  '...',
 
