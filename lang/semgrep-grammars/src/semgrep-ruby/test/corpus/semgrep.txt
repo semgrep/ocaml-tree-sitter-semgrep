@@ -146,7 +146,7 @@ x = foo(1, ...)
       (identifier)
       (argument_list
         (integer)
-        (semgrep_ellipsis)))))
+        (forward_argument)))))
 
 ================================================================================
 Ellipsis as parameter
@@ -428,7 +428,7 @@ $EXEC({...},"...","...","...",...)
         (string_content))
       (string
         (string_content))
-      (semgrep_ellipsis))))
+      (forward_argument))))
 
 ================================================================================
 Hash pattern ellipsis

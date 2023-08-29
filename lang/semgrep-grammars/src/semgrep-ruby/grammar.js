@@ -70,7 +70,19 @@ module.exports = grammar(standard_grammar, {
   ]),
 
   conflicts: ($, previous) => previous.concat([
-    [$.keyword_pattern, $.pair]
+    /* This is just to solve the fact that all of these things
+       can potentially be an ellipsis.
+       We don't actually really care which one it is, though. It
+       shouldn't matter in the Generic translation.
+
+       The keyword_pattern and pair cases look like:
+       { x => y, ..., z => w }
+
+       The primary case is jsutu sage of an ellipsis as an expression.
+    */
+    [$.keyword_pattern, $.pair],
+    [$._primary, $.pair],
+    [$._primary, $.keyword_pattern]
   ]),
 
 
@@ -111,6 +123,10 @@ module.exports = grammar(standard_grammar, {
        needs to have higher precedence than identifier */
     identifier: ($, previous) =>
       token(prec(-1,
+        // The token is outside of the choice here, because of the word token
+        // restriction. $.identifier is the word token, meaning that it cannot
+        // be a nonterminal like a choice, so the choice must be inside a larger
+        // token.
         choice(
           previous,
           token(prec(1000, /\$[A-Z_][A-Z_0-9]*/)),
@@ -127,6 +143,8 @@ module.exports = grammar(standard_grammar, {
 
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
 
+    semgrep_ellipsis: $ => '...',
+
     _primary: ($, previous) => {
       return choice(
         previous,
@@ -134,11 +152,15 @@ module.exports = grammar(standard_grammar, {
         // generally have ... wherever an expression is
         // needed.
         // High precedence to disambiguate it from a pair.
-        prec(1000, alias("...", $.semgrep_ellipsis)),
+        $.semgrep_ellipsis,
         $.semgrep_ellipsis_followed_by_newline,
         $.deep_ellipsis
       );
     },
+
+    // Slightly more precedence, as we would like to prefer to parse a
+    // forward_argument to a semgrep ellipsis.
+    forward_argument: ($, previous) => prec(1, previous),
 
     // Constants can appear in some places that identifiers cannot. This
     // includes the names of classes.
@@ -151,13 +173,13 @@ module.exports = grammar(standard_grammar, {
     // needed for "Hash Pattern Ellipsis"
     keyword_pattern: ($, previous) =>
         choice(previous,
-          alias('...', $.semgrep_ellipsis)
+          $.semgrep_ellipsis
         ),
 
     // needed for "Hash Ellipsis"
     pair: ($, previous) =>
         choice(previous,
-          alias('...', $.semgrep_ellipsis)
+          $.semgrep_ellipsis
         ),
 
     // This is so that when we see something like
