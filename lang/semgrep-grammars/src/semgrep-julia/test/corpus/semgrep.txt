@@ -200,7 +200,8 @@ using $MODULE: $X as $Y
       (import_alias
         (interpolation_expression
           (identifier))
-        (identifier)))))
+        (identifier
+          (semgrep_extended_metavariable))))))
 
 ================================================================================
 Metavariable in do block
@@ -219,7 +220,8 @@ end
       (vector_expression))
     (do_clause
       (parameter_list
-        (identifier))
+        (identifier
+          (semgrep_extended_metavariable)))
       (return_statement
         (identifier)))))
 
