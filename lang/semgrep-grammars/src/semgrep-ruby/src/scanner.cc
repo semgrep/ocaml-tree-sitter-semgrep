@@ -897,21 +897,25 @@ struct Scanner {
          the other cases for Semgrep ellipses.
        */
       case '.':
-        advance(lexer);
-        if (lexer->lookahead == '.') {
+        if (valid_symbols[SEMGREP_ELLIPSIS]) {
           advance(lexer);
           if (lexer->lookahead == '.') {
             advance(lexer);
-            if (lexer->lookahead == '\n') {
-              lexer->result_symbol = SEMGREP_ELLIPSIS;
-              return true;
-            }
-            while (iswspace(lexer->lookahead)) {
-              if (lexer->lookahead == '\n') {
+            if (lexer->lookahead == '.') {
+              advance(lexer);
+              // We also add a check for EOF, in case this ellipsis terminates
+              // the pattern.
+              if (lexer->eof(lexer) || lexer->lookahead == '\n') {
                 lexer->result_symbol = SEMGREP_ELLIPSIS;
                 return true;
               }
-              advance(lexer);
+              while (iswspace(lexer->lookahead)) {
+                if (lexer->eof(lexer) || lexer->lookahead == '\n') {
+                  lexer->result_symbol = SEMGREP_ELLIPSIS;
+                  return true;
+                }
+                advance(lexer);
+              }
             }
           }
         }
