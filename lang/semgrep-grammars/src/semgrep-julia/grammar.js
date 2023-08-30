@@ -29,6 +29,13 @@ module.exports = grammar(base_grammar, {
 
     deep_expression: $ => seq("<...", $._expression, "...>"),
 
+    // Note that this is actually slightly more permissive than a Semgrep
+    // metavariable usually is. This is fine, because having a slightly more
+    // permissive grammar is OK, we will just dispatch in the Generic
+    // translation.
+    semgrep_extended_metavariable: $ =>
+        /\$[A-Z_][a-zA-Z_0-9]*/,
+
     // Metavariables
     // We allow an identifier to be a simple metavariable regex, so that
     // we properly support metavariables.
@@ -37,7 +44,7 @@ module.exports = grammar(base_grammar, {
     identifier: ($, previous) =>
       prec(1, choice(
         previous,
-        /\$[A-Z][a-zA-Z0-9]*/,
+        $.semgrep_extended_metavariable
       )),
 
     // ...But we also allow an interpolation expression to be a metavariable.
@@ -60,7 +67,9 @@ module.exports = grammar(base_grammar, {
       previous,
       // We alias the included metavariable to an $.identifier so that the parse
       // tree stays the same. Otherwise, we will fail `tree-sitter` tests.
-      alias(prec(999, /\$[A-Z][a-zA-Z0-9]*/), $.identifier)
+      alias(prec(999,
+        $.semgrep_extended_metavariable
+        ), $.identifier)
     ),
 
     _expression: ($, previous) => choice(
