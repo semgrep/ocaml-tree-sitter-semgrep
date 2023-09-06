@@ -8,6 +8,37 @@ set -eu -o pipefail
 
 name=$(basename "$(pwd)" | sed -e 's/semgrep-//')
 
+mkdir -p src
+(
+  cd src
+  scanner_c=../../tree-sitter-"$name"/src/scanner.c
+
+  if ! [ -f "scanner.c" ]; then
+    # Scanner does not exist
+    echo "Copying and patching tree-sitter scanner..."
+
+    if [[ -e "$scanner_c" ]]; then
+      cp "$scanner_c" scanner.c
+    fi
+
+    patch scanner.c ../patch.diff
+  else
+    # Scanner does exist
+    # We might have made edits to it, so let's update the
+    # patch file.
+    echo "Scanner exists, updating patch file..."
+
+    if [[ -e "$scanner_c" ]]; then
+      cp "$scanner_c" scanner_orig.c
+    fi
+
+    # || true because diff returns a bad exit code if there are differences
+    diff -b scanner_orig.c scanner.c > ../patch.diff || true
+
+    rm scanner_orig.c
+  fi
+)
+
 mkdir -p test/corpus
 (
   cd test/corpus
@@ -21,7 +52,3 @@ mkdir -p test/corpus
     fi
   done
 )
-echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-echo Note that semgrep-kotlin/src/scanner.c must be in sync with
-echo tree-sitter-kotlin/src/scanner.c
-echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

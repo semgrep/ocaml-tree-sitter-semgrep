@@ -1,0 +1,9 @@
+345d344
+<     case '.':
+360a360,365
+>     //semgrep-ext: could be start of method chain, or start of ...
+>     case '.':  {
+>       advance(lexer);
+>       return lexer->lookahead == '.';
+>     }
+> 
