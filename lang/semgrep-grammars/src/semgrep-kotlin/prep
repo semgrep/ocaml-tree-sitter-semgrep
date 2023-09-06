@@ -52,3 +52,9 @@ mkdir -p test/corpus
     fi
   done
 )
+
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo Note that this is a patched language, meaning that src/scanner.c is
+echo slightly modified from the original via the included patch.diff file.
+echo Please see the accompanying prep file for more.
+echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

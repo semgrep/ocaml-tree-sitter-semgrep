@@ -2,11 +2,42 @@
 #
 # Import and patch up external files.
 #
-# Not the generic script because we provide a semgrep-specific scanner.c
+# Not the generic script because we provide a semgrep-specific scanner.cc
 #
 set -eu -o pipefail
 
 name=$(basename "$(pwd)" | sed -e 's/semgrep-//')
+
+mkdir -p src
+(
+  cd src
+  scanner_cc=../../tree-sitter-"$name"/src/scanner.cc
+
+  if ! [ -f "scanner.cc" ]; then
+    # Scanner does not exist
+    echo "Copying and patching tree-sitter scanner..."
+
+    if [[ -e "$scanner_cc" ]]; then
+      cp "$scanner_cc" scanner.cc
+    fi
+
+    patch scanner.cc ../patch.diff
+  else
+    # Scanner does exist
+    # We might have made edits to it, so let's update the
+    # patch file.
+    echo "Scanner exists, updating patch file..."
+
+    if [[ -e "$scanner_cc" ]]; then
+      cp "$scanner_cc" scanner_orig.cc
+    fi
+
+    # || true because diff returns a bad exit code if there are differences
+    diff -b scanner_orig.cc scanner.cc > ../patch.diff || true
+
+    rm scanner_orig.cc
+  fi
+)
 
 mkdir -p test/corpus
 (
@@ -22,6 +53,7 @@ mkdir -p test/corpus
   done
 )
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-echo Note that semgrep-ruby/src/scanner.cc must be in sync with
-echo tree-sitter-ruby/src/scanner.cc
+echo Note that this is a patched language, meaning that src/scanner.cc is
+echo slightly modified from the original via the included patch.diff file.
+echo Please see the accompanying prep file for more.
 echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
