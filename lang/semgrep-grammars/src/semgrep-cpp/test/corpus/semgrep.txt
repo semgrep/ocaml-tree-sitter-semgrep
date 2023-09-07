@@ -1,28 +1,81 @@
-=====================================
+================================================================================
 Metavariables
-=====================================
+================================================================================
 $VAR = 1;
 
----
-(translation_unit
-      (expression_statement
-        (assignment_expression
-          (identifier)
-          (number_literal))))
+--------------------------------------------------------------------------------
 
-=====================================
+(translation_unit
+  (expression_statement
+    (assignment_expression
+      (identifier)
+      (number_literal))))
+
+================================================================================
 Ellipsis for expression
-=====================================
+================================================================================
 
 $VAR->$MEMBER = ...;
 
----
+--------------------------------------------------------------------------------
 
 (translation_unit
-      (expression_statement
-        (assignment_expression
-          (field_expression
-            (identifier)
-            (field_identifier))
-          (semgrep_ellipsis))))
+  (expression_statement
+    (assignment_expression
+      (field_expression
+        (identifier)
+        (field_identifier))
+      (semgrep_ellipsis))))
 
+================================================================================
+Comma expression
+================================================================================
+
+(1, ..., 3);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (fold_expression
+      (number_literal)
+      (number_literal))))
+
+================================================================================
+Fold expressions
+================================================================================
+
+(1 + ...);
+(... + 1);
+(1 + ... + 1);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (fold_expression
+      (number_literal)))
+  (expression_statement
+    (fold_expression
+      (number_literal)))
+  (expression_statement
+    (fold_expression
+      (number_literal)
+      (number_literal))))
+
+================================================================================
+Call with ellipsis
+================================================================================
+
+foo(1, ..., 3);
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (expression_statement
+    (call_expression
+      (identifier)
+      (argument_list
+        (number_literal)
+        (semgrep_ellipsis)
+        (number_literal)))))
