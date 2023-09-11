@@ -22,6 +22,7 @@ build:
 	for dir in $$(find . -name grammar.js | xargs -I{} dirname {}); \
 	do \
 	  echo "Generate parser in $$(pwd)/$$dir"; \
+		echo "$$(tree-sitter --version)"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
 	    (cd "$$dir" && tree-sitter generate --no-bindings); \
