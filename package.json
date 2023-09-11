@@ -3,7 +3,7 @@
     "tree-sitter-bash": "file:lang/semgrep-grammars/src/tree-sitter-bash",
     "tree-sitter-c": "file:lang/semgrep-grammars/src/tree-sitter-c",
     "tree-sitter-c-sharp": "file:lang/semgrep-grammars/src/tree-sitter-c-sharp",
-    "tree-sitter-cli": "^0.20.8",
+    "tree-sitter-cli": "^0.20.6",
     "tree-sitter-cpp": "file:lang/semgrep-grammars/src/tree-sitter-cpp",
     "tree-sitter-dockerfile": "file:lang/semgrep-grammars/src/tree-sitter-dockerfile",
     "tree-sitter-elixir": "file:lang/semgrep-grammars/src/tree-sitter-elixir",
