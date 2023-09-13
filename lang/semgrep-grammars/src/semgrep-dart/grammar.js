@@ -21,14 +21,23 @@ module.exports = grammar(base_grammar, {
      already accepts $ as part of an identifier.
   */
   rules: {
+    // entry point
+    program: ($, previous) =>
+      choice(previous, $.semgrep_expression),
+
     semgrep_ellipsis: $ => '...',
+    semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
     ),
 
+    // Alternate "entry point". Allows parsing a standalone expression.
+    semgrep_expression: ($) => seq("__SEMGREP_EXPRESSION", $._expression),
+
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis,
       $.deep_ellipsis,
     ),
     expression_statement: ($, previous) => choice(
