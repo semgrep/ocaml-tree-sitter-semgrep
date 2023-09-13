@@ -32,7 +32,10 @@ module.exports = grammar(base_grammar, {
       'identifier' then can't be a non-terminal. In other languages this is solved
       by having 'identifier' and a separate '_identifier_token' (e.g., in C#)
     */
-    identifier: $ => /\$?[a-zA-Z_]\w*/, // original = /[a-zA-Z_]\w*/
+    identifier: $ =>
+      // derived by inserting an optional `$` in front of any identifier, as
+      // defined in tree-sitter-c
+      /\$?(\p{XID_Start}|_|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})(\p{XID_Continue}|\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8})*/,
 
     // Ellipsis
 
@@ -43,7 +46,36 @@ module.exports = grammar(base_grammar, {
         $.deep_ellipsis,
       );
     },
-	
+
+    // So we prefer to parse a unary left fold for
+    // 1 + ...
+    // rather than the addition of an ellipsis
+    _unary_left_fold: ($, previous) => prec(1, previous),
+
+    // This is kind of messed up, but here's the idea.
+    // Consider the following sequence:
+    // ( <expr> +     ...
+    //             ^ where we are here
+    // This could be interpreted in two ways. We could choose to keep the `+`
+    // as a verbatim `+`, which could potentially lead to parsing a binary
+    // fold operator, which looks like:
+    //   ( <expr> '+' '...' '+' <expr> )
+    // or we could reduce the '+' into a _fold_operator, which could parse a
+    // sequence like this:
+    //   ( <expr> <_fold_operator> <expr> )
+    // a priori, however, we don't know which choice to make! So the easiest
+    // way is to permit the reduction in both cases, by making _binary_fold_operator
+    // such that it can accept a _fold_operator, not a verbatim '+'.
+    _binary_fold_operator: ($, previous) => seq(
+      $._fold_operator, '...', $._fold_operator
+    ),
+
+    // Comma expressions like (e1, e2, e3) exist. But comma
+    // is also a fold operator, meaning that a valid interpretation
+    // of (1, ...) is as either a comma expression or a unary left
+    // fold.
+    _fold_operator: ($, previous) => prec(13, previous),
+
     semgrep_ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
   }
