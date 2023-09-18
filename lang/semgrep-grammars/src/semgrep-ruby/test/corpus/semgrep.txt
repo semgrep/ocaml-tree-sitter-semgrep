@@ -581,3 +581,55 @@ render ..., file: ...
       (pair
         (hash_key_symbol)
         (semgrep_ellipsis_followed_by_newline)))))
+
+================================================================================
+Do block with ellipses
+================================================================================
+
+foo ... do ... end
+
+--------------------------------------------------------------------------------
+
+(program
+  (call
+    (identifier)
+    (do_block
+      (body_statement
+        (semgrep_ellipsis)))))
+
+================================================================================
+Do block with ellipses with newlines
+================================================================================
+
+bar ... do
+  ...
+end
+
+--------------------------------------------------------------------------------
+
+(program
+  (call
+    (identifier)
+    (do_block
+      (body_statement
+        (semgrep_ellipsis_followed_by_newline)))))
+
+================================================================================
+Do block with complex ellipses with newlines
+================================================================================
+
+qux ..., 1 do
+  ...
+end
+
+--------------------------------------------------------------------------------
+
+(program
+  (call
+    (identifier)
+    (argument_list
+      (semgrep_ellipsis_and_comma)
+      (integer))
+    (do_block
+      (body_statement
+        (semgrep_ellipsis_followed_by_newline)))))
