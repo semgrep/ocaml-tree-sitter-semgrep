@@ -19,16 +19,16 @@ bar();
 
 --------------------------------------------------------------------------------
 
-  (program
-    (expression_statement
-      (method_invocation
-        (identifier)
-        (argument_list)))
-    (semgrep_ellipsis)
-    (expression_statement
-      (method_invocation
-        (identifier)
-        (argument_list))))
+(program
+  (expression_statement
+    (method_invocation
+      (identifier)
+      (argument_list)))
+  (semgrep_ellipsis)
+  (expression_statement
+    (method_invocation
+      (identifier)
+      (argument_list))))
 
 ================================================================================
 Top level public constructor
@@ -72,15 +72,16 @@ public record $R(...) {
 }
 
 --------------------------------------------------------------------------------
+
 (program
-      (record_declaration
-        (modifiers)
-        (identifier)
-        (formal_parameters
-          (formal_parameter
-            (semgrep_ellipsis)))
-        (class_body
-          (semgrep_ellipsis))))
+  (record_declaration
+    (modifiers)
+    (identifier)
+    (formal_parameters
+      (formal_parameter
+        (semgrep_ellipsis)))
+    (class_body
+      (semgrep_ellipsis))))
 
 ================================================================================
 Method header
@@ -91,14 +92,14 @@ public int foo(...)
 --------------------------------------------------------------------------------
 
 (program
-      (partials
-        (partial_method
-          (modifiers)
-          (integral_type)
-          (identifier)
-          (formal_parameters
-            (formal_parameter
-              (semgrep_ellipsis))))))
+  (partials
+    (partial_method
+      (modifiers)
+      (integral_type)
+      (identifier)
+      (formal_parameters
+        (formal_parameter
+          (semgrep_ellipsis))))))
 
 ================================================================================
 Constructor body ellipsis
@@ -147,7 +148,7 @@ if (...) {
 
 (program
   (if_statement
-    (parenthesized_expression
+    (condition
       (semgrep_ellipsis))
     (block
       (semgrep_ellipsis))))
