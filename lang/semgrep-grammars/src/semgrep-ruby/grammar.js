@@ -217,6 +217,30 @@ module.exports = grammar(standard_grammar, {
       )
     ,
 
+    // Both of these changes are necessary so that we parse do-blocks in the presence of
+    // ellipses correctly.
+    // Otherwise, something like "foo ... do ... end" is confusing, because "foo ..."
+    // looks like the start of a range expression.
+    // We de-prioritize range expressions to prevent further conflicts that arise from the
+    // former change.
+    command_call_with_block: ($, previous) => choice(
+      previous,
+      seq(
+        $._arg,
+        '...',
+        $.do_block
+      ),
+      // Dynamic precedence will solve a conflict between
+      // arg '...' hash
+      // arg '..' block
+      prec.dynamic(1,seq(
+        $._arg,
+        '...',
+        $.block
+      ))
+    ),
+    range: ($,previous) => prec(-1, previous),
+
     /* ellipsis: $ =>  '...',
 
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
