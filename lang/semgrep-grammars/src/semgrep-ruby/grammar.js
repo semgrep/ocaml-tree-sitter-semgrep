@@ -225,10 +225,19 @@ module.exports = grammar(standard_grammar, {
     // former change.
     command_call_with_block: ($, previous) => choice(
       previous,
-      seq($._arg,
+      seq(
+        $._arg,
         '...',
         $.do_block
-      )
+      ),
+      // Dynamic precedence will solve a conflict between
+      // arg '...' hash
+      // arg '..' block
+      prec.dynamic(1,seq(
+        $._arg,
+        '...',
+        $.block
+      ))
     ),
     range: ($,previous) => prec(-1, previous),
 
