@@ -21,6 +21,32 @@ module.exports = grammar(base_grammar, {
      if they're not already part of the base grammar.
   */
   rules: {
+
+    // Entry point
+    translation_unit: ($, previous) => choice(
+      previous,
+      $.semgrep_expression
+    ),
+
+    // Alternate "entry point". Allows parsing a standalone expression.
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expression),
+
+    // Typed metavariables
+
+    semgrep_metavar: $ => /\$[A-Z_][A-Z_0-9]*/,
+
+    semgrep_typed_metavar: $ =>
+      seq(
+        $.type_descriptor,
+        $.semgrep_metavar
+      ),
+
+    parenthesized_expression: ($, previous) => seq(
+      '(',
+      choice($._expression, $.comma_expression, $.semgrep_typed_metavar),
+      ')',
+    ),
+
     // Metavariables
 
     /* we can't use the usual:
@@ -44,8 +70,31 @@ module.exports = grammar(base_grammar, {
         previous,
         $.semgrep_ellipsis,
         $.deep_ellipsis,
+        $.semgrep_named_ellipsis
       );
     },
+
+    _block_item: ($, previous) => choice(
+      previous,
+      // We want to enable parsing something like
+      // { ... }
+      // so we need ... to be a valid block item.
+      // We need a little bit of precedence so we prefer to reduce to
+      // _block_item, as opposed to _expression, however.
+      prec(1,$.semgrep_ellipsis)
+    ),
+
+    _top_level_statement: ($, previous) => choice(
+      previous,
+      // We also want to allow ... at the top level.
+      prec(1,$.semgrep_ellipsis)
+    ),
+
+    // For method chaining, like foo. ... .bar()
+    _field_identifier: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis
+    ),
 
     // So we prefer to parse a unary left fold for
     // 1 + ...
@@ -78,5 +127,6 @@ module.exports = grammar(base_grammar, {
 
     semgrep_ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
+    semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
   }
 });
