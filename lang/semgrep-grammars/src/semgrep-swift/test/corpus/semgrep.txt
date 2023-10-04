@@ -169,7 +169,7 @@ class ClassName {
 
 --------------------------------------------------------------------------------
 
-(source_file (class_declaration (type_identifier) (class_body (semgrep_ellipsis) (property_declaration (pattern (simple_identifier)) (integer_literal)) (semgrep_ellipsis))))
+(source_file (class_declaration (type_identifier) (class_body (semgrep_ellipsis) (property_declaration (value_binding_pattern) (pattern (simple_identifier)) (integer_literal)) (semgrep_ellipsis))))
 
 ================================================================================
 Statement Ellipsis with semicolon
