@@ -20,6 +20,7 @@ SUPPORTED_TS_LANGUAGES = \
   dart \
   dockerfile \
   elixir \
+  fsharp \
   go \
   hcl \
   html \
@@ -69,6 +70,7 @@ SUPPORTED_DIALECTS = \
   dart \
   dockerfile \
   elixir \
+  fsharp \
   go \
   hcl \
   html \
