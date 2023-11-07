@@ -27,13 +27,14 @@ impl $CLASS {
             (type_identifier)))
         (type_identifier)
         (block
-          (if_expression
-            (identifier)
-            (block
-              (identifier))
-            (else_clause
+          (expression_statement
+            (if_expression
+              (identifier)
               (block
-                (identifier)))))))))
+                (identifier))
+              (else_clause
+                (block
+                  (identifier))))))))))
 
 ================================================================================
 Typed Metavariables
@@ -44,12 +45,13 @@ x == ($Y : String);
 --------------------------------------------------------------------------------
 
 (source_file
-  (binary_expression
-    (identifier)
-    (parenthesized_expression
-      (semgrep_typed_metavar
-        (identifier)
-        (type_identifier)))))
+  (expression_statement
+    (binary_expression
+      (identifier)
+      (parenthesized_expression
+        (semgrep_typed_metavar
+          (identifier)
+          (type_identifier))))))
 
 ================================================================================
 Ellipsis for expression
@@ -76,7 +78,8 @@ impl Foo {
           (let_declaration
             (identifier)
             (integer_literal))
-          (ellipsis)
+          (expression_statement
+            (ellipsis))
           (let_declaration
             (identifier)
             (integer_literal)))))))
@@ -106,7 +109,8 @@ impl Foo {
           (let_declaration
             (identifier)
             (integer_literal))
-          (ellipsis)
+          (expression_statement
+            (ellipsis))
           (let_declaration
             (identifier)
             (integer_literal)))))))
@@ -314,10 +318,11 @@ foo($...X);
 --------------------------------------------------------------------------------
 
 (source_file
-  (call_expression
-    (identifier)
-    (arguments
-      (identifier))))
+  (expression_statement
+    (call_expression
+      (identifier)
+      (arguments
+        (identifier)))))
 
 ================================================================================
 Statement metavariable ellipsis
@@ -328,4 +333,5 @@ $...X;
 --------------------------------------------------------------------------------
 
 (source_file
-  (identifier))
+  (expression_statement
+    (identifier)))
