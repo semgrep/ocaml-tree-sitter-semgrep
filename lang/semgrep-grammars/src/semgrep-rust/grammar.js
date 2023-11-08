@@ -46,7 +46,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Statement ellipsis: '...' not followed by ';'
-    _expression_statement: ($, previous) => {
+    expression_statement: ($, previous) => {
       return choice(
         previous,
         prec.right(100, seq($.ellipsis, ';')),  // expression ellipsis
