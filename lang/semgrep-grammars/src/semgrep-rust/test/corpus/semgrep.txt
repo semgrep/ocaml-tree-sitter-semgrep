@@ -222,24 +222,22 @@ Ellipsis for attribute arguments
 
 (source_file
       (attribute_item
-        (meta_item
+        (attribute
           (identifier)
-          (meta_arguments
+          (token_tree
             (ellipsis))))
       (attribute_item
-        (meta_item
+        (attribute
           (identifier)
-          (meta_arguments
-            (meta_item
-              (identifier))
+          (token_tree
+            (identifier)
             (ellipsis))))
       (attribute_item
-        (meta_item
+        (attribute
           (identifier)
-          (meta_arguments
+          (token_tree
             (ellipsis)
-            (meta_item
-              (identifier))
+            (identifier)
             (ellipsis)))))
 
 ================================================================================
