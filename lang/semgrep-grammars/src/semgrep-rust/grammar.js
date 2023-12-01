@@ -84,15 +84,9 @@ module.exports = grammar(standard_grammar, {
       ')'
     ),
 
-    meta_arguments: ($, previous) => seq(
-      '(',
-      sepBy(',', choice(
-	$.ellipsis,
-	$.meta_item,
-        $._literal
-      )),
-      optional(','),
-      ')'
+    _non_special_token: ($, previous) => choice(
+      previous,
+      $.ellipsis,
     ),
 
     // TODO: have to use 13 instead of PREC.field because the Rust grammar
