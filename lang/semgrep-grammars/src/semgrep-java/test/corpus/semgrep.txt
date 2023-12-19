@@ -183,3 +183,26 @@ class $X {
             (variable_declarator
               (identifier)
               (identifier))))))))
+
+================================================================================
+Metavariable ellipsis parameter
+================================================================================
+
+class $X {
+  void $ASDF($...PARAMS) {
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (class_declaration
+    (identifier)
+    (class_body
+      (method_declaration
+        (void_type)
+        (identifier)
+        (formal_parameters
+          (formal_parameter
+            (semgrep_named_ellipsis)))
+        (block)))))
