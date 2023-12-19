@@ -51,11 +51,13 @@ module.exports = grammar(base_grammar, {
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     statement: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     formal_parameter: ($, previous) => choice(
@@ -66,7 +68,8 @@ module.exports = grammar(base_grammar, {
 
     _class_body_declaration: ($, previous) => choice(
       previous,
-      $.semgrep_ellipsis
+      $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     partials: $ => choice(
