@@ -19,7 +19,7 @@ module.exports = grammar(base_grammar, {
   rules: {
     // No need for _SEMGREP_EXPRESSION hack here, because Elixir allows
     // toplevel expressions.
-      
+
     // Metavariables
     identifier: ($, previous) => {
       return choice(
@@ -33,12 +33,28 @@ module.exports = grammar(base_grammar, {
     // Ellipsis
     // No need for extensions to _expressions for ellipsis because
     // Elixir already uses "..." as valid identifiers
-      
+    //
+    // However, we do need to override the "pair" rule which is used
+    // for keyword parameters, arguments, and map items. Otherwise,
+    // ellipsis won't work in places where Elixir expects
+    // keyword/pairs, such as
+    //   foo(some_arg: 0, ...)
+    //   %{some_item: 0, ...}
+    // Also note that now there is ambiguity whether foo(...) is an
+    // identity or pair, we set the pair rule to have a lower
+    // precedence
+    pair: ($, previous) => {
+      return prec(-1, choice(
+        previous,
+        '...',
+      ));
+    },
+
     _expression: ($, previous) => choice(
       ...previous.members,
       $.deep_ellipsis,
     ),
-      
+
     // The actual ellipsis rules
     deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
