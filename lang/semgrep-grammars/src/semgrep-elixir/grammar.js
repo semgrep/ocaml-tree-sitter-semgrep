@@ -28,6 +28,15 @@ module.exports = grammar(base_grammar, {
       );
     },
 
+    _keyword: ($, previous) => {
+	return choice(
+	    ...previous.members,
+	    $.metavariable_keyword
+      );
+    },
+
+    metavariable_keyword: $ => seq($._semgrep_metavariable, /:\s/),
+
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
 
     // Ellipsis
@@ -46,9 +55,11 @@ module.exports = grammar(base_grammar, {
     pair: ($, previous) => {
       return prec(-1, choice(
         previous,
-        '...',
+        $.semgrep_ellipsis,
       ));
     },
+
+    semgrep_ellipsis: $ => prec(-1, '...'),
 
     _expression: ($, previous) => choice(
       ...previous.members,
