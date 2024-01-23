@@ -45,32 +45,38 @@ module.exports = grammar(base_grammar, {
     ),
 
     semgrep_ellipsis: $ => '...',
+    semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
+
 
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     statement: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     formal_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     _class_body_declaration: ($, previous) => choice(
       previous,
-      $.semgrep_ellipsis
+      $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     partials: $ => choice(
        $.partial_method,
     ),
 
-    // partial of method_declaration 
+    // partial of method_declaration
     partial_method: $ => seq(
       optional($.modifiers),
       $._method_header
