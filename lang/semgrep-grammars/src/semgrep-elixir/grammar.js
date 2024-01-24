@@ -28,6 +28,15 @@ module.exports = grammar(base_grammar, {
       );
     },
 
+    _keyword: ($, previous) => {
+	return choice(
+	    ...previous.members,
+	    $.metavariable_keyword
+      );
+    },
+
+    metavariable_keyword: $ => seq($._semgrep_metavariable, /:\s/),
+
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
 
     // Ellipsis
@@ -40,15 +49,23 @@ module.exports = grammar(base_grammar, {
     // keyword/pairs, such as
     //   foo(some_arg: 0, ...)
     //   %{some_item: 0, ...}
-    // Also note that now there is ambiguity whether foo(...) is an
-    // identity or pair, we set the pair rule to have a lower
-    // precedence
     pair: ($, previous) => {
-      return prec(-1, choice(
+      return choice(
         previous,
-        '...',
-      ));
+        $.semgrep_ellipsis,
+      );
     },
+
+    // Note that because of the pair rule above, now there is
+    // ambiguity whether the ellipsis in foo(...) is an
+    // ellipsis for positional or keyword arguments. If ... matches
+    // with the identity rule, it will be considered a positional
+    // argument. If ... matches with semgrep_ellipsis, it will be
+    // part of parsing the pair rule, which means its a keyword
+    // argument.  In practice, this doesn't matter because either
+    // way, they will become ParamEllipsis in the Generic AST
+    // anyway.
+    semgrep_ellipsis: $ => prec(-1, '...'),
 
     _expression: ($, previous) => choice(
       ...previous.members,
