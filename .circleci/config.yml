@@ -25,7 +25,10 @@ jobs:
     # - medium+: 6 GB
     # - large: 8 GB
     # - xlarge: 16 GB
-    resource_class: xlarge
+    #old:
+    #   resource_class: xlarge
+    # but we're not paying anymore for circleCI, to consolidate Github Actions
+    #TODO: port this workflow to GHA
 
     working_directory: ~/ocaml-tree-sitter
     steps:
@@ -56,7 +59,7 @@ jobs:
     docker:
       - image: returntocorp/ocaml:ubuntu
     # See earlier note about memory requirements.
-    resource_class: xlarge
+    # resource_class: xlarge
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
@@ -81,7 +84,7 @@ jobs:
   stat2:
     docker:
       - image: returntocorp/ocaml:ubuntu
-    resource_class: xlarge
+    # resource_class: xlarge
     working_directory: ~/ocaml-tree-sitter
     steps:
       - checkout
