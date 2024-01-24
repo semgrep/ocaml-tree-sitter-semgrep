@@ -9,15 +9,16 @@ set -eu -o pipefail
 
 mkdir -p src
 
-rm -f src/scanner.cc
-cat ../tree-sitter-ocaml/ocaml/src/scanner.cc \
+rm -f src/scanner.c
+cat ../tree-sitter-ocaml/ocaml/src/scanner.c \
   | sed -e 's:"../../common/scanner.h":"scanner.h":' \
-  > src/scanner.cc
+  > src/scanner.c
 
 (
   cd src
   ln -sf ../../tree-sitter-ocaml/common/scanner.h .
 )
+
 
 mkdir -p test/corpus
 (
