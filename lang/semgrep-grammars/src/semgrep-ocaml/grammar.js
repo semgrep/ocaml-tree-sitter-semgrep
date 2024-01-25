@@ -12,8 +12,11 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([
     // those conflicts are because of the $._signature in compilation_unit
     [$._structure_item, $._signature_item],
+    [$._structure_item_ext, $._signature_item_ext],
     [$._structure, $._signature],
-    [$._module_type, $._simple_module_expression],
+    [$.include_module, $.include_module_type],
+    [$.parenthesized_module_type, $.parenthesized_module_expression],
+    [$.functor_type, $.functor],
   ]),
 
   /*
