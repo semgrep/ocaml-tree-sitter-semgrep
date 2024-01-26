@@ -41,10 +41,13 @@ module.exports = grammar(base_grammar, {
         $.semgrep_metavar
       ),
 
-    parenthesized_expression: ($, previous) => seq(
+    parenthesized_expression: ($, previous) => choice(
+      previous,
+      seq(
       '(',
-      choice($._expression, $.comma_expression, $.semgrep_typed_metavar),
+      choice($.semgrep_typed_metavar),
       ')',
+      )
     ),
 
     // Metavariables
