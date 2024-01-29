@@ -45,7 +45,7 @@ module.exports = grammar(base_grammar, {
       previous,
       seq(
       '(',
-      choice($.semgrep_typed_metavar),
+      $.semgrep_typed_metavar,
       ')',
       )
     ),
