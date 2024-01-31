@@ -29,13 +29,22 @@ module.exports = grammar(base_grammar, {
     },
 
     _keyword: ($, previous) => {
-	return choice(
-	    ...previous.members,
-	    $.metavariable_keyword
+      return choice(
+        ...previous.members,
+        $.metavariable_keyword
       );
     },
 
     metavariable_keyword: $ => seq($._semgrep_metavariable, /:\s/),
+
+    _atom: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.metavariable_atom
+      );
+    },
+
+    metavariable_atom: $ => seq(":", $._semgrep_metavariable),
 
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
 

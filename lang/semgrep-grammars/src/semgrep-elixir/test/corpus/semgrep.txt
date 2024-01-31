@@ -30,6 +30,17 @@ Metavariables as key value pairs
           (identifier))))))
 
 =====================================
+Metavariables as atoms
+=====================================
+
+:$FOO
+
+---
+
+(source
+  (metavariable_atom))
+
+=====================================
 Ellipsis in calls
 =====================================
 
