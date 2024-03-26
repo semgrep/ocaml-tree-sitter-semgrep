@@ -6,7 +6,7 @@
  */
 
 // INVARIATN: Make sure that you are merging any commits into the `semgrep`
-// branch of `tree-sitter-kotlin`! This is because our version of 
+// branch of `tree-sitter-kotlin`! This is because our version of
 // `tree-sitter-kotlin` is forked from the original repository, and we
 // want our branch to be kept separate.
 
@@ -40,7 +40,7 @@ module.exports = grammar(standard_grammar, {
 
         typed_metavar: $ =>  seq(
           "(", $.simple_identifier, ":", $._type, ")"
-        ), 
+        ),
 
         // Statement ellipsis: '...' not followed by ';'
         _expression: ($, previous) => {
@@ -60,6 +60,8 @@ module.exports = grammar(standard_grammar, {
 		);
 	},
 
+  secondary_constructor: ($, previous) => prec(500, previous),
+
 	_class_member_declaration: ($, previous) => {
 	    return choice(
 		previous,
@@ -74,13 +76,25 @@ module.exports = grammar(standard_grammar, {
 	    );
 	},
 
+  _statement: ($, previous) => choice(
+    previous,
+    prec.left(1000, seq(
+      optional($.type_parameters),
+      seq(optional($.modifiers), "constructor"),
+      prec(5, $._class_parameters),
+      optional(seq(":", $._delegation_specifiers)),
+      optional($.type_constraints),
+      optional($.class_body)
+    ))
+  ),
+
 	class_parameter: ($, previous) => {
 	    return choice(
 		previous,
 		$.ellipsis
 	    );
 	},
-	
+
         deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
         ),
