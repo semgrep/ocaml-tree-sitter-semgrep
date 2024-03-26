@@ -281,19 +281,20 @@ constructor(arg: Int) {
 (source_file
   (class_declaration
     (type_identifier))
-  (class_parameter
-    (simple_identifier)
-    (user_type
-      (type_identifier)))
-  (class_body
-    (property_declaration
-      (modifiers
-        (visibility_modifier))
-      (variable_declaration
-        (simple_identifier))
-      (string_literal
-        (interpolated_expression
-          (simple_identifier))))))
+  (partial_class_declaration
+    (class_parameter
+      (simple_identifier)
+      (user_type
+        (type_identifier)))
+    (class_body
+      (property_declaration
+        (modifiers
+          (visibility_modifier))
+        (variable_declaration
+          (simple_identifier))
+        (string_literal
+          (interpolated_expression
+            (simple_identifier)))))))
 
 =====================================
 Class in a class
