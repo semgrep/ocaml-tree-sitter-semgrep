@@ -60,8 +60,6 @@ module.exports = grammar(standard_grammar, {
 		);
 	},
 
-  secondary_constructor: ($, previous) => prec(500, previous),
-
 	_class_member_declaration: ($, previous) => {
 	    return choice(
 		previous,
@@ -76,12 +74,28 @@ module.exports = grammar(standard_grammar, {
 	    );
 	},
 
+  // We would like to be able to parse programs which have a newline between the
+  // class name and the constructor:
+  // class Foo
+  // constructor Bar() { ... }
+
+  // The problem is that the Kotlin parser inserts a semicolon after "Foo", making
+  // it such that we get interrupted in the middle of the class_declaration.
+  // To make it so we can continue, we allow everything after the class identifier
+  // to be a standalone statement in its own right. This way, we can parse both parts
+  // individually, and stitch them together at parsing time.
+
+  // We only need to amend statements here, because the consumers of _declaration are
+  // only class_member_declaration, top_level_object and _statement.
+  // The former has `secondary_constructor`, which already looks like what we want to
+  // add, and the second seems to be unused.
+  // So we just need to fix _statement.
   _statement: ($, previous) => choice(
     previous,
-    prec.left(1000, seq(
+    prec.left(seq(
       optional($.type_parameters),
       seq(optional($.modifiers), "constructor"),
-      prec(5, $._class_parameters),
+      $._class_parameters,
       optional(seq(":", $._delegation_specifiers)),
       optional($.type_constraints),
       optional($.class_body)
