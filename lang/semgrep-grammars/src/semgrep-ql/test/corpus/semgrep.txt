@@ -103,7 +103,7 @@ __SEMGREP_EXPRESSION $X[bar](2)
 Metavariables as predicates
 ============
 
-predicate $FOO() { 2 }
+predicate $FOO($TY $X) { 2 }
 
 ---
 
@@ -113,6 +113,13 @@ predicate $FOO() { 2 }
       (predicate)
       (predicateName
         (semgrep_metavariable))
+      (varDecl
+        (typeExpr
+          (className
+            (semgrep_metavariable)))
+        (varName
+          (simpleId
+            (semgrep_metavariable))))
       (body
         (literal
           (integer))))))
@@ -156,7 +163,6 @@ int getANumber() { $Z = 3 }
           (compop)
           (literal
             (integer)))))))
-
 
 ============
 Ellipsis as predicate body
