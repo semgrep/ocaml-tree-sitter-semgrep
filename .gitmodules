@@ -112,3 +112,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-fsharp"]
 	path = lang/semgrep-grammars/src/tree-sitter-fsharp
 	url = https://github.com/Nsidorenco/tree-sitter-fsharp.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-ql"]
+	path = lang/semgrep-grammars/src/tree-sitter-ql
+	url = https://github.com/tree-sitter/tree-sitter-ql
