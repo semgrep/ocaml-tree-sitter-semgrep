@@ -90,6 +90,11 @@ module.exports = grammar(standard_grammar, {
   // The former has `secondary_constructor`, which already looks like what we want to
   // add, and the second seems to be unused.
   // So we just need to fix _statement.
+
+  // A more proper fix would likely require changes to the external scanner to properly
+  // handle automatic semicolon insertion, which is the cause of this whole issue.
+  // We filed an issue to tree-sitter-kotlin to track this:
+  // https://github.com/fwcd/tree-sitter-kotlin/issues/75
   _statement: ($, previous) => choice(
     ...previous.members,
     $.partial_class_declaration,
