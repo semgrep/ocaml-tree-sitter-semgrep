@@ -91,18 +91,18 @@ module.exports = grammar(standard_grammar, {
   // add, and the second seems to be unused.
   // So we just need to fix _statement.
   _statement: ($, previous) => choice(
-    previous,
-      $.partial_class_declaration,
+    ...previous.members,
+    $.partial_class_declaration,
   ),
 
-        partial_class_declaration: $ =>     prec.left(seq(
-      optional($.type_parameters),
-      seq(optional($.modifiers), "constructor"),
-      $._class_parameters,
-      optional(seq(":", $._delegation_specifiers)),
-      optional($.type_constraints),
-      optional($.class_body)
-        )),
+  partial_class_declaration: $ => prec.left(seq(
+    optional($.type_parameters),
+    seq(optional($.modifiers), "constructor"),
+    $._class_parameters,
+    optional(seq(":", $._delegation_specifiers)),
+    optional($.type_constraints),
+    optional($.class_body)
+  )),
 
 	class_parameter: ($, previous) => {
 	    return choice(
