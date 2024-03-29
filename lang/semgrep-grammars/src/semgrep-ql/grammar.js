@@ -62,18 +62,23 @@ module.exports = grammar(base_grammar, {
       $.semgrep_ellipsis,
       ...previous.members
     ),
+    _call_arg: ($, previous) => choice(
+      $.semgrep_ellipsis,
+      previous
+    ),
 
     _primary: ($, previous) => choice(
-      $.semgrep_ellipsis,
+      // Gives a slight edge when disambiguating foo(...)
+      // this looks kind of similar to an exists(... | e), but could also be
+      // a regular call foo(..., 2)
+      // let's prefer to parse foo(...) as a real call
+      prec(1, $.semgrep_ellipsis),
       $.semgrep_ellipsis_metavar,
       $.semgrep_deep_expression,
       ...previous.members
     ),
     varDecl: ($, previous) => choice(
-      // Gives a slight edge when disambiguating forall(...)
-      // here, we parse the ... as for the quantifying vardecls, not the expr
-      // this is because you could just do forall(... | $X) anyways
-      prec(1, $.semgrep_ellipsis),
+      $.semgrep_ellipsis,
       previous,
     ),
 

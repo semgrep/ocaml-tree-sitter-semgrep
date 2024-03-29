@@ -300,6 +300,24 @@ __SEMGREP_EXPRESSION exists(... | $X)
             (semgrep_metavariable)))))))
 
 ============
+Ellipsis in call
+============
+
+__SEMGREP_EXPRESSION foo(..., 2)
+
+---
+
+(ql
+  (semgrep_expression
+    (call_or_unqual_agg_expr
+      (aritylessPredicateExpr
+        (literalId))
+      (call_body
+        (semgrep_ellipsis)
+        (literal
+          (integer))))))
+
+============
 Deep expression operator
 ============
 
