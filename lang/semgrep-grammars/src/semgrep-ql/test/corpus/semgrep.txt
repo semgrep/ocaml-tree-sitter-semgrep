@@ -298,3 +298,24 @@ __SEMGREP_EXPRESSION exists(... | $X)
         (varName
           (simpleId
             (semgrep_metavariable)))))))
+
+============
+Deep expression operator
+============
+
+__SEMGREP_EXPRESSION <... $X and $Y ...>
+
+---
+
+(ql
+  (semgrep_expression
+    (semgrep_deep_expression
+      (conjunction
+        (variable
+          (varName
+            (simpleId
+              (semgrep_metavariable))))
+        (variable
+          (varName
+            (simpleId
+              (semgrep_metavariable))))))))

@@ -24,6 +24,7 @@ module.exports = grammar(base_grammar, {
     semgrep_ellipsis: $ => '...',
     semgrep_ellipsis_metavar : $ => /\$\.\.\.[a-zA-Z_][a-zA-Z_0-9]*/,
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+    semgrep_deep_expression: $ => seq('<...', $._exprOrTerm, '...>'),
 
     // typed metavars
     par_expr: ($, previous) => choice(
@@ -65,6 +66,7 @@ module.exports = grammar(base_grammar, {
     _primary: ($, previous) => choice(
       $.semgrep_ellipsis,
       $.semgrep_ellipsis_metavar,
+      $.semgrep_deep_expression,
       ...previous.members
     ),
     varDecl: ($, previous) => choice(
