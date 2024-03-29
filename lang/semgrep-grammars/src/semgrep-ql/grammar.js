@@ -10,6 +10,10 @@ module.exports = grammar(base_grammar, {
   name: 'ql',
 
   conflicts: ($, previous) => previous.concat([
+    // This conflict makes it so we prefer to parse a metavariable into an annotation
+    // as an annotated aggregate, not an annotated expression.
+    // I don't think it should matter much in practice.
+    [$.annotName, $.aggId]
   ]),
 
   /*
@@ -43,6 +47,10 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_metavariable
     ),
+    aggId: ($, previous) => choice(
+      $.semgrep_metavariable,
+      ...previous.members,
+    ),
 
     // ellipses
     classMember: ($, previous) => choice(
@@ -58,6 +66,13 @@ module.exports = grammar(base_grammar, {
       $.semgrep_ellipsis,
       $.semgrep_ellipsis_metavar,
       ...previous.members
+    ),
+    varDecl: ($, previous) => choice(
+      // Gives a slight edge when disambiguating forall(...)
+      // here, we parse the ... as for the quantifying vardecls, not the expr
+      // this is because you could just do forall(... | $X) anyways
+      prec(1, $.semgrep_ellipsis),
+      previous,
     ),
 
     // Alternate "entry point". Allows parsing a standalone expression.
