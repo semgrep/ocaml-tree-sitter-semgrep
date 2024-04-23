@@ -83,7 +83,7 @@ select $EXPR
                 (semgrep_metavariable)))))))))
 
 ============
-Metavariables as annotations
+Metavariables as aggregate IDs
 ============
 
 __SEMGREP_EXPRESSION $X[bar](2)
@@ -92,12 +92,46 @@ __SEMGREP_EXPRESSION $X[bar](2)
 
 (ql
   (semgrep_expression
-    (expr_annotation
-      (annotName
+    (aggregate
+      (aggId
         (semgrep_metavariable))
-      (annotName)
-      (literal
-        (integer)))))
+      (variable
+        (varName
+          (simpleId)))
+      (expr_aggregate_body
+        (asExprs
+          (asExpr
+            (literal
+              (integer))))))))
+
+============
+Metavariables as complex aggregate IDs
+============
+
+__SEMGREP_EXPRESSION $X(Int x | true | false)
+
+---
+
+(ql
+  (semgrep_expression
+    (call_or_unqual_agg_expr
+      (aritylessPredicateExpr
+        (literalId
+          (semgrep_metavariable)))
+      (unqual_agg_body
+        (varDecl
+          (typeExpr
+            (className))
+          (varName
+            (simpleId)))
+        (literal
+          (bool
+            (true)))
+        (asExprs
+          (asExpr
+            (literal
+              (bool
+                (false)))))))))
 
 ============
 Metavariables as predicates
@@ -219,3 +253,87 @@ module $FOO {
           (semgrep_metavariable)))
       (moduleMember
         (semgrep_ellipsis)))))
+
+============
+Ellipsis in vardecls
+============
+
+from ...
+where $Y
+select $X
+
+---
+
+(ql
+  (moduleMember
+    (select
+      (varDecl
+        (semgrep_ellipsis))
+      (variable
+        (varName
+          (simpleId
+            (semgrep_metavariable))))
+      (asExprs
+        (asExpr
+          (variable
+            (varName
+              (simpleId
+                (semgrep_metavariable)))))))))
+
+============
+Ellipsis in aggregate vardecls
+============
+
+__SEMGREP_EXPRESSION exists(... | $X)
+
+---
+
+(ql
+  (semgrep_expression
+    (quantified
+      (quantifier)
+      (varDecl
+        (semgrep_ellipsis))
+      (variable
+        (varName
+          (simpleId
+            (semgrep_metavariable)))))))
+
+============
+Ellipsis in call
+============
+
+__SEMGREP_EXPRESSION foo(..., 2)
+
+---
+
+(ql
+  (semgrep_expression
+    (call_or_unqual_agg_expr
+      (aritylessPredicateExpr
+        (literalId))
+      (call_body
+        (semgrep_ellipsis)
+        (literal
+          (integer))))))
+
+============
+Deep expression operator
+============
+
+__SEMGREP_EXPRESSION <... $X and $Y ...>
+
+---
+
+(ql
+  (semgrep_expression
+    (semgrep_deep_expression
+      (conjunction
+        (variable
+          (varName
+            (simpleId
+              (semgrep_metavariable))))
+        (variable
+          (varName
+            (simpleId
+              (semgrep_metavariable))))))))
