@@ -1,0 +1,301 @@
+======================================================================
+Deep expression
+======================================================================
+
+__SEMGREP_EXPRESSION <... foo($X) ...>
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (semgrep_deep_expression
+      (call_expression
+        (identifier)
+        (argument_list
+          (identifier))))))
+
+======================================================================
+Typed metavariable
+======================================================================
+
+__SEMGREP_EXPRESSION ($T $X)
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (semgrep_typed_metavar
+      (type_descriptor
+        (type_identifier))
+      (semgrep_metavariable))))
+
+======================================================================
+Sizeof ellipsis
+======================================================================
+
+__SEMGREP_EXPRESSION sizeof(...)
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (sizeof_expression
+      (parenthesized_expression
+        (semgrep_ellipsis)))))
+
+======================================================================
+Ellipsis expression
+======================================================================
+
+__SEMGREP_EXPRESSION ...
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (semgrep_ellipsis)))
+
+======================================================================
+Ellipsis argument
+======================================================================
+
+foo(..., 1, ..., 2, ...);
+
+---
+
+(translation_unit
+  (expression_statement
+    (call_expression
+      (identifier)
+      (argument_list
+        (semgrep_ellipsis)
+        (number_literal)
+        (semgrep_ellipsis)
+        (number_literal)
+        (semgrep_ellipsis)))))
+
+======================================================================
+Ellipsis statement
+======================================================================
+
+int x = 2;
+...
+int y = 3;
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (number_literal)))
+  (semgrep_ellipsis)
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (number_literal))))
+
+======================================================================
+Ellipsis statement in function
+======================================================================
+
+int main() {
+  int x = 2;
+  ...
+  int y = 3;
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal)))
+      (semgrep_ellipsis)
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal))))))
+
+======================================================================
+Ellipsis in for loop
+======================================================================
+
+for (...) {}
+
+---
+
+(translation_unit
+  (for_statement
+    (semgrep_ellipsis)
+    (compound_statement)))
+
+======================================================================
+Metavariables
+======================================================================
+
+__SEMGREP_EXPRESSION $X
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (identifier)))
+
+======================================================================
+Metavariables in function definition
+======================================================================
+
+$T $F($T2 $ARG) {
+  ...
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (type_identifier)
+    (function_declarator
+      (identifier)
+      (parameter_list
+        (parameter_declaration
+          (type_identifier)
+          (identifier))))
+    (compound_statement
+      (semgrep_ellipsis))))
+
+======================================================================
+Ellipsis metavariable
+======================================================================
+
+$...X
+
+---
+
+(translation_unit
+  (semgrep_ellipsis_metavar))
+
+======================================================================
+Ellipsis metavariable as expression
+======================================================================
+
+__SEMGREP_EXPRESSION $...X
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (semgrep_ellipsis_metavar)))
+
+======================================================================
+Ellipsis metavariable between statements
+======================================================================
+
+int x = 1;
+$...STMTS
+int y = 2;
+
+---
+
+(translation_unit
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (number_literal)))
+  (semgrep_ellipsis_metavar)
+  (declaration
+    (primitive_type)
+    (init_declarator
+      (identifier)
+      (number_literal))))
+
+======================================================================
+Ellipsis metavariable between statements in function
+======================================================================
+
+int main(){
+  int x = 1;
+  $...STMTS
+  int y = 2;
+}
+
+---
+
+(translation_unit
+  (function_definition
+    (primitive_type)
+    (function_declarator
+      (identifier)
+      (parameter_list))
+    (compound_statement
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal)))
+      (semgrep_ellipsis_metavar)
+      (declaration
+        (primitive_type)
+        (init_declarator
+          (identifier)
+          (number_literal))))))
+
+======================================================================
+Ellipsis in dot access
+======================================================================
+
+__SEMGREP_EXPRESSION a. ... .c
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (field_expression
+      (field_expression
+        (identifier)
+        (semgrep_ellipsis))
+      (field_identifier))))
+
+======================================================================
+Ellipsis in dot access
+======================================================================
+
+__SEMGREP_EXPRESSION a. ... .c
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (field_expression
+      (field_expression
+        (identifier)
+        (semgrep_ellipsis))
+      (field_identifier))))
+
+======================================================================
+Ellipsis metavariable in dot access
+======================================================================
+
+__SEMGREP_EXPRESSION a. $...STUFF .c
+
+---
+
+(translation_unit
+  (semgrep_expression
+    (field_expression
+      (field_expression
+        (identifier)
+        (semgrep_ellipsis_metavar))
+      (field_identifier))))
