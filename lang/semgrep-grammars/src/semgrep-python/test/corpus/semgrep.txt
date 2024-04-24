@@ -6,17 +6,175 @@ Metavariable in match
         case str():
           print("oh no")
 ---
- (module
-      (match_statement
+
+(module
+  (match_statement
+    (identifier)
+    (case_clause
+      (case_pattern
+        (call
+          (identifier)
+          (argument_list)))
+      (block
+        (expression_statement
+          (call
+            (identifier)
+            (argument_list
+              (string))))))))
+
+====================================
+Typed metavariable
+====================================
+
+($X: T)
+
+---
+
+(module
+  (expression_statement
+    (semgrep_typed_metavar
+      (identifier)
+      (type
+        (identifier)))))
+
+====================================
+Standalone ellipsis
+====================================
+
+...
+
+---
+
+(module
+  (expression_statement
+    (ellipsis)))
+
+====================================
+Standalone ellipsis metavariable
+====================================
+
+$...X
+
+---
+
+(module
+  (expression_statement
+    (semgrep_ellipsis_metavar)))
+
+====================================
+Standalone deep expression
+====================================
+
+<... foo() ...>
+
+---
+
+(module
+  (expression_statement
+    (semgrep_deep_expression
+      (call
         (identifier)
-        (case_clause
-          (case_pattern
-            (call
-              (identifier)
-              (argument_list)))
-          (block
-            (expression_statement
-              (call
-                (identifier)
-                (argument_list
-                  (string))))))))
+        (argument_list)))))
+
+====================================
+Method chaining
+====================================
+
+A. ... .C
+
+---
+
+(module
+  (expression_statement
+    (attribute
+      (attribute
+        (identifier))
+      (identifier))))
+
+====================================
+Method chaining with ellipsis metavar
+====================================
+
+A. $...STUFF .C
+
+---
+
+(module
+  (expression_statement
+    (attribute
+      (attribute
+        (identifier)
+        (semgrep_ellipsis_metavar))
+      (identifier))))
+
+====================================
+Ellipsis as function parameter
+====================================
+
+def $FUNC(..., x, ...):
+  ...
+
+---
+
+(module
+  (function_definition
+    (identifier)
+    (parameters
+      (identifier))
+    (block
+      (expression_statement
+        (ellipsis)))))
+
+====================================
+Ellipsis between statements
+====================================
+
+x = 1
+...
+y = 2
+
+---
+
+(module
+  (expression_statement
+    (assignment
+      (identifier)
+      (integer)))
+  (expression_statement
+    (ellipsis))
+  (expression_statement
+    (assignment
+      (identifier)
+      (integer))))
+
+====================================
+Ellipsis in set
+====================================
+
+{ ..., $X, ... }
+
+---
+
+(module
+  (expression_statement
+    (set
+      (ellipsis)
+      (identifier)
+      (ellipsis))))
+
+====================================
+Ellipsis in dictionary
+====================================
+
+{ ..., "x": 2, ... }
+
+---
+
+(module
+  (expression_statement
+    (dictionary
+      (pair)
+      (pair
+        (string)
+        (integer))
+      (pair))))
