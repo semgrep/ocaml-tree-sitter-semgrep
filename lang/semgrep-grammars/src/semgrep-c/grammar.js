@@ -10,6 +10,11 @@ module.exports = grammar(base_grammar, {
   name: 'c',
 
   conflicts: ($, previous) => previous.concat([
+    // This conflict arises from the case of
+    // 'if' parenthesized_expression semgrep_ellipsis_metavar • '('  …
+    // we don't know if we should reduce the whole if or just the metavar
+    // not a very realistic case, so I don't care to fix this here
+    [$.if_statement, $._expression]
   ]),
 
   /*
