@@ -93,10 +93,16 @@ module.exports = grammar(base_grammar, {
       prec(1,$.semgrep_ellipsis)
     ),
 
+    _for_statement_body: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis
+    ),
+
     // For method chaining, like foo. ... .bar()
     _field_identifier: ($, previous) => choice(
       previous,
-      $.semgrep_ellipsis
+      $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
     ),
 
     // So we prefer to parse a unary left fold for
