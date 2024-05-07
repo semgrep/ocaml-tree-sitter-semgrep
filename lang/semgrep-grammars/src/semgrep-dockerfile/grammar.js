@@ -71,7 +71,9 @@ module.exports = grammar(base_grammar, {
           "key",
           choice(
             $.semgrep_metavariable,
-            alias(/[-a-zA-Z0-9\._]+/, $.unquoted_string)
+            alias(/[-a-zA-Z0-9\._]+/, $.unquoted_string),
+            $.double_quoted_string,
+            $.single_quoted_string
           )
         ),
         token.immediate("="),
