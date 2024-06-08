@@ -115,3 +115,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-ql"]
 	path = lang/semgrep-grammars/src/tree-sitter-ql
 	url = https://github.com/tree-sitter/tree-sitter-ql
+[submodule "lang/semgrep-grammars/src/tree-sitter-move-on-aptos"]
+	path = lang/semgrep-grammars/src/tree-sitter-move-on-aptos
+	url = https://github.com/aptos-labs/tree-sitter-move-on-aptos.git
