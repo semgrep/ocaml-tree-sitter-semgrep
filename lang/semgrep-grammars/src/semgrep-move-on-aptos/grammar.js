@@ -7,6 +7,7 @@
 const base_grammar = require('tree-sitter-move-on-aptos/grammar');
 
 const FIELD_PREC = 14;
+const UNARY_PREC = 13;
 
 module.exports = grammar(base_grammar, {
   name: 'move_on_aptos',
@@ -84,6 +85,14 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
       $.deep_ellipsis,
       $.field_access_ellipsis_expr,
+    ),
+
+    // unary expression
+    _unary_expr: ($, previous) => choice(
+      ...previous.members,
+      prec(UNARY_PREC, $.ellipsis),
+      prec(UNARY_PREC, $.deep_ellipsis),
+      prec(UNARY_PREC, $.field_access_ellipsis_expr),
     ),
 
     // type parameter
