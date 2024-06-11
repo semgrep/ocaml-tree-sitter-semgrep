@@ -1,0 +1,158 @@
+====================
+Semgrep Ellipsis
+====================
+
+__SEMGREP_EXPRESSION
+...
+
+---
+
+(source_file
+    (semgrep_expression
+    (ellipsis)))
+
+========================
+Semgrep Metavariables
+========================
+
+__SEMGREP_EXPRESSION
+call(..., $VAR)
+
+---
+
+(source_file
+    (semgrep_expression
+        (call_expr
+          (name_access_chain
+            (identifier))
+          (call_args
+            (ellipsis)
+            (var
+              (name_access_chain
+                (identifier)))))))
+
+====
+Semgrep Statement
+====
+
+__SEMGREP_STATEMENT
+let _: u64 = if (cond) { ... } else { s2 + <... $...SOME ...> }.f;
+
+---
+(source_file
+    (semgrep_statement
+    (let_expr
+        (bind_list
+        (var_name
+            (identifier)))
+        (type
+        (primitive_type
+            (number_type)))
+        (access_field
+        (if_expr
+            (parenthesized_expr
+            (var
+                (name_access_chain
+                (identifier))))
+            (block
+            (ellipsis))
+            (block
+            (bin_op_expr
+                (var
+                (name_access_chain
+                    (identifier)))
+                (binary_operator)
+                (deep_ellipsis
+                    (var
+                      (name_access_chain
+                        (identifier)))))))
+        (identifier)))))
+
+
+=========
+struct
+=========
+
+module 0xdeadbeef::mod {
+    struct $STRUCT has key {
+        ...
+    }
+}
+
+---
+
+(source_file
+    (module
+    (numerical_addr
+        (number))
+    (identifier)
+    (declaration
+        (struct_decl
+        (identifier)
+        (abilities
+            (ability))
+        (body
+            (field_annot
+            (ellipsis)))))))
+
+=======================
+Spec with attributes
+=======================
+
+module 0xdeadbeef::mod {
+    use 0x1::xx::...;
+    #[..., attr(...)]
+    spec module {
+        fun spec_incr(x: num): num { ... }
+        axiom forall x: num: (...);
+        ...
+    }
+}
+---
+
+(source_file
+    (module
+    (numerical_addr
+        (number))
+    (identifier)
+    (declaration
+        (use_decl
+        (module_ident
+            (numerical_addr
+            (number))
+            (identifier))
+        (member
+            (ellipsis))))
+    (declaration
+        (attributes
+        (attribute
+            (ellipsis))
+        (attribute
+            (identifier)
+            (attribute
+            (ellipsis))))
+        (spec_block
+        (spec_block_target)
+        (spec_func
+            (identifier)
+            (parameters
+            (parameter
+                (identifier)
+                (type
+                (name_access_chain
+                    (identifier)))))
+            (type
+            (name_access_chain
+                (identifier)))
+            (block
+            (ellipsis)))
+        (spec_axiom
+            (quantifier
+            (quantifier_bind
+                (identifier)
+                (type
+                (name_access_chain
+                    (identifier))))
+            (tuple_expr
+                (ellipsis))))
+        (ellipsis)))))
