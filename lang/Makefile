@@ -148,10 +148,10 @@ test:
 	set -e; \
         failed=""; \
 	for lang in $(SUPPORTED_TS_LANGUAGES); do \
-          ./test-lang $$lang || failed+=" $lang"; \
+          ./test-lang $$lang || failed+=" $$lang"; \
         done; \
-	if [ -n "$failed" ]; then \
-	  echo "*** Failed to build or test the following languages:$failed"; \
+	if [ -n "$$failed" ]; then \
+	  echo "*** Failed to build or test the following languages:$$failed"; \
 	  exit 1; \
 	fi
 
