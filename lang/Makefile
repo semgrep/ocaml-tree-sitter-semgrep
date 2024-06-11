@@ -146,7 +146,14 @@ STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 .PHONY: test
 test:
 	set -e; \
-	for lang in $(SUPPORTED_TS_LANGUAGES); do ./test-lang $$lang; done
+        failed=""; \
+	for lang in $(SUPPORTED_TS_LANGUAGES); do \
+          ./test-lang $$lang || failed+=" $lang"; \
+        done; \
+	if [ -n "$failed" ]; then \
+	  echo "*** Failed to build or test the following languages:$failed"; \
+	  exit 1; \
+	fi
 
 .PHONY: release
 release:
