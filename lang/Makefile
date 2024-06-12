@@ -22,13 +22,14 @@ SUPPORTED_TS_LANGUAGES = \
   elixir \
   fsharp \
   go \
+  hack \
+  haskell \
   hcl \
   html \
-  haskell \
   java \
-  julia \
   javascript \
   jsonnet \
+  julia \
   kotlin \
   lua \
   make \
@@ -41,14 +42,12 @@ SUPPORTED_TS_LANGUAGES = \
   ruby \
   rust \
   sfapex \
+  sml \
   solidity \
   sqlite \
   swift \
   typescript \
   vue
-# Commented out due to hitting memory limits in CI:
-#  hack 
-
 
 # List of all language variants, as they're made available to semgrep.
 #
@@ -72,6 +71,7 @@ SUPPORTED_DIALECTS = \
   elixir \
   fsharp \
   go \
+  hack \
   hcl \
   html \
   java \
@@ -82,11 +82,13 @@ SUPPORTED_DIALECTS = \
   kotlin \
   lua \
   make \
+  move-on-aptos \
   ocaml \
   php \
   promql \
   proto \
   python \
+  ql \
   r \
   ruby \
   rust \
@@ -96,8 +98,6 @@ SUPPORTED_DIALECTS = \
   tsx \
   typescript \
   vue
-#  hack
-
 
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.
@@ -113,14 +113,13 @@ STAT_LANGUAGES1 = \
   dockerfile \
   elixir \
   go \
+  hack \
   haskell \
   hcl \
   java \
   javascript \
   julia \
   kotlin
-# Commented out due to hitting memory limits in CI:
-#  hack 
 
 STAT_LANGUAGES2 = \
   apex \
@@ -146,7 +145,14 @@ STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 .PHONY: test
 test:
 	set -e; \
-	for lang in $(SUPPORTED_TS_LANGUAGES); do ./test-lang $$lang; done
+        failed=""; \
+	for lang in $(SUPPORTED_TS_LANGUAGES); do \
+          ./test-lang $$lang || failed="$$failed $$lang"; \
+        done; \
+	if [ -n "$$failed" ]; then \
+	  echo "*** Failed to build or test the following languages:$$failed"; \
+	  exit 1; \
+	fi
 
 .PHONY: release
 release:
