@@ -15,6 +15,7 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([
     [$.quantifier, $._quantifier_directive],
     [$.var_name, $._bind],
+    [$.typed_metavariable, $.name_access_chain]
   ]),
 
   /*
@@ -25,7 +26,11 @@ module.exports = grammar(base_grammar, {
     // Semgrep components, source: semgrep-rust
     ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expr, '...>'),
-    typed_metavariable: $ => seq($.identifier, ':', $.type),
+    
+    // Typed metavariable (an expression, not a parameter)
+    // This is grammatically indistinguishable from `$.type_hint_expr: $ => seq('(', $._expr, ':', $.type, ')')`.
+    // This will be handled by the semgrep converter by checking the metavariable name (`$`).
+    typed_metavariable: $ => seq('(', $.identifier, ':', $.type, ')'),
 
     // Alternate "entry point". Allows parsing a standalone expression.
     semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expr),
@@ -93,6 +98,7 @@ module.exports = grammar(base_grammar, {
       prec(UNARY_PREC, $.ellipsis),
       prec(UNARY_PREC, $.deep_ellipsis),
       prec(UNARY_PREC, $.field_access_ellipsis_expr),
+      $.typed_metavariable,
     ),
 
     // type parameter

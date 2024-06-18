@@ -156,3 +156,32 @@ module 0xdeadbeef::mod {
             (tuple_expr
                 (ellipsis))))
         (ellipsis)))))
+
+=======================
+Typed Metavariables
+=======================
+
+__SEMGREP_EXPRESSION
+call(arr1, arr2, ($VAR: u32), $VAR2)
+
+---
+(source_file
+    (semgrep_expression
+    (call_expr
+        (name_access_chain
+        (identifier))
+        (call_args
+        (var
+            (name_access_chain
+            (identifier)))
+        (var
+            (name_access_chain
+            (identifier)))
+        (typed_metavariable
+            (identifier)
+            (type
+            (primitive_type
+                (number_type))))
+        (var
+            (name_access_chain
+            (identifier)))))))
