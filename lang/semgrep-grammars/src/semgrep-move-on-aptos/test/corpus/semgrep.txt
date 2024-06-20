@@ -185,3 +185,81 @@ call(arr1, arr2, ($VAR: u32), $VAR2)
         (var
             (name_access_chain
             (identifier)))))))
+
+=======================
+Type Parameters & Arguments; Struct Bind Field & Pack Field; For Ellipsis
+=======================
+
+module 0xdeadbeef::mod {
+    struct $STRUCT<$T1, ...> has key {
+        ...
+    }
+
+    fun $FUN() {
+        let $STRUCT<u32, ..., $T1> { ... } = Struct2 {
+            ...,
+            field1: $VAR,
+            $VAR2,
+        };
+
+        for (...) { ... }
+    }
+}
+
+---
+
+(source_file
+    (module
+    (numerical_addr
+        (number))
+    (identifier)
+    (declaration
+        (struct_decl
+        (identifier)
+        (type_params
+            (type_param
+            (identifier))
+            (type_param
+            (ellipsis)))
+        (abilities
+            (ability))
+        (body
+            (field_annot
+            (ellipsis)))))
+    (declaration
+        (function_decl
+        (identifier)
+        (parameters)
+        (block
+            (let_expr
+            (bind_list
+                (name_access_chain
+                (identifier))
+                (type_args
+                    (type
+                        (primitive_type
+                            (number_type)))
+                    (type
+                        (ellipsis))
+                    (type
+                        (name_access_chain
+                        (identifier))))
+                (fields
+                (bind_field
+                    (ellipsis))))
+            (pack_expr
+                (name_access_chain
+                    (identifier))
+                  (expr_field
+                    (ellipsis))
+                  (expr_field
+                    (identifier)
+                    (var
+                      (name_access_chain
+                        (identifier))))
+                  (expr_field
+                    (shorthand_field_identifier))))
+        (for_loop_expr
+                (ellipsis)
+                (block
+                  (ellipsis))))))))

@@ -36,7 +36,10 @@ module.exports = grammar(base_grammar, {
     semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expr),
 
     // Alternate "entry point". Allows parsing a standalone list of sequence items (statements).
-    semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1($._sequence_item)),
+    semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1(choice(
+      $._sequence_item,
+      $.constant_decl,
+    ))),
 
     // Extend the source_file rule to allow semgrep constructs
     source_file: ($, previous) => choice(
@@ -101,10 +104,44 @@ module.exports = grammar(base_grammar, {
       $.typed_metavariable,
     ),
 
-    // type parameter
-    // (e.g. `T: ..., U: ..., ...`)
+    // function parameter
+    // (e.g. `call( ..., arg, ...)`)
     parameter: ($, previous) => choice(
       previous,
+      $.ellipsis,
+    ),
+
+    // for loop ellipsis
+    // (e.g. `for (...)`)
+    for_loop_expr: ($, previous) => choice(
+      previous,
+      seq('for', '(', $.ellipsis, ')', field('body', $.block)),
+    ),
+
+    // abilities
+    // (e.g. struct XXX has ..., YYY)
+    ability: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // type parameter
+    // (e.g. `Type<..., T>`)
+    type_param: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // type
+    type: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+    ),
+
+    // pack field
+    // (e.g. `Pack { ..., field }`)
+    expr_field: ($, previous) => choice(
+      ...previous.members,
       $.ellipsis,
     ),
 
