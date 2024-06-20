@@ -263,3 +263,53 @@ module 0xdeadbeef::mod {
                 (ellipsis)
                 (block
                   (ellipsis))))))))
+
+=======================
+Function Call with Type Arguments
+=======================
+
+__SEMGREP_EXPRESSION {
+    borrow_global_mut<Locks<CoinType>>(...);
+    exists<...> (...);
+    test_fun<..., $T1, ...> (...);
+}
+
+---
+
+(source_file
+    (semgrep_expression
+    (block
+        (call_expr
+        (name_access_chain
+            (identifier))
+        (type_args
+            (type
+            (name_access_chain
+                (identifier))
+            (type_args
+                (type
+                (name_access_chain
+                    (identifier))))))
+        (call_args
+            (ellipsis)))
+        (call_expr
+        (name_access_chain
+            (discouraged_name))
+        (type_args
+            (type
+            (ellipsis)))
+        (call_args
+            (ellipsis)))
+        (call_expr
+        (name_access_chain
+            (identifier))
+        (type_args
+            (type
+            (ellipsis))
+            (type
+            (name_access_chain
+                (identifier)))
+            (type
+            (ellipsis)))
+        (call_args
+            (ellipsis))))))
