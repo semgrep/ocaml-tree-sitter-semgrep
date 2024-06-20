@@ -8,7 +8,7 @@ __SEMGREP_EXPRESSION
 ---
 
 (source_file
-    (semgrep_expression
+  (semgrep_expression
     (ellipsis)))
 
 ========================
@@ -21,15 +21,15 @@ call(..., $VAR)
 ---
 
 (source_file
-    (semgrep_expression
-        (call_expr
+  (semgrep_expression
+    (call_expr
+      (name_access_chain
+        (identifier))
+      (call_args
+        (ellipsis)
+        (var
           (name_access_chain
-            (identifier))
-          (call_args
-            (ellipsis)
-            (var
-              (name_access_chain
-                (identifier)))))))
+            (identifier)))))))
 
 ====
 Semgrep Statement
@@ -39,33 +39,34 @@ __SEMGREP_STATEMENT
 let _: u64 = if (cond) { ... } else { s2 + <... $...SOME ...> }.f;
 
 ---
+
 (source_file
-    (semgrep_statement
+  (semgrep_statement
     (let_expr
-        (bind_list
+      (bind_list
         (var_name
-            (identifier)))
-        (type
+          (identifier)))
+      (type
         (primitive_type
-            (number_type)))
-        (access_field
+          (number_type)))
+      (access_field
         (if_expr
-            (parenthesized_expr
+          (parenthesized_expr
             (var
-                (name_access_chain
+              (name_access_chain
                 (identifier))))
-            (block
+          (block
             (ellipsis))
-            (block
+          (block
             (bin_op_expr
-                (var
+              (var
                 (name_access_chain
-                    (identifier)))
-                (binary_operator)
-                (deep_ellipsis
-                    (var
-                      (name_access_chain
-                        (identifier)))))))
+                  (identifier)))
+              (binary_operator)
+              (deep_ellipsis
+                (var
+                  (name_access_chain
+                    (identifier)))))))
         (identifier)))))
 
 
@@ -111,50 +112,50 @@ module 0xdeadbeef::mod {
 ---
 
 (source_file
-    (module
+  (module
     (numerical_addr
-        (number))
+      (number))
     (identifier)
     (declaration
-        (use_decl
+      (use_decl
         (module_ident
-            (numerical_addr
+          (numerical_addr
             (number))
-            (identifier))
+          (identifier))
         (member
-            (ellipsis))))
+          (ellipsis))))
     (declaration
-        (attributes
+      (attributes
         (attribute
-            (ellipsis))
+          (ellipsis))
         (attribute
-            (identifier)
-            (attribute
+          (identifier)
+          (attribute
             (ellipsis))))
-        (spec_block
+      (spec_block
         (spec_block_target)
         (spec_func
-            (identifier)
-            (parameters
+          (identifier)
+          (parameters
             (parameter
-                (identifier)
-                (type
+              (identifier)
+              (type
                 (name_access_chain
-                    (identifier)))))
-            (type
+                  (identifier)))))
+          (type
             (name_access_chain
-                (identifier)))
-            (block
+              (identifier)))
+          (block
             (ellipsis)))
         (spec_axiom
-            (quantifier
+          (quantifier
             (quantifier_bind
-                (identifier)
-                (type
+              (identifier)
+              (type
                 (name_access_chain
-                    (identifier))))
+                  (identifier))))
             (tuple_expr
-                (ellipsis))))
+              (ellipsis))))
         (ellipsis)))))
 
 =======================
@@ -166,24 +167,24 @@ call(arr1, arr2, ($VAR: u32), $VAR2)
 
 ---
 (source_file
-    (semgrep_expression
+  (semgrep_expression
     (call_expr
-        (name_access_chain
+      (name_access_chain
         (identifier))
-        (call_args
+      (call_args
         (var
-            (name_access_chain
+          (name_access_chain
             (identifier)))
         (var
-            (name_access_chain
+          (name_access_chain
             (identifier)))
         (typed_metavariable
-            (identifier)
-            (type
+          (identifier)
+          (type
             (primitive_type
-                (number_type))))
+              (number_type))))
         (var
-            (name_access_chain
+          (name_access_chain
             (identifier)))))))
 
 =======================
@@ -209,60 +210,60 @@ module 0xdeadbeef::mod {
 ---
 
 (source_file
-    (module
+  (module
     (numerical_addr
-        (number))
+      (number))
     (identifier)
     (declaration
-        (struct_decl
+      (struct_decl
         (identifier)
         (type_params
-            (type_param
+          (type_param
             (identifier))
-            (type_param
+          (type_param
             (ellipsis)))
         (abilities
-            (ability))
+          (ability))
         (body
-            (field_annot
+          (field_annot
             (ellipsis)))))
     (declaration
-        (function_decl
+      (function_decl
         (identifier)
         (parameters)
         (block
-            (let_expr
+          (let_expr
             (bind_list
-                (name_access_chain
+              (name_access_chain
                 (identifier))
-                (type_args
-                    (type
-                        (primitive_type
-                            (number_type)))
-                    (type
-                        (ellipsis))
-                    (type
-                        (name_access_chain
-                        (identifier))))
-                (fields
+              (type_args
+                (type
+                  (primitive_type
+                    (number_type)))
+                (type
+                  (ellipsis))
+                (type
+                  (name_access_chain
+                    (identifier))))
+              (fields
                 (bind_field
-                    (ellipsis))))
+                  (ellipsis))))
             (pack_expr
-                (name_access_chain
-                    (identifier))
-                  (expr_field
-                    (ellipsis))
-                  (expr_field
-                    (identifier)
-                    (var
-                      (name_access_chain
-                        (identifier))))
-                  (expr_field
-                    (shorthand_field_identifier))))
-        (for_loop_expr
-                (ellipsis)
-                (block
-                  (ellipsis))))))))
+              (name_access_chain
+                (identifier))
+              (expr_field
+                (ellipsis))
+              (expr_field
+                (identifier)
+                (var
+                  (name_access_chain
+                    (identifier))))
+              (expr_field
+                (shorthand_field_identifier))))
+          (for_loop_expr
+            (ellipsis)
+            (block
+              (ellipsis))))))))
 
 =======================
 Function Call with Type Arguments
@@ -277,39 +278,39 @@ __SEMGREP_EXPRESSION {
 ---
 
 (source_file
-    (semgrep_expression
+  (semgrep_expression
     (block
-        (call_expr
+      (call_expr
         (name_access_chain
-            (identifier))
+          (identifier))
         (type_args
-            (type
+          (type
             (name_access_chain
-                (identifier))
+              (identifier))
             (type_args
-                (type
+              (type
                 (name_access_chain
-                    (identifier))))))
+                  (identifier))))))
         (call_args
-            (ellipsis)))
-        (call_expr
+          (ellipsis)))
+      (call_expr
         (name_access_chain
-            (discouraged_name))
+          (discouraged_name))
         (type_args
-            (type
+          (type
             (ellipsis)))
         (call_args
-            (ellipsis)))
-        (call_expr
+          (ellipsis)))
+      (call_expr
         (name_access_chain
-            (identifier))
+          (identifier))
         (type_args
-            (type
+          (type
             (ellipsis))
-            (type
+          (type
             (name_access_chain
-                (identifier)))
-            (type
+              (identifier)))
+          (type
             (ellipsis)))
         (call_args
-            (ellipsis))))))
+          (ellipsis))))))
