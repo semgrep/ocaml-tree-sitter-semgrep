@@ -33,7 +33,10 @@ module.exports = grammar(base_grammar, {
     typed_metavariable: $ => seq('(', $.identifier, ':', $.type, ')'),
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expr),
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', choice(
+      $._expr,
+      $.let_expr,
+    )),
 
     // Alternate "entry point". Allows parsing a standalone list of sequence items (statements).
     semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1(choice(

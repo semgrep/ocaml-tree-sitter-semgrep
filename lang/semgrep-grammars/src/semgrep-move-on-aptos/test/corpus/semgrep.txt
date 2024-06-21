@@ -314,3 +314,26 @@ __SEMGREP_EXPRESSION {
             (ellipsis)))
         (call_args
           (ellipsis))))))
+
+=======================
+Let Expression Match
+=======================
+
+__SEMGREP_EXPRESSION
+let test::Token { ... } = $VAR
+
+---
+
+(source_file
+  (semgrep_expression
+    (let_expr
+      (bind_list
+        (name_access_chain
+          (identifier)
+          (identifier))
+        (fields
+          (bind_field
+            (ellipsis))))
+      (var
+        (name_access_chain
+          (identifier))))))
