@@ -13,8 +13,6 @@ module.exports = grammar(base_grammar, {
   name: 'move_on_aptos',
 
   conflicts: ($, previous) => previous.concat([
-    [$.quantifier, $._quantifier_directive],
-    [$.var_name, $._bind],
     [$.typed_metavariable, $.name_access_chain]
   ]),
 
