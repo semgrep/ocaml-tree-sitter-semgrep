@@ -38,10 +38,19 @@ prep:
 
 .PHONY: test
 test:
+	# 'tree-sitter test' can emit a large number of repetitive error
+	# messages when compiling 'parser.c'.
 	set -e; \
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
-	  echo "Test $$dir"; \
-	  (cd "$$dir" && tree-sitter test); \
+	  echo "Test $$(pwd)"; \
+	  (cd "$$dir"; \
+           show_log() { echo "..."; tail -n 1000 test.log; }; \
+           if tree-sitter test > test.log 2>&1; then \
+             show_log; \
+           else \
+             show_log; \
+             exit 1; \
+           fi); \
 	done
 
 .PHONY: clean

@@ -42,7 +42,14 @@ jobs:
       - run: opam exec -- make install
       - run: opam exec -- make -C core test
       - run:
-          name: test languages
+          # A bunch of parsers fail to build with tree-sitter 0.22.6
+          # and need to be upgraded.
+          # Some parsers won't build due to 'tree-sitter generate'
+          # using too much memory: c-sharp, hack
+          # Programmers should check the list of failed languages
+          # printed at the end of the CI job and proceed to merge
+          # their PR responsibly.
+          name: "test languages (known to fail for some languages)"
           no_output_timeout: 60m
           command: opam exec -- make lang
 
