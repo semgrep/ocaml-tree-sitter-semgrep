@@ -74,6 +74,14 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // struct binding
+    // (e.g. `let T { field_1, var: ..., } = obj;`)
+    // (e.g. `let ... = obj;`)
+    _bind: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+    ),
+
     // attribute
     // (e.g. `#[..., attr(...)]`)
     attribute: ($, previous) => choice(

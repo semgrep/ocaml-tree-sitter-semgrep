@@ -337,3 +337,28 @@ let test::Token { ... } = $VAR
       (var
         (name_access_chain
           (identifier))))))
+
+====
+Let Expr 2
+====
+
+__SEMGREP_EXPRESSION
+let Lock { coins, $VAR2: ..., } = ...
+
+---
+
+(source_file
+  (semgrep_expression
+    (let_expr
+      (bind_list
+        (name_access_chain
+          (identifier))
+        (fields
+          (bind_field
+            (shorthand_field_identifier
+              (identifier)))
+          (bind_field
+            (var_name
+              (identifier))
+            (ellipsis))))
+      (ellipsis))))
