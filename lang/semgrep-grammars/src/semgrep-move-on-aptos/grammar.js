@@ -61,6 +61,12 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // statement (sequence item)
+    _sequence_item: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
     // struct field annotations
     field_annot: ($, previous) => choice(
       previous,

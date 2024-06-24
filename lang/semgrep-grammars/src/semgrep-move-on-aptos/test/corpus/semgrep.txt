@@ -338,9 +338,9 @@ let test::Token { ... } = $VAR
         (name_access_chain
           (identifier))))))
 
-====
+=======================
 Let Expr 2
-====
+=======================
 
 __SEMGREP_EXPRESSION
 let Lock { coins, $VAR2: ..., } = ...
@@ -362,3 +362,41 @@ let Lock { coins, $VAR2: ..., } = ...
               (identifier))
             (ellipsis))))
       (ellipsis))))
+
+=======================
+Multiline Statements 1
+=======================
+
+__SEMGREP_STATEMENT ...
+
+---
+
+(source_file
+  (semgrep_statement
+    (ellipsis)))
+
+=======================
+Multiline Statements 2
+=======================
+
+__SEMGREP_EXPRESSION {
+  let t = 100;
+  ...
+  t
+}
+
+---
+
+(source_file
+  (semgrep_expression
+    (block
+      (let_expr
+        (bind_list
+          (var_name
+            (identifier)))
+        (value
+          (number)))
+      (ellipsis)
+      (var
+        (name_access_chain
+          (identifier))))))
