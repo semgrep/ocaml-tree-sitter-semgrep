@@ -1,0 +1,49 @@
+==================================
+JSX with ellipsis
+==================================
+
+<Switch .../>
+
+---
+
+(program
+  (expression_statement
+    (jsx_self_closing_element
+      (identifier)
+      (semgrep_ellipsis))))
+
+==================================
+JSX with ellipsis and other props
+==================================
+
+<Switch a="b" ... foo={bar}/>
+
+---
+
+(program
+  (expression_statement
+    (jsx_self_closing_element
+      (identifier)
+      (jsx_attribute
+        (property_identifier)
+        (string
+          (string_fragment)))
+      (semgrep_ellipsis)
+      (jsx_attribute
+        (property_identifier)
+        (jsx_expression
+          (identifier))))))
+
+==================================
+JSX with metavariable ellipsis
+==================================
+
+<Switch $...PROPS/>
+
+---
+
+(program
+  (expression_statement
+    (jsx_self_closing_element
+      (identifier)
+      (semgrep_metavar_ellipsis))))
