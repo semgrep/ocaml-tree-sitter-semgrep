@@ -13,8 +13,13 @@ module.exports = grammar(base_grammar, {
   name: 'move_on_aptos',
 
   conflicts: ($, previous) => previous.concat([
-    [$.typed_metavariable, $.name_access_chain]
+    [$.typed_metavariable, $.name_access_chain],
+    [$.term, $.declaration],
   ]),
+
+  precedences: $ => [
+    [$._sequence_item, $.declaration],
+  ],
 
   /*
      Support for semgrep ellipsis ('...') and metavariables ('$FOO'),
@@ -24,7 +29,7 @@ module.exports = grammar(base_grammar, {
     // Semgrep components, source: semgrep-rust
     ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expr, '...>'),
-    
+
     // Typed metavariable (an expression, not a parameter)
     // This is grammatically indistinguishable from `$.type_hint_expr: $ => seq('(', $._expr, ':', $.type, ')')`.
     // This will be handled by the semgrep converter by checking the metavariable name (`$`).
@@ -39,14 +44,25 @@ module.exports = grammar(base_grammar, {
     // Alternate "entry point". Allows parsing a standalone list of sequence items (statements).
     semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1(choice(
       $._sequence_item,
-      $.constant_decl,
+      $.declaration,
     ))),
+
+    // Alternate "entry point". Allows parsing partial declarations (signatures).
+    semgrep_partial: $ => seq('__SEMGREP_PARTIAL', seq(
+      optional($.attributes),
+      repeat($.module_member_modifier),
+      choice(
+        $._function_signature,
+        $._struct_signature,
+      )
+    )),
 
     // Extend the source_file rule to allow semgrep constructs
     source_file: ($, previous) => choice(
       previous,
       $.semgrep_expression,
       $.semgrep_statement,
+      $.semgrep_partial,
     ),
 
     // Module declaration
