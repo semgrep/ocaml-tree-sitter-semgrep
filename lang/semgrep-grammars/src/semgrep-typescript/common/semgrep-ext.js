@@ -28,6 +28,7 @@ module.exports = {
     */
 
     semgrep_ellipsis: $ => '...',
+    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
 
     /* In the expression context, there are LR(1) conflicts with spread and
      * rest. I (nmote) don't think that these are true ambiguities, but just in
@@ -38,6 +39,12 @@ module.exports = {
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_expression_ellipsis,
+    ),
+
+    _jsx_attribute: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavar_ellipsis
     ),
 
     // TODO Remove this when we update tree-sitter-typescript past
