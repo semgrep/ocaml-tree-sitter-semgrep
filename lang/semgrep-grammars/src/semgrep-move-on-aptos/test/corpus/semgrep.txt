@@ -400,3 +400,46 @@ __SEMGREP_EXPRESSION {
       (var
         (name_access_chain
           (identifier))))))
+
+=======================
+Script
+=======================
+
+script {
+  ...
+  use std::vec::{...};
+  ...
+  const aa: u32 = ...;
+  ...
+  spec { ... }
+  ...
+}
+---
+
+(source_file
+  (script
+    (declaration
+      (ellipsis))
+    (declaration
+      (use_decl
+        (module_ident
+          (identifier)
+          (identifier))
+        (member
+          (ellipsis))))
+    (declaration
+      (ellipsis))
+    (declaration
+      (constant_decl
+        (identifier)
+        (type
+          (primitive_type
+            (number_type)))
+        (ellipsis)))
+    (declaration
+      (ellipsis))
+    (declaration
+      (spec_block
+        (ellipsis)))
+    (declaration
+      (ellipsis))))

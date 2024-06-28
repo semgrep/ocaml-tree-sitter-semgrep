@@ -19,6 +19,7 @@ module.exports = grammar(base_grammar, {
 
   precedences: $ => [
     [$._sequence_item, $.declaration],
+    [$._script_use_decl, $._script_constant_decl, $._script_func_decl, $._script_spec_block],
   ],
 
   /*
@@ -70,6 +71,13 @@ module.exports = grammar(base_grammar, {
       previous,
       $.ellipsis,
     ),
+
+    // Script members
+    // We cannot mimic the `declaration` trick here, as the script members are strictly ordered.
+    _script_use_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_constant_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_func_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_spec_block: ($, previous) => choice(previous, $.ellipsis),
 
     // Spec block members
     _spec_block_member: ($, previous) => choice(
