@@ -443,3 +443,24 @@ script {
         (ellipsis)))
     (declaration
       (ellipsis))))
+
+=======================
+Address Block
+=======================
+
+address $ADDR {
+  ...
+  module $MOD { ... }
+  ...
+}
+---
+
+(source_file
+  (address_block
+    (identifier)
+    (ellipsis)
+    (module
+      (identifier)
+      (declaration
+        (ellipsis)))
+    (ellipsis)))

@@ -79,6 +79,12 @@ module.exports = grammar(base_grammar, {
     _script_func_decl: ($, previous) => choice(previous, $.ellipsis),
     _script_spec_block: ($, previous) => choice(previous, $.ellipsis),
 
+    // Address block members
+    _address_member: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
     // Spec block members
     _spec_block_member: ($, previous) => choice(
       previous,
