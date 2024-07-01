@@ -2,7 +2,6 @@
 Function in Statement
 =======================
 
-__SEMGREP_STATEMENT
 fun $TEST (...) : ... { ... }
 
 ---
@@ -24,7 +23,6 @@ fun $TEST (...) : ... { ... }
 Declarations
 =======================
 
-__SEMGREP_STATEMENT
 use 0xabcd::ff;
 struct $STRUCT has ... { ... }
 const $CONST : ... = $FOO(...);
@@ -86,7 +84,6 @@ fun hello (...) {
 Function Signature
 =======================
 
-__SEMGREP_PARTIAL
 #[test]
 public(friend) fun $FUNC (...)
 
@@ -108,7 +105,6 @@ public(friend) fun $FUNC (...)
 Struct Signature
 =======================
 
-__SEMGREP_PARTIAL
 public native struct $STRUCT has ...
 
 ---

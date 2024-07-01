@@ -15,6 +15,7 @@ module.exports = grammar(base_grammar, {
   conflicts: ($, previous) => previous.concat([
     [$.typed_metavariable, $.name_access_chain],
     [$.term, $.declaration],
+    [$._module_path, $.spec_block_target]
   ]),
 
   precedences: $ => [
@@ -37,26 +38,26 @@ module.exports = grammar(base_grammar, {
     typed_metavariable: $ => seq('(', $.identifier, ':', $.type, ')'),
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', choice(
+    semgrep_expression: $ => choice(
       $._expr,
       $.let_expr,
-    )),
+    ),
 
     // Alternate "entry point". Allows parsing a standalone list of sequence items (statements).
-    semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1(choice(
+    semgrep_statement: $ => repeat1(choice(
       $._sequence_item,
       $.declaration,
-    ))),
+    )),
 
     // Alternate "entry point". Allows parsing partial declarations (signatures).
-    semgrep_partial: $ => seq('__SEMGREP_PARTIAL', seq(
+    semgrep_partial: $ => seq(
       optional($.attributes),
       repeat($.module_member_modifier),
       choice(
         $._function_signature,
         $._struct_signature,
       )
-    )),
+    ),
 
     // Extend the source_file rule to allow semgrep constructs
     source_file: ($, previous) => choice(

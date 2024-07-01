@@ -2,7 +2,6 @@
 Semgrep Ellipsis
 ====================
 
-__SEMGREP_EXPRESSION
 ...
 
 ---
@@ -15,7 +14,6 @@ __SEMGREP_EXPRESSION
 Semgrep Metavariables
 ========================
 
-__SEMGREP_EXPRESSION
 call(..., $VAR)
 
 ---
@@ -35,7 +33,6 @@ call(..., $VAR)
 Semgrep Statement
 ====
 
-__SEMGREP_STATEMENT
 let _: u64 = if (cond) { ... } else { s2 + <... $...SOME ...> }.f;
 
 ---
@@ -162,7 +159,6 @@ module 0xdeadbeef::mod {
 Typed Metavariables
 =======================
 
-__SEMGREP_EXPRESSION
 call(arr1, arr2, ($VAR: u32), $VAR2)
 
 ---
@@ -269,7 +265,7 @@ module 0xdeadbeef::mod {
 Function Call with Type Arguments
 =======================
 
-__SEMGREP_EXPRESSION {
+{
     borrow_global_mut<Locks<CoinType>>(...);
     exists<...> (...);
     test_fun<..., $T1, ...> (...);
@@ -319,7 +315,6 @@ __SEMGREP_EXPRESSION {
 Let Expression Match
 =======================
 
-__SEMGREP_EXPRESSION
 let test::Token { ... } = $VAR
 
 ---
@@ -342,7 +337,6 @@ let test::Token { ... } = $VAR
 Let Expr 2
 =======================
 
-__SEMGREP_EXPRESSION
 let Lock { coins, $VAR2: ..., } = ...
 
 ---
@@ -367,19 +361,21 @@ let Lock { coins, $VAR2: ..., } = ...
 Multiline Statements 1
 =======================
 
-__SEMGREP_STATEMENT ...
+...
+...
 
 ---
 
 (source_file
   (semgrep_statement
+    (ellipsis)
     (ellipsis)))
 
 =======================
 Multiline Statements 2
 =======================
 
-__SEMGREP_EXPRESSION {
+{
   let t = 100;
   ...
   t
