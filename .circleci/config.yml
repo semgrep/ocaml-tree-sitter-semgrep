@@ -129,7 +129,7 @@ workflows:
   build-on-commit:
     # Default trigger, on commit.
     jobs:
-      - test-language
+      - test-language:
           matrix:
             parameters:
               # All the tree-sitter languages we want to test
