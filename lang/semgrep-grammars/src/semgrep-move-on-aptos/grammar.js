@@ -18,10 +18,10 @@ module.exports = grammar(base_grammar, {
     [$._module_path, $.spec_block_target]
   ]),
 
-  precedences: $ => [
+  precedences: ($, previous) => previous.concat([
     [$._sequence_item, $.declaration],
     [$._script_use_decl, $._script_constant_decl, $._script_func_decl, $._script_spec_block],
-  ],
+  ]),
 
   /*
      Support for semgrep ellipsis ('...') and metavariables ('$FOO'),
