@@ -16,7 +16,7 @@ version: 2.1
 
 jobs:
 
-  build:
+  test-language:
     docker:
       - image: returntocorp/ocaml:ubuntu
 
@@ -31,6 +31,10 @@ jobs:
     #TODO: port this workflow to GHA
 
     working_directory: ~/ocaml-tree-sitter
+    parameters:
+      # tree-sitter language = XXX in the repo name tree-sitter-XXX
+      language:
+        type: string
     steps:
       - checkout
       - run: git submodule update --init --recursive --depth 1
@@ -51,11 +55,14 @@ jobs:
           # their PR responsibly.
           name: "test languages (known to fail for some languages)"
           no_output_timeout: 60m
-          command: opam exec -- make lang
+          command: |
+            eval "$(opam env)"
+            cd lang
+            ./test-lang << parameters.language >>
 
   # The parsing stat crons is now split in 2 (stat1 and stat2) because
   # even with performance circle CI plan, we hit the 3h limit.
-  # 
+  #
   #alt: instead of redoing some of the work done in the build job,
   # we could store build artifacts in this build job that we could
   # just reuse here (which is what we do in semgrep CI).
@@ -122,7 +129,50 @@ workflows:
   build-on-commit:
     # Default trigger, on commit.
     jobs:
-      - build
+      - test-language
+          matrix:
+            parameters:
+              # All the tree-sitter languages we want to test
+              # This is all or a subset of SUPPORTED_TS_LANGUAGES in
+              # lang/Makefile.
+              language:
+                - bash
+                - c
+                - cairo
+                - clojure
+                - cpp
+                - c-sharp
+                - dart
+                - dockerfile
+                - elixir
+                - fsharp
+                - go
+                - hack
+                - haskell
+                - hcl
+                - html
+                - java
+                - javascript
+                - jsonnet
+                - julia
+                - kotlin
+                - lua
+                - make
+                - ocaml
+                - php
+                - promql
+                - proto
+                - python
+                - r
+                - ruby
+                - rust
+                - sfapex
+                - sml
+                - solidity
+                - sqlite
+                - swift
+                - typescript
+                - vue
 
   # We used to run this job everyday, but now we use a more expensive resource_class
   # and we don't really need those stats to be up-to-date by the day, so
