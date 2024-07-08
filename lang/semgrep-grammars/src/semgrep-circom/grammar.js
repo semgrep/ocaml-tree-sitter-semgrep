@@ -30,8 +30,7 @@ module.exports = grammar(base_grammar, {
       return choice(
           previous,
           $.ellipsis,
-          $.deep_ellipsis,
-          $.member_ellipsis_expression
+          $.deep_ellipsis
       );
     },
 
@@ -43,15 +42,6 @@ module.exports = grammar(base_grammar, {
       );
     },
 
-    member_ellipsis_expression : $ => prec(1, seq(
-      field('object', choice(
-          $._expression,
-          $.identifier,
-      )),
-      '.',
-      $.ellipsis
-    )),
-
     for_statement: ($, previous) => {
       return choice(
          previous,
@@ -59,7 +49,7 @@ module.exports = grammar(base_grammar, {
       );
     },
   
-    semgrep_ellipsis: $ => '...',
+    ellipsis: $ => '...',
 
     deep_ellipsis: $ => seq(
       '<...', $._expression, '...>'
