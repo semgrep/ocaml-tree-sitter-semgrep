@@ -17,13 +17,53 @@ module.exports = grammar(base_grammar, {
      if they're not already part of the base grammar.
   */
   rules: {
-  /*
+
+    source_file: ($, previous) => {
+      return choice(
+        previous,
+        repeat1($._statement),
+        $._expression,
+      );
+    },
+
+    _expression: ($, previous) => {
+      return choice(
+          previous,
+          $.ellipsis,
+          $.deep_ellipsis,
+          $.member_ellipsis_expression
+      );
+    },
+
+    expression_statement: ($, previous) => {
+      return choice(
+            previous,
+            prec.right(100, seq($.ellipsis, ';')),  // expression ellipsis
+            prec.right(100, $.ellipsis),  // statement ellipsis
+      );
+    },
+
+    member_ellipsis_expression : $ => prec(1, seq(
+      field('object', choice(
+          $._expression,
+          $.identifier,
+      )),
+      '.',
+      $.ellipsis
+    )),
+
+    for_statement: ($, previous) => {
+      return choice(
+         previous,
+         seq('for', '(', $.ellipsis, ')', $._statement)
+      );
+    },
+  
     semgrep_ellipsis: $ => '...',
 
-    _expression: ($, previous) => choice(
-      $.semgrep_ellipsis,
-      ...previous.members
+    deep_ellipsis: $ => seq(
+      '<...', $._expression, '...>'
     ),
-  */
+  
   }
 });
