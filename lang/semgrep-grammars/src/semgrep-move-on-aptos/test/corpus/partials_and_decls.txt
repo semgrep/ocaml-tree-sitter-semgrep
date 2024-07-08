@@ -118,3 +118,34 @@ public native struct $STRUCT has ...
     (abilities
       (ability
         (ellipsis)))))
+
+=======================
+Function Attributes
+=======================
+
+#[attr(key = ...), attr2 = ..., attr3(...), ...]
+fun $FUN (...)
+
+---
+
+(source_file
+  (semgrep_partial
+    (attributes
+      (attribute
+        (identifier)
+        (attribute
+          (identifier)
+          (ellipsis)))
+      (attribute
+        (identifier)
+        (ellipsis))
+      (attribute
+        (identifier)
+        (attribute
+          (ellipsis)))
+      (attribute
+        (ellipsis)))
+    (identifier)
+    (parameters
+      (parameter
+        (ellipsis)))))

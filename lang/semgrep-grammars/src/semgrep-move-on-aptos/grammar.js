@@ -126,6 +126,13 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // attribute value
+    // (e.g. `#[attr(key = ...)]`)
+    _attribute_val: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
     // use member
     // (e.g. `use module_ident::...;`, `use module_ident::{..., item_ident}`)
     _use_member: ($, previous) => choice(
