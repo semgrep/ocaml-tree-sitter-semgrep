@@ -18,6 +18,7 @@ SUPPORTED_TS_LANGUAGES = \
   c \
   cairo \
   clojure \
+  circom \
   cpp \
   c-sharp \
   dart \
