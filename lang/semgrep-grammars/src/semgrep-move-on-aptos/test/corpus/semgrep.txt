@@ -460,3 +460,47 @@ address $ADDR {
       (declaration
         (ellipsis)))
     (ellipsis)))
+
+
+=======================
+More Ellipsis in Field Access
+=======================
+
+let $LEFT = <... $OBJ ...>.inner;
+let $LEFT2 = ... . ... . ...;
+let $LEFT3 = ... . ... .func(...);
+
+---
+
+(source_file
+  (semgrep_statement
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (access_field
+        (deep_ellipsis
+          (var
+            (name_access_chain
+              (identifier))))
+        (identifier)))
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (field_access_ellipsis_expr
+        (field_access_ellipsis_expr
+          (ellipsis)
+          (ellipsis))
+        (ellipsis)))
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (receiver_call
+        (field_access_ellipsis_expr
+          (ellipsis)
+          (ellipsis))
+        (identifier)
+        (call_args
+          (ellipsis))))))

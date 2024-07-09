@@ -140,12 +140,18 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // term
+    term: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+      $.deep_ellipsis,
+    ),
+
     // expression 
     _expr: ($, previous) => choice(
       ...previous.members,
       $.ellipsis,
       $.deep_ellipsis,
-      $.field_access_ellipsis_expr,
     ),
 
     // unary expression
@@ -155,6 +161,11 @@ module.exports = grammar(base_grammar, {
       prec(UNARY_PREC, $.deep_ellipsis),
       prec(UNARY_PREC, $.field_access_ellipsis_expr),
       $.typed_metavariable,
+    ),
+
+    _dot_or_index_chain: ($, previous) => choice(
+      ...previous.members,
+      $.field_access_ellipsis_expr,
     ),
 
     // function parameter
