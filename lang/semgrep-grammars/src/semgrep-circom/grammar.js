@@ -26,6 +26,17 @@ module.exports = grammar(base_grammar, {
       );
     },
 
+    // Metavariables for pragma version
+    circom_pragma_token: ($, previous) => {
+      return choice(
+        previous,
+        seq(
+          $._circom,
+          $.identifier
+        )
+      )
+    },
+    
     _expression: ($, previous) => {
       return choice(
           previous,
@@ -39,6 +50,13 @@ module.exports = grammar(base_grammar, {
             previous,
             prec.right(100, seq($.ellipsis, ';')),  // expression ellipsis
             prec.right(100, $.ellipsis),  // statement ellipsis
+      );
+    },
+
+    parameter: ($, previous) => {
+      return choice(
+         previous,
+         $.ellipsis
       );
     },
 
