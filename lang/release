@@ -154,7 +154,7 @@ repo="semgrep-$lang"
 (
   cd "$export_dir"
   if [[ ! -d "$repo" ]]; then
-    git clone git@github.com:chargarlic/"$repo".git
+    git clone git@github.com:semgrep/"$repo".git
   fi
 )
 
