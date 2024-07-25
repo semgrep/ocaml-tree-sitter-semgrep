@@ -42,7 +42,7 @@ test:
 	# messages when compiling 'parser.c'.
 	set -e; \
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
-	  echo "Test $$(pwd)"; \
+	  echo "Test $$(pwd)/$$dir"; \
 	  (cd "$$dir"; \
            show_log() { echo "..."; tail -n 1000 test.log; }; \
            if tree-sitter test > test.log 2>&1; then \

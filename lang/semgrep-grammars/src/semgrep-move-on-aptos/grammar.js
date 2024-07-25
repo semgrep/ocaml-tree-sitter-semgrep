@@ -13,8 +13,14 @@ module.exports = grammar(base_grammar, {
   name: 'move_on_aptos',
 
   conflicts: ($, previous) => previous.concat([
-    [$.quantifier, $._quantifier_directive],
-    [$.var_name, $._bind],
+    [$.typed_metavariable, $.name_access_chain],
+    [$.term, $.declaration],
+    [$._module_path, $.spec_block_target]
+  ]),
+
+  precedences: ($, previous) => previous.concat([
+    [$._sequence_item, $.declaration],
+    [$._script_use_decl, $._script_constant_decl, $._script_func_decl, $._script_spec_block],
   ]),
 
   /*
@@ -25,19 +31,40 @@ module.exports = grammar(base_grammar, {
     // Semgrep components, source: semgrep-rust
     ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expr, '...>'),
-    typed_metavariable: $ => seq($.identifier, ':', $.type),
+
+    // Typed metavariable (an expression, not a parameter)
+    // This is grammatically indistinguishable from `$.type_hint_expr: $ => seq('(', $._expr, ':', $.type, ')')`.
+    // This will be handled by the semgrep converter by checking the metavariable name (`$`).
+    typed_metavariable: $ => seq('(', $.identifier, ':', $.type, ')'),
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expr),
+    semgrep_expression: $ => choice(
+      $._expr,
+      $.let_expr,
+    ),
 
     // Alternate "entry point". Allows parsing a standalone list of sequence items (statements).
-    semgrep_statement: $ => seq('__SEMGREP_STATEMENT', repeat1($._sequence_item)),
+    semgrep_statement: $ => repeat1(choice(
+      $._sequence_item,
+      $.declaration,
+    )),
+
+    // Alternate "entry point". Allows parsing partial declarations (signatures).
+    semgrep_partial: $ => seq(
+      optional($.attributes),
+      repeat($.module_member_modifier),
+      choice(
+        $._function_signature,
+        $._struct_signature,
+      )
+    ),
 
     // Extend the source_file rule to allow semgrep constructs
     source_file: ($, previous) => choice(
       previous,
       $.semgrep_expression,
       $.semgrep_statement,
+      $.semgrep_partial,
     ),
 
     // Module declaration
@@ -46,8 +73,27 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // Script members
+    // We cannot mimic the `declaration` trick here, as the script members are strictly ordered.
+    _script_use_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_constant_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_func_decl: ($, previous) => choice(previous, $.ellipsis),
+    _script_spec_block: ($, previous) => choice(previous, $.ellipsis),
+
+    // Address block members
+    _address_member: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
     // Spec block members
     _spec_block_member: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // statement (sequence item)
+    _sequence_item: ($, previous) => choice(
       previous,
       $.ellipsis,
     ),
@@ -65,9 +111,24 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // struct binding
+    // (e.g. `let T { field_1, var: ..., } = obj;`)
+    // (e.g. `let ... = obj;`)
+    _bind: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+    ),
+
     // attribute
     // (e.g. `#[..., attr(...)]`)
     attribute: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // attribute value
+    // (e.g. `#[attr(key = ...)]`)
+    _attribute_val: ($, previous) => choice(
       previous,
       $.ellipsis,
     ),
@@ -79,12 +140,18 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
+    // term
+    term: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+      $.deep_ellipsis,
+    ),
+
     // expression 
     _expr: ($, previous) => choice(
       ...previous.members,
       $.ellipsis,
       $.deep_ellipsis,
-      $.field_access_ellipsis_expr,
     ),
 
     // unary expression
@@ -93,12 +160,52 @@ module.exports = grammar(base_grammar, {
       prec(UNARY_PREC, $.ellipsis),
       prec(UNARY_PREC, $.deep_ellipsis),
       prec(UNARY_PREC, $.field_access_ellipsis_expr),
+      $.typed_metavariable,
+    ),
+
+    _dot_or_index_chain: ($, previous) => choice(
+      ...previous.members,
+      $.field_access_ellipsis_expr,
+    ),
+
+    // function parameter
+    // (e.g. `call( ..., arg, ...)`)
+    parameter: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // for loop ellipsis
+    // (e.g. `for (...)`)
+    for_loop_expr: ($, previous) => choice(
+      previous,
+      seq('for', '(', $.ellipsis, ')', field('body', $.block)),
+    ),
+
+    // abilities
+    // (e.g. struct XXX has ..., YYY)
+    ability: ($, previous) => choice(
+      previous,
+      $.ellipsis,
     ),
 
     // type parameter
-    // (e.g. `T: ..., U: ..., ...`)
-    parameter: ($, previous) => choice(
+    // (e.g. `Type<..., T>`)
+    type_param: ($, previous) => choice(
       previous,
+      $.ellipsis,
+    ),
+
+    // type
+    type: ($, previous) => choice(
+      ...previous.members,
+      $.ellipsis,
+    ),
+
+    // pack field
+    // (e.g. `Pack { ..., field }`)
+    expr_field: ($, previous) => choice(
+      ...previous.members,
       $.ellipsis,
     ),
 

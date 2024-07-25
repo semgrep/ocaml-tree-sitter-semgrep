@@ -118,6 +118,9 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-move-on-aptos"]
 	path = lang/semgrep-grammars/src/tree-sitter-move-on-aptos
 	url = https://github.com/aptos-labs/tree-sitter-move-on-aptos.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-circom"]
+	path = lang/semgrep-grammars/src/tree-sitter-circom
+	url = https://github.com/Decurity/tree-sitter-circom.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-move"]
 	path = lang/semgrep-grammars/src/tree-sitter-move
 	url = https://github.com/tzakian/tree-sitter-move.git
