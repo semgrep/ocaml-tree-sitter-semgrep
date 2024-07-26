@@ -86,7 +86,7 @@ SUPPORTED_DIALECTS = \
   kotlin \
   lua \
   make \
-  move \
+  move-on-sui \
   move-on-aptos \
   ocaml \
   php \

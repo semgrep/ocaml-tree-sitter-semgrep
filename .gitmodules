@@ -121,6 +121,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-circom"]
 	path = lang/semgrep-grammars/src/tree-sitter-circom
 	url = https://github.com/Decurity/tree-sitter-circom.git
-[submodule "lang/semgrep-grammars/src/tree-sitter-move"]
-	path = lang/semgrep-grammars/src/tree-sitter-move
+[submodule "lang/semgrep-grammars/src/tree-sitter-move-on-sui"]
+	path = lang/semgrep-grammars/src/tree-sitter-move-on-sui
 	url = https://github.com/tzakian/tree-sitter-move.git
