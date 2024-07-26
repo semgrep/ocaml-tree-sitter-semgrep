@@ -1,10 +1,10 @@
 /*
-  semgrep-move
+  semgrep-move-on-sui
 
   Extends the standard move grammar with semgrep pattern constructs.
 */
 
-const base_grammar = require('tree-sitter-move/grammar');
+const base_grammar = require('tree-sitter-move-on-sui/grammar');
 
 module.exports = grammar(base_grammar, {
   name: 'move',
