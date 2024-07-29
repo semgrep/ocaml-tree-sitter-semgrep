@@ -7,7 +7,7 @@
 const base_grammar = require('tree-sitter-move-on-sui/grammar');
 
 module.exports = grammar(base_grammar, {
-  name: 'move',
+  name: 'move_on_sui',
 
   conflicts: ($, previous) => previous.concat([
   ]),
