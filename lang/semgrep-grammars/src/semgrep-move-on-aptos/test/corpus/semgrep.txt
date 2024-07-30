@@ -504,3 +504,52 @@ let $LEFT3 = ... . ... .func(...);
         (identifier)
         (call_args
           (ellipsis))))))
+
+=======================
+Vector Expression
+=======================
+
+let vec_val = vector[...];
+let copied = vec_val[0] + vector[1][0];
+
+let vec_2 = vector[1, 2, 3];
+
+---
+
+(source_file
+  (semgrep_statement
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (vector_value_expr
+        (ellipsis)))
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (bin_op_expr
+        (mem_access
+          (var
+            (name_access_chain
+              (identifier)))
+          (value
+            (number)))
+        (binary_operator)
+        (mem_access
+          (vector_value_expr
+            (value
+              (number)))
+          (value
+            (number)))))
+    (let_expr
+      (bind_list
+        (var_name
+          (identifier)))
+      (vector_value_expr
+        (value
+          (number))
+        (value
+          (number))
+        (value
+          (number))))))
