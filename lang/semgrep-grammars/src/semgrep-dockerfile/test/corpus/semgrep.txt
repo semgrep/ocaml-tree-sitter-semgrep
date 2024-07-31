@@ -465,6 +465,10 @@ HEALTHCHECK
 HEALTHCHECK NONE
 HEALTHCHECK --timeout=30s CMD echo hello
 HEALTHCHECK $X
+HEALTHCHECK ... CMD echo hello
+HEALTHCHECK --timeout=30s CMD ...
+HEALTHCHECK ... CMD ...
+HEALTHCHECK ...
 
 ---
 
@@ -476,7 +480,25 @@ HEALTHCHECK $X
       (shell_command
         (shell_fragment))))
   (healthcheck_instruction
-    (semgrep_metavariable)))
+    (semgrep_metavariable))
+  (healthcheck_instruction
+    (semgrep_ellipsis)
+    (cmd_instruction
+      (shell_command
+        (shell_fragment))))
+  (healthcheck_instruction
+    (param)
+    (cmd_instruction
+      (shell_command
+        (semgrep_ellipsis))))
+  (healthcheck_instruction
+    (semgrep_ellipsis)
+    (cmd_instruction
+      (shell_command
+        (semgrep_ellipsis))))
+  (healthcheck_instruction
+    (semgrep_ellipsis)))
+
 
 =============================================
 Various string literals

@@ -104,8 +104,11 @@ module.exports = grammar(base_grammar, {
         alias(/[hH][eE][aA][lL][tT][hH][cC][hH][eE][cC][kK]/, "HEALTHCHECK"),
         choice(
           $.semgrep_metavariable,
+          // To support `HEALTHCHECK ...`
+          $.semgrep_ellipsis,
           "NONE",
-          seq(repeat($.param), $.cmd_instruction)
+          // semgrep ellipsis here to support `HEALTHCHECK ... CMD echo bar`
+          seq(repeat(choice($.semgrep_ellipsis, $.param)), $.cmd_instruction)
         )
       ),
 
