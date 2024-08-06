@@ -39,7 +39,7 @@ enum CommonFields has key {
         (abilities
           (ability))
         (enum_body
-          (enum_variant
+          (enum_variant_struct
             (identifier)
             (struct_body
               (field_annot
@@ -52,7 +52,7 @@ enum CommonFields has key {
                 (type
                   (primitive_type
                     (number_type))))))
-          (enum_variant
+          (enum_variant_struct
             (identifier)
             (struct_body
               (field_annot
@@ -67,7 +67,8 @@ enum CommonFields has key {
                     (number_type))))
               (field_annot
                 (ellipsis))))
-          (identifier)
+          (enum_variant
+            (identifier))
           (ellipsis))))))
 
 =======================
@@ -232,9 +233,10 @@ enum SomeEnum<T> {
         (identifier)
         (type_params
           (type_param
-            (identifier)))
+            (type_param
+              (identifier))))
         (enum_body
-          (enum_variant
+          (enum_variant_struct
             (identifier)
             (struct_body
               (field_annot
@@ -244,7 +246,8 @@ enum SomeEnum<T> {
                     (identifier))))
               (field_annot
                 (ellipsis))))
-          (identifier))
+          (enum_variant
+            (identifier)))
         (abilities
           (ability)
           (ability)
@@ -269,9 +272,11 @@ struct AltStruct<K, V> {
         (identifier)
         (type_params
           (type_param
-            (identifier))
+            (type_param
+              (identifier)))
           (type_param
-            (identifier)))
+            (type_param
+              (identifier))))
         (struct_body
           (field_annot
             (identifier)
@@ -313,7 +318,8 @@ fun test_fun() {
         (identifier)
         (type_params
           (type_param
-            (identifier)))
+            (type_param
+              (identifier))))
         (anon_fields
           (type
             (primitive_type
@@ -388,10 +394,12 @@ fun test_fun() {
         (identifier)
         (type_params
           (type_param
-            (identifier)))
+            (type_param
+              (identifier))))
         (enum_body
-          (identifier)
           (enum_variant
+            (identifier))
+          (enum_variant_posit
             (identifier)
             (anon_fields
               (type
@@ -509,7 +517,7 @@ fun assign_enum(x: &mut E) {
       (enum_decl
         (identifier)
         (enum_body
-          (enum_variant
+          (enum_variant_posit
             (identifier)
             (anon_fields
               (type
@@ -517,7 +525,7 @@ fun assign_enum(x: &mut E) {
                   (number_type)))
               (type
                 (primitive_type))))
-          (enum_variant
+          (enum_variant_posit
             (identifier)
             (anon_fields
               (type

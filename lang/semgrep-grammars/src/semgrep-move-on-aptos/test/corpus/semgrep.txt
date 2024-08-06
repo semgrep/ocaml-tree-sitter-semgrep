@@ -215,9 +215,11 @@ module 0xdeadbeef::mod {
         (identifier)
         (type_params
           (type_param
-            (identifier))
+            (type_param
+              (identifier)))
           (type_param
-            (ellipsis)))
+            (type_param
+              (ellipsis))))
         (abilities
           (ability))
         (body
@@ -553,3 +555,20 @@ let vec_2 = vector[1, 2, 3];
           (number))
         (value
           (number))))))
+
+=======================
+Return Expression
+=======================
+
+return | a;
+
+---
+
+(source_file
+  (semgrep_statement
+    (bin_op_expr
+      (return_expr)
+      (binary_operator)
+      (var
+        (name_access_chain
+          (identifier))))))
