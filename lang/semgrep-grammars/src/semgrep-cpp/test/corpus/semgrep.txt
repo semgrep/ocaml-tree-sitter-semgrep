@@ -158,6 +158,24 @@ __SEMGREP_EXPRESSION foo. ... .bar()
       (argument_list))))
 
 ================================================================================
+Method chaining with ellipsis metavariable
+================================================================================
+
+__SEMGREP_EXPRESSION foo. $...STUFF .bar()
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (semgrep_expression
+    (call_expression
+      (field_expression
+        (field_expression
+          (identifier)
+          (semgrep_named_ellipsis))
+        (field_identifier))
+      (argument_list))))
+
+================================================================================
 Block item ellipsis
 ================================================================================
 
@@ -201,6 +219,19 @@ int y = 3;
     (init_declarator
       (identifier)
       (number_literal))))
+
+======================================================================
+Ellipsis in for loop
+======================================================================
+
+for (...) {}
+
+---
+
+(translation_unit
+  (for_statement
+    (semgrep_ellipsis)
+    (compound_statement)))
 
 ================================================================================
 Parameter ellipsis
