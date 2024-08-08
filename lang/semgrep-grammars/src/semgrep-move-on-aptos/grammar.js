@@ -56,6 +56,7 @@ module.exports = grammar(base_grammar, {
       choice(
         $._function_signature,
         $._struct_signature,
+        $._enum_signature,
       )
     ),
 
@@ -214,6 +215,20 @@ module.exports = grammar(base_grammar, {
     field_access_ellipsis_expr: $ => prec.left(FIELD_PREC, seq(
       field('element', $._dot_or_index_chain), '.', $.ellipsis,
     )),
+
+    // enum variant
+    // (e.g. `enum Foo { ..., Bar }`)
+    _variant: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
+    // match arm
+    // (e.g. `match foo { ..., bar => baz }`)
+    match_arm: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
 
     // identifier, extended to support metavariables
     identifier: ($, previous) => token(choice(
