@@ -4,3 +4,4 @@
 https://github.com/AftermathFinance/move-interfaces
 https://github.com/Bucket-Protocol/bucket-interface
 https://github.com/MystenLabs/sui-axelar
+https://github.com/MystenLabs/prettier-move/

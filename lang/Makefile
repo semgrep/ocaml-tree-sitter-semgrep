@@ -138,7 +138,8 @@ STAT_LANGUAGES2 = \
   rust \
   solidity \
   tsx \
-  typescript
+  typescript \
+  move-on-sui
 
 STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
