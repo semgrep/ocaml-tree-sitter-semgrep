@@ -26,13 +26,12 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_ellipsis_metavar,
       $.semgrep_deep_ellipsis,
-      $.semgrep_ellipsis
+      $.semgrep_ellipsis,
+      $.typed_metavar
     ),
 
-    semgrep_metavar: $ => /\$[A-Z_][A-Z_0-9]*/,
-
-    typed_metavar: $ =>  seq(
-      "(", $.semgrep_metavar, ":", $._type, ")"
+    typed_metavar: $ => seq(
+      "(", $.identifier, ":", $._type, ")"
     ),
 
     identifier: ($, previous) => token(choice(
@@ -48,17 +47,8 @@ module.exports = grammar(base_grammar, {
       previous
     ),
 
+    // slightly more precedence so we bump this up over using `...`
+    // for a semgrep ellipsis
     implicit_length_array_type: ($, previous) => prec(1, previous)
-
-  /*
-    semgrep_ellipsis: $ => '...',
-
-    _expression: ($, previous) => {
-      return choice(
-        $.semgrep_ellipsis,
-        ...previous.members
-      );
-    }
-  */
   }
 });
