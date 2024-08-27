@@ -1,0 +1,216 @@
+================================================================================
+Ellipsis
+================================================================================
+
+...
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_ellipsis))
+
+================================================================================
+Top level statements
+================================================================================
+
+x := 1
+...
+y := 2
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (short_var_declaration
+    (expression_list
+      (identifier))
+    (expression_list
+      (int_literal)))
+  (semgrep_ellipsis)
+  (short_var_declaration
+    (expression_list
+      (identifier))
+    (expression_list
+      (int_literal))))
+
+================================================================================
+Function with ellipses
+================================================================================
+
+func $FUNC(x bool, ...) {
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier))
+      (parameter_declaration
+        (semgrep_ellipsis)))
+    (block
+      (semgrep_ellipsis))))
+
+================================================================================
+Function with ellipses
+================================================================================
+
+func $FUNC(x bool, $...ARGS) {
+  $...BODY
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier))
+      (parameter_declaration
+        (semgrep_ellipsis_metavar)))
+    (block
+      (semgrep_ellipsis_metavar))))
+
+================================================================================
+Type declaration with metavariables
+================================================================================
+
+type $TY = $TY2
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (type_declaration
+    (type_alias
+      (type_identifier)
+      (type_identifier))))
+
+================================================================================
+Struct metavariable
+================================================================================
+
+type $STRUCT struct {
+  $FIELD int
+  $FIELD2 $TY
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier))
+          (field_declaration
+            (field_identifier)
+            (type_identifier)))))))
+
+================================================================================
+Ellipsis args
+================================================================================
+
+foo(..., 5)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    (identifier)
+    (argument_list
+      (semgrep_ellipsis)
+      (int_literal))))
+
+================================================================================
+Ellipsis in if
+================================================================================
+
+if (...) {
+  ...
+} else {
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (if_statement
+    (parenthesized_expression
+      (semgrep_ellipsis))
+    (block
+      (semgrep_ellipsis))
+    (block
+      (semgrep_ellipsis))))
+
+================================================================================
+Metavariable in import
+================================================================================
+
+import (
+    $NAME "crypto/rand"
+)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (import_declaration
+    (import_spec_list
+      (import_spec
+        (package_identifier)
+        (interpreted_string_literal)))))
+
+================================================================================
+Deep expression
+================================================================================
+
+<... 1 ...>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_deep_ellipsis
+    (int_literal)))
+
+================================================================================
+Deep expression again
+================================================================================
+
+x := <... foo() ...>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (short_var_declaration
+    (expression_list
+      (identifier))
+    (expression_list
+      (semgrep_deep_ellipsis
+        (call_expression
+          (identifier)
+          (argument_list))))))
+
+================================================================================
+Implicit length array type
+================================================================================
+
+x := [...] bool {}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (short_var_declaration
+    (expression_list
+      (identifier))
+    (expression_list
+      (composite_literal
+        (implicit_length_array_type
+          (type_identifier))
+        (literal_value)))))
