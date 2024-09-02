@@ -33,6 +33,7 @@ module.exports = grammar(base_grammar, {
     [$.module_access, $.field_access_ellipsis_expr],
     [$.bind_unpack, $.name_expression],
     [$.type_arguments, $._type, $.module_access],
+    [$.typed_metavariable, $.annotation_expression],
   ]),
 
   /*
@@ -43,14 +44,15 @@ module.exports = grammar(base_grammar, {
     // Semgrep components, source: semgrep-rust
     ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...',$._expression, '...>'),
-    _semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
-    _semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+    //_semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
+    //_semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
 
 
     // Typed metavariable (an expression, not a parameter)
     // This is grammatically indistinguishable from `$.type_hint_expr: $ => seq('(', $._expr, ':', $.type, ')')`.
     // This will be handled by the semgrep converter by checking the metavariable name (`$`).
-    typed_metavariable: $ => seq('(', $.identifier, ':', $._type, ')'),
+
+    typed_metavariable: $ => seq('(', alias(choice(/\$[A-Z_][A-Z_0-9]*/,  /\$\.\.\.[A-Z_][A-Z_0-9]*/), $.identifier), ':', $._type, ')'),
 
     // Alternate "entry point". Allows parsing a standalone expression.
     semgrep_expression: $ => choice(
@@ -165,7 +167,7 @@ module.exports = grammar(base_grammar, {
       prec(UNARY_PREC, $.ellipsis),
       prec(UNARY_PREC, $.deep_ellipsis),
       prec(UNARY_PREC, $.field_access_ellipsis_expr),
-      $.typed_metavariable,
+      prec(UNARY_PREC+1,$.typed_metavariable),
 
     ),
     _dot_or_index_chain: ($, previous) => choice(
@@ -221,14 +223,14 @@ module.exports = grammar(base_grammar, {
     field_access_ellipsis_expr: $ => prec.left(FIELD_PREC, seq(
       field('element', $._dot_or_index_chain), '.',$.ellipsis )),
     // identifier, extended to support metavariables
-    identifier: ($, previous) => token(choice(
-      previous,
+    identifier: ($, previous) => token(prec(-1,choice(
+      prec(100,previous),
       // Metavariables
-      prec(200,alias(
+      prec(-1,alias(
         /\$[A-Z_][A-Z_0-9]*/,$.meta_var)), 
       prec(300,alias(
           /\$\.\.\.[A-Z_][A-Z_0-9]*/,$.metavar_ellipsis)), 
         
-    )),
+    ))),
   }
 });
