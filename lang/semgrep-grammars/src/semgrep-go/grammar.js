@@ -18,13 +18,15 @@ module.exports = grammar(base_grammar, {
      if they're not already part of the base grammar.
   */
   rules: {
-   
+    semgrep_ellipsis: $ => "...",
+
     semgrep_ellipsis_metavar : $ => /\$\.\.\.[a-zA-Z_][a-zA-Z_0-9]*/,
 
-    semgrep_ellipsis: $ => "...",
     semgrep_deep_ellipsis: $ => seq("<...", $._expression, "...>"),
 
-    // 
+    // The parser tries to wrap ellipsis with expression statements since we
+    // list ellipsis as expressions and usually we use them in a statement
+    // position (i.e `if(true) {...}`)
     _statement: ($, previous) => choice(
       previous,
       prec(1,$.semgrep_ellipsis_metavar),
