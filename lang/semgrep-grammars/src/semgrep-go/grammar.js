@@ -10,7 +10,6 @@ module.exports = grammar(base_grammar, {
   name: 'go',
 
   conflicts: ($, previous) => previous.concat([
-  [$.expression_statement, $.semgrep_ellipsis]
   ]),
 
   /*
@@ -21,7 +20,6 @@ module.exports = grammar(base_grammar, {
     semgrep_ellipsis: $ => "...",
 
     semgrep_ellipsis_metavar : $ => /\$\.\.\.[a-zA-Z_][a-zA-Z_0-9]*/,
-
     semgrep_deep_ellipsis: $ => seq("<...", $._expression, "...>"),
 
     // The parser tries to wrap ellipsis with expression statements since we
