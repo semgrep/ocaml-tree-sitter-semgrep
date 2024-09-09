@@ -123,11 +123,12 @@ foo(..., 5)
 --------------------------------------------------------------------------------
 
 (source_file
-  (call_expression
-    (identifier)
-    (argument_list
-      (semgrep_ellipsis)
-      (int_literal))))
+  (expression_statement
+    (call_expression
+      (identifier)
+      (argument_list
+        (semgrep_ellipsis)
+        (int_literal)))))
 
 ================================================================================
 Ellipsis in if
