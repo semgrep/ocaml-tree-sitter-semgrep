@@ -63,6 +63,8 @@ module.exports = grammar(base_grammar, {
 
     _macro_identifier_dollar : $ => /\$[a-zA-Z][0-9a-zA-Z_]*/,
     _semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
+    _semgrep_metavar_var: $ => /\$[A-Z_][A-Z_0-9]*/,
+
 
 
     // Alternate "entry point". Allows parsing a standalone expression.
@@ -102,13 +104,12 @@ module.exports = grammar(base_grammar, {
     ),
 
     _identifier_or_metavariable: ($, previous) =>  choice(
-        seq('$', prec.right(
-            choice(
-              $._clean_macro_identifier,
-              seq('...', $._semgrep_metavariable_after_dollar),
-              $._semgrep_metavariable_after_dollar,
-          )
-        )),
+        choice(
+            $._macro_identifier_dollar,
+            $._semgrep_metavar_ellipsis,
+            $._semgrep_metavar_var,
+            '_',
+        ),
         seq(
           optional('phantom'),
           $._clean_identifier,
