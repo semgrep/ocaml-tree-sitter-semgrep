@@ -47,8 +47,6 @@ module.exports = grammar(base_grammar, {
     // Semgrep components, source: semgrep-rust
     ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...',$._expression, '...>'),
-    //_semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
-    _semgrep_metavariable_after_dollar: $ => /[A-Z_][A-Z_0-9]*/,
 
 
     // Typed metavariable (an expression, not a parameter)
@@ -59,7 +57,6 @@ module.exports = grammar(base_grammar, {
     typed_metavariable: $ => seq('(',  $.identifier, ':', $._type, ')'),
 
     _clean_identifier: $ => /(`)?[a-zA-Z_][0-9a-zA-Z_]*(`)?/,
-    _clean_macro_identifier : $ => /[a-zA-Z][0-9a-zA-Z_]*/,
 
     _macro_identifier_dollar : $ => /\$[a-zA-Z][0-9a-zA-Z_]*/,
     _semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
@@ -144,6 +141,7 @@ module.exports = grammar(base_grammar, {
         field('member', $.identifier)
       ),
       seq($.module_identity, '::', field('enum_name', $.identifier), '::', field('variant', $.identifier)),
+      $.ellipsis,
     ),
 
     // Spec block members
