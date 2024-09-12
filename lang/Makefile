@@ -44,6 +44,7 @@ SUPPORTED_TS_LANGUAGES = \
   promql \
   proto \
   python \
+  ql \
   r \
   ruby \
   rust \

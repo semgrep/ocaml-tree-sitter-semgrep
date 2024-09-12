@@ -166,6 +166,7 @@ workflows:
                 - promql
                 - proto
                 - python
+                - ql
                 - r
                 - ruby
                 - rust
