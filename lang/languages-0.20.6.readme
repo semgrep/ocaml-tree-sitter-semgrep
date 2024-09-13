@@ -1,0 +1,14 @@
+The files languages-0.20.6, languages-0.22.6, language-variants-0.20.6,
+and language-variants-0.22.6 contain lists of languages that are useful
+when regenerating the code for all the languages when necessary.
+
+We're in a situation where some languages are stuck with tree-sitter 0.20.6.
+The language names in languages-* are suitable for the `test-lang` script.
+The dialect names in language-variants-* are suitable for the `release`
+script.
+
+Sample Bash commands iterating over languages:
+
+$ for x in $(cat languages-0.22.6,); do ./test-lang $x || break; done
+
+$ for x in $(cat language-variants-0.22.6,); do ./release $x || break; done
