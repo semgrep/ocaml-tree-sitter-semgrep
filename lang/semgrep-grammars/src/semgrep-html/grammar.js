@@ -3,7 +3,7 @@
 
   Extends the standard HTML grammar with Semgrep pattern constructs.
 
-  It now also extend the HTML grammar with XML constructs! See scanner_cc.diff
+  It now also extend the HTML grammar with XML constructs! See scanner_c.diff
   for the extension to the scanner to support XML entity names (e.g., <f:bar></f:bar>).
   An alternative would be to switch to https://github.com/unhammer/tree-sitter-xml,
   but its grammar looks very complicated and the code is not maintained.
@@ -33,7 +33,7 @@ module.exports = grammar(base_grammar, {
      // Hence the introduction of an extra _toplevel_node that does not
      // allow toplevel text. Hopefully most HTML files have some
      // toplevel elements (e.g., <html>) and not just text.
-     fragment: $ => choice(
+     document: $ => choice(
         repeat($._toplevel_node),
         $.toplevel_attribute,
     ),

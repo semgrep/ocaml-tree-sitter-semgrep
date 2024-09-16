@@ -4,7 +4,7 @@ Metavariable tag
 <$X>foo</$X>
 ---
 
-(fragment
+(document
   (element
     (start_tag (semgrep_start_tag (semgrep_metavariable)))
     (text)
@@ -17,7 +17,7 @@ Metavariable attribute
 
 ---
 
-(fragment
+(document
   (element
     (start_tag (tag_name)
        (attribute (attribute_name) (quoted_attribute_value (attribute_value))))
@@ -31,7 +31,7 @@ Metavariable attribute value
 
 ---
 
-(fragment
+(document
   (element
     (start_tag (tag_name)
        (attribute (attribute_name) (quoted_attribute_value (attribute_value))))
@@ -44,7 +44,7 @@ Metavariable body
 <span>$BODY</span>
 
 ---
-(fragment
+(document
    (element
       (start_tag (tag_name))
       (text)
@@ -57,7 +57,7 @@ Ellipsis in attributes and body
 <script ... >...</script>
 
 ---
-(fragment
+(document
   (script_element
      (start_tag (tag_name) (attribute (attribute_name)))
      (raw_text)
@@ -71,7 +71,7 @@ XML constructs
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"></xs:schema>
 
 ---
-(fragment
+(document
       (xmldoctype
         (attribute
           (attribute_name)
@@ -96,7 +96,7 @@ Attribute pattern
 ===================================
 foo="true"
 ---
-(fragment
+(document
       (toplevel_attribute
         (attribute_name)
         (quoted_attribute_value
