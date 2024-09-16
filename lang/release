@@ -168,6 +168,9 @@ make -C "$lang" clean
 make -C "$lang" GEN_OCAML_OPTIONS="$GEN_OCAML_OPTIONS" gen
 dst="$export_dir"/"$repo"
 if [[ -d "$lang"/ocaml-src ]]; then
+  # Make sure obsolete files are removed from the release repo
+  git -C "$dst" rm -rf lib bin
+
   cp -a "$lang"/ocaml-src/lib "$dst"
   cp -a "$lang"/ocaml-src/bin "$dst"
   cp -a "$lang"/ocaml-src/.gitignore "$dst"

@@ -10,11 +10,11 @@ mkdir -p src
 
 (
   cd src
-  rm -f scanner.cc
-  cp ../../tree-sitter-html/src/scanner.cc scanner.cc
+  rm -f scanner.cc scanner.c
+  cp ../../tree-sitter-html/src/scanner.c scanner.c
 )
 # to extend the HTML lexer to also accept XML tags
-patch -p1 < scanner_cc.diff
+patch -p1 < scanner_c.diff
 
 (
   cd src
@@ -25,5 +25,5 @@ mkdir -p test/corpus
 (
   cd test/corpus
   rm -f inherited
-  ln -sf ../../../tree-sitter-html/corpus inherited
+  ln -sf ../../../tree-sitter-html/test/corpus inherited
 )
