@@ -123,4 +123,4 @@
 	url = https://github.com/Decurity/tree-sitter-circom.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-move-on-sui"]
 	path = lang/semgrep-grammars/src/tree-sitter-move-on-sui
-	url = https://github.com/tzakian/tree-sitter-move.git
+	url = https://github.com/maxmysten/tree-sitter-move.git
