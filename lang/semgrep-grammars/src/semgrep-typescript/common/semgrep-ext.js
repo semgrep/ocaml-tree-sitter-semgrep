@@ -28,8 +28,16 @@ module.exports = {
     */
 
     semgrep_ellipsis: $ => '...',
-    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
+/* TODO: restore this when the changes are made in semgrep.
+   Remove the XXXXXXX when uncommenting.
 
+   You also need to restore the test file:
+     lang/semgrep-grammars/src/semgrep-typescript/tsx/corpus/semgrep-ext.txt
+   See the original PR:
+     https://github.com/semgrep/ocaml-tree-sitter-semgrep/pull/488
+
+    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*XXXXXXX/,
+/*
     /* In the expression context, there are LR(1) conflicts with spread and
      * rest. I (nmote) don't think that these are true ambiguities, but just in
      * case we'll declare conflicts and set this to low dynamic precedence so as
@@ -40,13 +48,13 @@ module.exports = {
       previous,
       $.semgrep_expression_ellipsis,
     ),
-
+/* TODO: restore this when the changes are made in semgrep.
     _jsx_attribute: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
       $.semgrep_metavar_ellipsis
     ),
-
+*/
     // TODO Remove this when we update tree-sitter-typescript past
     // https://github.com/tree-sitter/tree-sitter-typescript/pull/239. I (nmote)
     // ran into unrelated issues updating it, documented in

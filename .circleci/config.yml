@@ -139,6 +139,7 @@ workflows:
                 - bash
                 - c
                 - cairo
+                - circom
                 - clojure
                 - cpp
                 - c-sharp
@@ -158,11 +159,14 @@ workflows:
                 - kotlin
                 - lua
                 - make
+                - move-on-aptos
+                - move-on-sui
                 - ocaml
                 - php
                 - promql
                 - proto
                 - python
+                - ql
                 - r
                 - ruby
                 - rust

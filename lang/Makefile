@@ -37,11 +37,14 @@ SUPPORTED_TS_LANGUAGES = \
   kotlin \
   lua \
   make \
+  move-on-aptos \
+  move-on-sui \
   ocaml \
   php \
   promql \
   proto \
   python \
+  ql \
   r \
   ruby \
   rust \
@@ -86,8 +89,8 @@ SUPPORTED_DIALECTS = \
   kotlin \
   lua \
   make \
-  move-on-sui \
   move-on-aptos \
+  move-on-sui \
   ocaml \
   php \
   promql \

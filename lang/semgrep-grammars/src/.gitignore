@@ -2,4 +2,4 @@
 /semgrep-*/**/index.js
 /semgrep-*/**/src
 /semgrep-*/**/inherited
-/semgrep-*/test.log
+/semgrep-*/**/test.log
