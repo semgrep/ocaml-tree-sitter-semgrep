@@ -17,6 +17,19 @@ cat ../tree-sitter-vue/src/scanner.cc \
   cd src
   ln -sf ../../tree-sitter-vue/src/tree_sitter_html/scanner.cc scanner_html.h
   ln -sf ../../tree-sitter-vue/src/tree_sitter_html/tag.h tag.h
+
+  # Sanity check
+  if grep tree_sitter_html_ scanner_html.h; then
+    cat >&2 <<EOF
+*** Error:
+Symbols starting with 'tree_sitter_html_' were found in the C code of
+tree-sitter-vue. In Semgrep, this will result in silent conflicts causing HTML
+parsing errors. Please make sure that you're using a version of tree-sitter-vue
+where the file 'tree_sitter_html/scanner.cc' does not define
+'tree_sitter_html_*' functions.
+EOF
+    exit 1
+  fi
 )
 
 mkdir -p test/corpus
