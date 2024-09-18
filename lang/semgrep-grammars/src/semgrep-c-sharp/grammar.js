@@ -25,7 +25,9 @@ module.exports = grammar(standard_grammar, {
 
   conflicts: ($, previous) => [
     ...previous,
-    [$._expression, $.parameter]
+    [$.expression, $.parameter],
+    [$.file_scoped_namespace_declaration, $.preproc_if_in_top_level],
+    [$.file_scoped_namespace_declaration, $.preproc_else_in_top_level],
   ],
 
   rules: {
@@ -39,7 +41,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expression),
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
     // Metavariables
     identifier: ($, previous) => {
@@ -68,7 +70,7 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
-    _declaration: ($, previous) => {
+    declaration: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis
@@ -77,7 +79,7 @@ module.exports = grammar(standard_grammar, {
 
     // We want ellipses to be interchangeable with namespace member declarations, so
     // we need to add them in to `type_declaration` here. 
-    _type_declaration: ($, previous) => { 
+    type_declaration: ($, previous) => { 
       return choice(
         ...previous.members,
         $.ellipsis
@@ -117,7 +119,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Expression ellipsis
-    _expression: ($, previous) => {
+    expression: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis,
@@ -129,7 +131,7 @@ module.exports = grammar(standard_grammar, {
 
     // TODO: how to use PREC.DOT from original grammar instead of 18 below?
     member_access_ellipsis_expression : $ => prec(18, seq(
-      field('expression', choice($._expression, $.predefined_type, $._name)),
+      field('expression', choice($.expression, $.predefined_type, $._name)),
       choice('.', '->'),
       $.ellipsis
      )),
@@ -138,13 +140,13 @@ module.exports = grammar(standard_grammar, {
     //TODO: use PREC.CAST from original grammar instead of 17 below
     typed_metavariable: $ => prec.right(17, seq(
       '(',
-      field('type', $._type),
+      field('type', $.type),
       field('metavar', $._semgrep_metavariable),
       ')',
     )),
 
     deep_ellipsis: $ => seq(
-      '<...', $._expression, '...>'
+      '<...', $.expression, '...>'
     ),
 
     ellipsis: $ => '...',
