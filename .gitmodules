@@ -124,3 +124,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-move-on-sui"]
 	path = lang/semgrep-grammars/src/tree-sitter-move-on-sui
 	url = https://github.com/maxmysten/tree-sitter-move.git
+[submodule "tree-sitter-c-sharp-pro"]
+	path = lang/semgrep-grammars/src/tree-sitter-c-sharp-pro
+	url = https://github.com/tree-sitter/tree-sitter-c-sharp.git
