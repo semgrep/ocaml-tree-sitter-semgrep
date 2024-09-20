@@ -64,7 +64,7 @@ fi
 # Language-specific options
 GEN_OCAML_OPTIONS=""
 case "$lang" in
-  apex|elixir)
+  apex|c-sharp-pro|elixir)
     GEN_OCAML_OPTIONS="--package tree-sitter-lang-pro"
     ;;
   *)
@@ -169,7 +169,7 @@ make -C "$lang" GEN_OCAML_OPTIONS="$GEN_OCAML_OPTIONS" gen
 dst="$export_dir"/"$repo"
 if [[ -d "$lang"/ocaml-src ]]; then
   # Make sure obsolete files are removed from the release repo
-  git -C "$dst" rm -rf lib bin
+  git -C "$dst" rm -rf --ignore-unmatch lib bin
 
   cp -a "$lang"/ocaml-src/lib "$dst"
   cp -a "$lang"/ocaml-src/bin "$dst"

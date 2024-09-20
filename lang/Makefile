@@ -21,6 +21,7 @@ SUPPORTED_TS_LANGUAGES = \
   circom \
   cpp \
   c-sharp \
+  c-sharp-pro \
   dart \
   dockerfile \
   elixir \
@@ -73,6 +74,7 @@ SUPPORTED_DIALECTS = \
   clojure \
   cpp \
   c-sharp \
+  c-sharp-pro \
   dart \
   dockerfile \
   elixir \
@@ -118,6 +120,7 @@ STAT_LANGUAGES1 = \
   cairo \
   cpp \
   c-sharp \
+  c-sharp-pro \
   dockerfile \
   elixir \
   go \

@@ -143,6 +143,7 @@ workflows:
                 - clojure
                 - cpp
                 - c-sharp
+                - c-sharp-pro
                 - dart
                 - dockerfile
                 - elixir

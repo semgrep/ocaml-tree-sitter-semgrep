@@ -1,29 +1,24 @@
 /*
- * semgrep-c-sharp
+ * semgrep-c-sharp-pro
  *
  * Extend the original tree-sitter C# grammar with semgrep-specific constructs
  * used to represent semgrep patterns.
  *
+ * c-sharp-pro is the same as c-sharp but tracks a more recent version
+ * of tree-sitter-c-sharp.
+ *
  */
 
-const standard_grammar = require('tree-sitter-c-sharp/grammar');
+const standard_grammar = require('./original-grammar');
 
 module.exports = grammar(standard_grammar, {
-  /*
-    We can't rename the grammar to 'csharp' because it relies on a custom
-    lexer ('scanner.c') which comes with the inherited grammar and provides
-    a function 'tree_sitter_c_sharp_external_scanner_create'.
-    The code generator ('tree-sitter generate') however expects this function
-    name to match the grammar name, so if we rename it here to 'csharp',
-    it will generate glue code that calls
-    'tree_sitter_csharp_external_scanner_create'
-    while only 'tree_sitter_c_sharp_external_scanner_create' is available.
-  */
-  name: 'c_sharp',
+  name: 'c_sharp_pro',
 
   conflicts: ($, previous) => [
     ...previous,
-    [$._expression, $.parameter]
+    [$.expression, $.parameter],
+    [$.file_scoped_namespace_declaration, $.preproc_if_in_top_level],
+    [$.file_scoped_namespace_declaration, $.preproc_else_in_top_level],
   ],
 
   rules: {
@@ -37,7 +32,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expression),
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
     // Metavariables
     identifier: ($, previous) => {
@@ -66,7 +61,7 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
-    _declaration: ($, previous) => {
+    declaration: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis
@@ -75,7 +70,7 @@ module.exports = grammar(standard_grammar, {
 
     // We want ellipses to be interchangeable with namespace member declarations, so
     // we need to add them in to `type_declaration` here. 
-    _type_declaration: ($, previous) => { 
+    type_declaration: ($, previous) => { 
       return choice(
         ...previous.members,
         $.ellipsis
@@ -115,7 +110,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Expression ellipsis
-    _expression: ($, previous) => {
+    expression: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis,
@@ -127,7 +122,7 @@ module.exports = grammar(standard_grammar, {
 
     // TODO: how to use PREC.DOT from original grammar instead of 18 below?
     member_access_ellipsis_expression : $ => prec(18, seq(
-      field('expression', choice($._expression, $.predefined_type, $._name)),
+      field('expression', choice($.expression, $.predefined_type, $._name)),
       choice('.', '->'),
       $.ellipsis
      )),
@@ -136,13 +131,13 @@ module.exports = grammar(standard_grammar, {
     //TODO: use PREC.CAST from original grammar instead of 17 below
     typed_metavariable: $ => prec.right(17, seq(
       '(',
-      field('type', $._type),
+      field('type', $.type),
       field('metavar', $._semgrep_metavariable),
       ')',
     )),
 
     deep_ellipsis: $ => seq(
-      '<...', $._expression, '...>'
+      '<...', $.expression, '...>'
     ),
 
     ellipsis: $ => '...',
