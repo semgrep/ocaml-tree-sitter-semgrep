@@ -1,11 +1,12 @@
 /*
- * semgrep-csharp
+ * semgrep-c-sharp-pro
  *
  * Extend the original tree-sitter C# grammar with semgrep-specific constructs
  * used to represent semgrep patterns.
  *
- * The language is renamed from c-sharp to csharp to match language name
- * conventions in ocaml-tree-sitter and semgrep.
+ * c-sharp-pro is the same as c-sharp but tracks a more recent version
+ * of tree-sitter-c-sharp.
+ *
  */
 
 const standard_grammar = require('./original-grammar');
