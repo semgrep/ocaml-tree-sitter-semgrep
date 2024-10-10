@@ -271,8 +271,6 @@ module.exports = grammar(base_grammar, {
       $.ellipsis,
     ),
 
-    newline: ($, previous) => choice(),
-
     field_access_ellipsis_expr: $ => prec.left(FIELD_PREC, seq(
       field('element', $._dot_or_index_chain), '.',$.ellipsis )),
  
