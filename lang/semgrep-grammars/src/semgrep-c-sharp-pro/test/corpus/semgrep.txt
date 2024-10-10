@@ -376,3 +376,62 @@ namespace $N;
   (global_statement
     (expression_statement
       (ellipsis))))
+
+================================================================================
+Preprocessor conditional with single statement
+================================================================================
+
+void F()
+{
+#if DEBUG
+    a();
+#endif
+}
+
+---
+
+(compilation_unit
+  (global_statement
+    (local_function_statement
+      (predefined_type)
+      (identifier)
+      (parameter_list)
+      (block
+        (preproc_if
+          (identifier)
+          (expression_statement
+            (invocation_expression
+              (identifier)
+              (argument_list))))))))
+
+================================================================================
+Preprocessor conditional with multiple statements
+================================================================================
+
+void F()
+{
+#if DEBUG
+    a();
+    b();
+#endif
+}
+
+---
+
+(compilation_unit
+  (global_statement
+    (local_function_statement
+      (predefined_type)
+      (identifier)
+      (parameter_list)
+      (block
+        (preproc_if
+          (identifier)
+          (expression_statement
+            (invocation_expression
+              (identifier)
+              (argument_list)))
+          (expression_statement
+            (invocation_expression
+              (identifier)
+              (argument_list))))))))
