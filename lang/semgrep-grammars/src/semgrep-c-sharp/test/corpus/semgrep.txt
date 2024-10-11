@@ -267,6 +267,35 @@ __SEMGREP_EXPRESSION
         (identifier))
       (argument_list))))
 
+===============================================================================
+Typed metavariable 2
+===============================================================================
+
+__SEMGREP_EXPRESSION (T $X)
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (typed_metavariable
+      (identifier))))
+
+===============================================================================
+Typed metavariable 3
+===============================================================================
+
+__SEMGREP_EXPRESSION (List<T> $X)
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (typed_metavariable
+      (generic_name
+        (identifier)
+        (type_argument_list
+          (identifier))))))
+
 ================================================================================
 Ellipses + metavariables as args
 ================================================================================
