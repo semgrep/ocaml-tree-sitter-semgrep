@@ -113,12 +113,12 @@ module.exports = grammar(standard_grammar, {
 
     // use syntax similar to a cast_expression, but with metavar
     //TODO: use PREC.CAST from original grammar instead of 17 below
-    typed_metavariable: $ => prec.right(17, seq(
+    typed_metavariable: $ => prec(17, prec.dynamic(1, seq(
       '(',
       field('type', $.type),
       field('metavar', $._semgrep_metavariable),
       ')',
-    )),
+    ))),
 
     deep_ellipsis: $ => seq(
       '<...', $.expression, '...>'

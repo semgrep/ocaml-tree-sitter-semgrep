@@ -260,6 +260,52 @@ __SEMGREP_EXPRESSION
         (identifier))
       (argument_list))))
 
+===============================================================================
+Typed metavariable 2
+===============================================================================
+
+__SEMGREP_EXPRESSION (T $X)
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (typed_metavariable
+      (identifier))))
+
+===============================================================================
+Typed metavariable 3
+===============================================================================
+
+__SEMGREP_EXPRESSION (List<T> $X)
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (typed_metavariable
+      (generic_name
+        (identifier)
+        (type_argument_list
+          (identifier))))))
+
+===============================================================================
+Cast expression
+===============================================================================
+
+__SEMGREP_EXPRESSION (List<T>) x
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (cast_expression
+      (generic_name
+        (identifier)
+        (type_argument_list
+          (identifier)))
+      (identifier))))
+
 ================================================================================
 Ellipses + metavariables as args
 ================================================================================
@@ -404,9 +450,9 @@ void F()
               (identifier)
               (argument_list))))))))
 
-================================================================================
+===============================================================================
 Preprocessor conditional with multiple statements
-================================================================================
+===============================================================================
 
 void F()
 {
@@ -435,3 +481,4 @@ void F()
             (invocation_expression
               (identifier)
               (argument_list))))))))
+
