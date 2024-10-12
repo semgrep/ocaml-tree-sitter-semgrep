@@ -307,6 +307,22 @@ __SEMGREP_EXPRESSION (List<T>) x
       (identifier))))
 
 ================================================================================
+Parametrized typed metavariable
+================================================================================
+
+__SEMGREP_EXPRESSION (A<B> $X)
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (semgrep_expression
+    (typed_metavariable
+      (generic_name
+        (identifier)
+        (type_argument_list
+          (identifier))))))
+
+================================================================================
 Ellipses + metavariables as args
 ================================================================================
 
