@@ -83,5 +83,11 @@ module.exports = grammar(base_grammar, {
         field("suffix", $.semgrep_ellipsis),
       ),
     ),
+
+    parameter: ($, previous) => choice (
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_ellipsis_metavar
+    )
   }
 });
