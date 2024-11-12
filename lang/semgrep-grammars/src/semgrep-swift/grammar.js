@@ -86,7 +86,8 @@ module.exports = grammar(base_grammar, {
 
     parameter: ($, previous) => choice (
       previous,
-      $.semgrep_ellipsis
+      $.semgrep_ellipsis,
+      $.semgrep_ellipsis_metavar
     )
   }
 });

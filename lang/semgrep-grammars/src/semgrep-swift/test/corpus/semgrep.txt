@@ -51,6 +51,31 @@ func $F(..., $X: $T, ...) {
         (fully_open_range)))))
 
 ================================================================================
+Parameter Metavariable Ellipsis
+================================================================================
+
+func $F($...ARGS1, $X: $T, $...ARGS2) {
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (function_declaration
+    (simple_identifier)
+    (parameter
+      (semgrep_ellipsis_metavar))
+    (parameter
+      (simple_identifier)
+      (user_type
+        (type_identifier)))
+    (parameter
+      (semgrep_ellipsis_metavar))
+    (function_body
+      (statements
+        (fully_open_range)))))
+
+================================================================================
 Argument Ellipsis
 ================================================================================
 
