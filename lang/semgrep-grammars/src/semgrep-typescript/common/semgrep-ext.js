@@ -13,6 +13,7 @@ module.exports = {
     [$.semgrep_expression_ellipsis, $.rest_type],
     [$.semgrep_expression_ellipsis, $.rest_type, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.spread_element, $.rest_pattern],
+    [$.semgrep_expression_ellipsis, $.semgrep_ellipsis],
   ]),
 
   rules: {
@@ -28,6 +29,16 @@ module.exports = {
     */
 
     semgrep_ellipsis: $ => '...',
+
+    /* ellipsis in function parameters
+     * e.g. function foo(..., x, ...)
+     */
+    _formal_parameter: $ => choice(
+      $.semgrep_ellipsis,
+      $.required_parameter,
+      $.optional_parameter,
+    ),
+
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
 
@@ -48,6 +59,7 @@ module.exports = {
       previous,
       $.semgrep_expression_ellipsis,
     ),
+
 /* TODO: restore this when the changes are made in semgrep.
     _jsx_attribute: ($, previous) => choice(
       previous,
