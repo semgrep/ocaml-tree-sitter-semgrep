@@ -52,3 +52,67 @@ case "Foo":
       (string_fragment))
     (expression_statement
       (semgrep_expression_ellipsis))))
+
+==================================
+Ellipsis in function params
+==================================
+
+function foo(...) { ... }
+function foo(..., a) { ... }
+function foo(a, ...) { ... }
+function foo(..., a, ...) { ... }
+function foo(..., @Bar(...) $X, ...) { ... }
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (formal_parameters
+      (semgrep_ellipsis))
+    (statement_block
+      (expression_statement
+        (semgrep_expression_ellipsis))))
+  (function_declaration
+    (identifier)
+    (formal_parameters
+      (semgrep_ellipsis)
+      (required_parameter
+        (identifier)))
+    (statement_block
+      (expression_statement
+        (semgrep_expression_ellipsis))))
+  (function_declaration
+    (identifier)
+    (formal_parameters
+      (required_parameter
+        (identifier))
+      (semgrep_ellipsis))
+    (statement_block
+      (expression_statement
+        (semgrep_expression_ellipsis))))
+  (function_declaration
+    (identifier)
+    (formal_parameters
+      (semgrep_ellipsis)
+      (required_parameter
+        (identifier))
+      (semgrep_ellipsis))
+    (statement_block
+      (expression_statement
+        (semgrep_expression_ellipsis))))
+  (function_declaration
+    (identifier)
+    (formal_parameters
+      (semgrep_ellipsis)
+      (required_parameter
+        (decorator
+          (call_expression
+            (identifier)
+            (arguments
+              (semgrep_expression_ellipsis))))
+        (identifier))
+      (semgrep_ellipsis))
+    (statement_block
+      (expression_statement
+        (semgrep_expression_ellipsis)))))
