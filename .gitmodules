@@ -127,3 +127,6 @@
 [submodule "tree-sitter-c-sharp-pro"]
 	path = lang/semgrep-grammars/src/tree-sitter-c-sharp-pro
 	url = https://github.com/tree-sitter/tree-sitter-c-sharp.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-toml"]
+	path = lang/semgrep-grammars/src/tree-sitter-toml
+	url = git@github.com:tree-sitter-grammars/tree-sitter-toml.git
