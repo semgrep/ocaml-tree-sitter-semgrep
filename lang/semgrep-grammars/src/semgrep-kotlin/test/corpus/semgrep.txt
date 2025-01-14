@@ -42,6 +42,7 @@ val x = ($X : int)
 
 (source_file
   (property_declaration
+    (binding_pattern_kind)
     (variable_declaration
       (simple_identifier))
     (typed_metavar
@@ -61,6 +62,7 @@ val x = 2
 (source_file
   (semgrep_named_ellipsis)
   (property_declaration
+    (binding_pattern_kind)
     (variable_declaration
       (simple_identifier))
     (integer_literal)))
@@ -110,6 +112,7 @@ class Foo {
         (function_body
           (statements
             (property_declaration
+              (binding_pattern_kind)
               (variable_declaration
                 (simple_identifier))
               (call_expression
@@ -290,9 +293,11 @@ constructor(arg: Int) {
       (property_declaration
         (modifiers
           (visibility_modifier))
+        (binding_pattern_kind)
         (variable_declaration
           (simple_identifier))
         (string_literal
+          (string_content)
           (interpolated_expression
             (simple_identifier)))))))
 
@@ -325,9 +330,11 @@ class Foo {
           (property_declaration
             (modifiers
               (visibility_modifier))
+            (binding_pattern_kind)
             (variable_declaration
               (simple_identifier))
             (string_literal
+              (string_content)
               (interpolated_expression
                 (simple_identifier)))))))))
 
