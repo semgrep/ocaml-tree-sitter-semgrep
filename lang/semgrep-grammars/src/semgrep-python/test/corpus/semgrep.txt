@@ -6,17 +6,22 @@ Metavariable in match
         case str():
           print("oh no")
 ---
- (module
-      (match_statement
-        (identifier)
-        (case_clause
-          (case_pattern
+
+(module
+  (match_statement
+    (identifier)
+    (block
+      (case_clause
+        (case_pattern
+          (class_pattern
+            (dotted_name
+              (identifier))))
+        (block
+          (expression_statement
             (call
               (identifier)
-              (argument_list)))
-          (block
-            (expression_statement
-              (call
-                (identifier)
-                (argument_list
-                  (string))))))))
+              (argument_list
+                (string
+                  (string_start)
+                  (string_content)
+                  (string_end))))))))))
