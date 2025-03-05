@@ -176,6 +176,7 @@ workflows:
                 - solidity
                 - sqlite
                 - swift
+                - toml
                 - typescript
                 - vue
 
