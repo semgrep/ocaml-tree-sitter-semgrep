@@ -10,8 +10,8 @@
 # The list below only shows typescript, not tsx.
 # For similar reasons we list sfapex here, and not apex.
 #
-# *** You must also add any new language to the list of languages
-#     in /.circleci/config.yml for the CI tests to run for that language.
+# coupling: *** You must also add any new language to the list of languages
+# in /.circleci/config.yml for the CI tests to run for that language. ***
 #
 SUPPORTED_TS_LANGUAGES = \
   bash \
@@ -54,6 +54,7 @@ SUPPORTED_TS_LANGUAGES = \
   solidity \
   sqlite \
   swift \
+  toml \
   typescript \
   vue
 
@@ -105,6 +106,7 @@ SUPPORTED_DIALECTS = \
   solidity \
   sqlite \
   swift \
+  toml \
   tsx \
   typescript \
   vue
