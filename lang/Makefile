@@ -27,6 +27,7 @@ SUPPORTED_TS_LANGUAGES = \
   elixir \
   fsharp \
   go \
+	gomod \
   hack \
   haskell \
   hcl \
