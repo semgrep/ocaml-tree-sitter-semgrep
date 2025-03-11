@@ -130,3 +130,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-toml"]
 	path = lang/semgrep-grammars/src/tree-sitter-toml
 	url = https://github.com/tree-sitter-grammars/tree-sitter-toml.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-requirements"]
+	path = lang/semgrep-grammars/src/tree-sitter-requirements
+	url = git@github.com:tree-sitter-grammars/tree-sitter-requirements.git
