@@ -48,6 +48,7 @@ SUPPORTED_TS_LANGUAGES = \
   python \
   ql \
   r \
+	requirements \
   ruby \
   rust \
   sfapex \
