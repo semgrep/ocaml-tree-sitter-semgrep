@@ -39,6 +39,40 @@ module.exports = {
       $.optional_parameter,
     ),
 
+    /* This part is copied from the original grammar to add `$.semgrep_ellipsis`
+     * as one of the choices. Make sure it is in sync with the original grammar
+     * and update it if necessary.
+     * TODO: update the original grammar to include an intermediate `class_element`
+     * rule so that we can avoid copying and pasting the original rule here.
+     */
+    class_body: $ => seq(
+      '{',
+      repeat(choice(
+        $.semgrep_ellipsis,
+        $.decorator,
+        seq($.method_definition, optional($._semicolon)),
+        // As it happens for functions, the semicolon insertion should not
+        // happen if a block follows the closing paren, because then it's a
+        // *definition*, not a declaration. Example:
+        //     public foo()
+        //     { <--- this brace made the method signature become a definition
+        //     }
+        // The same rule applies for functions and that's why we use
+        // "_function_signature_automatic_semicolon".
+        seq($.method_signature, choice($._function_signature_automatic_semicolon, ',')),
+        seq(
+          choice(
+            $.abstract_method_signature,
+            $.index_signature,
+            $.method_signature,
+            $.public_field_definition
+          ),
+          choice($._semicolon, ',')
+        )
+      )),
+      '}'
+    ),
+
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
 
