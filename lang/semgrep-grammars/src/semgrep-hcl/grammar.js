@@ -45,7 +45,7 @@ module.exports = grammar(base_grammar, {
     },
 
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
-
+    semgrep_ellipsis_metavar : $ => /\$\.\.\.[a-zA-Z_][a-zA-Z_0-9]*/,
 
     // Ellipsis
     body: ($, previous) => repeat1(
@@ -53,13 +53,15 @@ module.exports = grammar(base_grammar, {
         $.attribute,
         $.block,
         $.semgrep_ellipsis,
+        $.semgrep_ellipsis_metavar
       ),
      ),
 
     object_elem: ($, previous) => {
       return choice(
         previous,
-        $.semgrep_ellipsis
+        $.semgrep_ellipsis,
+        $.semgrep_ellipsis_metavar
       );
     },
 
@@ -67,7 +69,8 @@ module.exports = grammar(base_grammar, {
       return choice(
         previous,
         $.semgrep_ellipsis,
-        $.deep_ellipsis
+        $.deep_ellipsis,
+        $.semgrep_ellipsis_metavar
       );
     },
 
