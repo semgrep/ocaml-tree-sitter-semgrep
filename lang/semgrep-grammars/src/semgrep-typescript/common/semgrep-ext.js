@@ -39,6 +39,12 @@ module.exports = {
       $.optional_parameter,
     ),
 
+    /* This part is copied from the original grammar to add `$.semgrep_ellipsis`
+     * as one of the choices. Make sure it is in sync with the original grammar
+     * and update it if necessary.
+     * TODO: update the original grammar to include an intermediate `class_element`
+     * rule so that we can avoid copying and pasting the original rule here.
+     */
     class_body: $ => seq(
       '{',
       repeat(choice(
