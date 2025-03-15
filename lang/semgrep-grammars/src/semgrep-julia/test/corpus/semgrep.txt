@@ -40,10 +40,11 @@ end
 
 (source_file
   (function_definition
-    (identifier)
-    (parameter_list
-      (typed_parameter
-        (semgrep_ellipsis)))
+    (signature
+      (call_expression
+        (identifier)
+        (argument_list
+            (semgrep_ellipsis))))
     (return_statement
       (integer_literal))))
 
@@ -122,9 +123,11 @@ end
 
 (source_file
   (function_definition
-    (interpolation_expression
-      (identifier))
-    (parameter_list)
+    (signature
+      (call_expression
+        (interpolation_expression
+          (identifier))
+        (argument_list)))
     (assignment
       (interpolation_expression
         (identifier))
@@ -219,7 +222,7 @@ end
     (argument_list
       (vector_expression))
     (do_clause
-      (parameter_list
+      (argument_list
         (identifier
           (semgrep_extended_metavariable)))
       (return_statement
