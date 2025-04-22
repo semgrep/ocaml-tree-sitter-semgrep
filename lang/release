@@ -174,6 +174,7 @@ if [[ -d "$lang"/ocaml-src ]]; then
   cp -a "$lang"/ocaml-src/lib "$dst"
   cp -a "$lang"/ocaml-src/bin "$dst"
   cp -a "$lang"/ocaml-src/.gitignore "$dst"
+  cp -a "$lang"/ocaml-src/config "$dst"
 
   fyi_list="$lang"/fyi.list
   fyi_dst="$dst/fyi"
