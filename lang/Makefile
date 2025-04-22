@@ -20,8 +20,6 @@ SUPPORTED_TS_LANGUAGES = \
   clojure \
   circom \
   cpp \
-  c-sharp \
-  c-sharp-pro \
   dart \
   dockerfile \
   elixir \
