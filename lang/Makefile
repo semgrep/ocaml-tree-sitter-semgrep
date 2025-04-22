@@ -76,8 +76,6 @@ SUPPORTED_DIALECTS = \
   c \
   clojure \
   cpp \
-  c-sharp \
-  c-sharp-pro \
   dart \
   dockerfile \
   elixir \
