@@ -64,7 +64,7 @@ fi
 # Language-specific options
 GEN_OCAML_OPTIONS=""
 case "$lang" in
-  apex|c-sharp-pro|elixir)
+  apex|c-sharp-pro|elixir|gomod|requirements|toml)
     GEN_OCAML_OPTIONS="--package tree-sitter-lang-pro"
     ;;
   *)
