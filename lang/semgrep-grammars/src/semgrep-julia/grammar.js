@@ -71,12 +71,7 @@ module.exports = grammar(base_grammar, {
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
-      $.deep_expression
-    ),
-
-    _statement: ($, previous) => choice(
-      previous,
-      $.semgrep_ellipsis,
+      $.deep_expression,
     ),
   }
 });
