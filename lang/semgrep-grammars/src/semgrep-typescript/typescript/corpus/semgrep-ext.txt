@@ -54,6 +54,44 @@ case "Foo":
       (semgrep_expression_ellipsis))))
 
 ==================================
+Ellipsis in class body
+==================================
+
+class $C {
+  ...
+  @$DEC(...)
+  $FUNC(@$PARAMDEC $BODY: $TYPE, ...) { ... }
+  ...
+}
+
+---
+
+(program
+  (class_declaration
+    (type_identifier)
+    (class_body
+      (semgrep_ellipsis)
+      (decorator
+        (call_expression
+          (identifier)
+          (arguments
+            (semgrep_expression_ellipsis))))
+      (method_definition
+        (property_identifier)
+        (formal_parameters
+          (required_parameter
+            (decorator
+              (identifier))
+            (identifier)
+            (type_annotation
+              (type_identifier)))
+          (semgrep_ellipsis))
+        (statement_block
+          (expression_statement
+            (semgrep_expression_ellipsis))))
+      (semgrep_ellipsis))))
+
+==================================
 Ellipsis in function params
 ==================================
 
