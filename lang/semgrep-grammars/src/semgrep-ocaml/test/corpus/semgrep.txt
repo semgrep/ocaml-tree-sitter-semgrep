@@ -1,0 +1,26 @@
+===========================
+Basic pattern
+===========================
+
+let x : int = ...
+
+let $VAR : int = ...
+
+let _ = $X.wahoo
+
+let _ = List.$FUNC |> ... |> List.$FUNCC
+
+---
+
+()
+
+===========================
+Top-level pattern
+===========================
+
+...
+
+---
+
+(compilation_unit
+  (semgrep_ellipsis))

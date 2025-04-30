@@ -31,17 +31,21 @@ module.exports = grammar(base_grammar, {
     compilation_unit: ($, previous) =>
        choice(
          previous,
-         $._signature
-       )
-  /*
-    semgrep_ellipsis: $ => '...',
+         $._signature,
+	 $._semgrep_expression
+       ),
 
-    _expression: ($, previous) => {
+    semgrep_ellipsis: $ => '...',
+    deep_expression: $ => seq("<...", $._expression, "...>"),
+
+    semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+    // Metavariables
+
+    _semgrep_expression: $ => {
       return choice(
         $.semgrep_ellipsis,
-        ...previous.members
+	$.deep_expression,
       );
     }
-  */
   }
 });
