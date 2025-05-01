@@ -9,16 +9,12 @@ const base_grammar = require('tree-sitter-julia/grammar');
 module.exports = grammar(base_grammar, {
   name: 'julia',
 
-  conflicts: ($, previous) => previous.concat([
-    [$.typed_parameter, $._expression],
-  ]),
-
   /*
      Support for semgrep ellipsis ('...') and metavariables ('$FOO'),
      if they're not already part of the base grammar.
   */
   rules: {
-    semgrep_ellipsis: $ => '...',
+    semgrep_ellipsis: _ => '...',
 
     catch_clause: $ => prec(1, seq(
       'catch',
@@ -33,8 +29,8 @@ module.exports = grammar(base_grammar, {
     // metavariable usually is. This is fine, because having a slightly more
     // permissive grammar is OK, we will just dispatch in the Generic
     // translation.
-    semgrep_extended_metavariable: $ =>
-        /\$[A-Z_][a-zA-Z_0-9]*/,
+    semgrep_extended_metavariable: _ =>
+      /\$[A-Z_][a-zA-Z_0-9]*/,
 
     // Metavariables
     // We allow an identifier to be a simple metavariable regex, so that
@@ -69,23 +65,13 @@ module.exports = grammar(base_grammar, {
       // tree stays the same. Otherwise, we will fail `tree-sitter` tests.
       alias(prec(999,
         $.semgrep_extended_metavariable
-        ), $.identifier)
+      ), $.identifier)
     ),
 
     _expression: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
-        $.deep_expression
-    ),
-
-    _statement: ($, previous) => choice(
-      previous,
-      $.semgrep_ellipsis,
-    ),
-
-    typed_parameter: ($, previous) => choice(
-      previous,
-      $.semgrep_ellipsis,
+      $.deep_expression,
     ),
   }
 });
