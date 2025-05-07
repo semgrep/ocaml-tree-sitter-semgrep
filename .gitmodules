@@ -76,9 +76,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-swift"]
 	path = lang/semgrep-grammars/src/tree-sitter-swift
 	url = https://github.com/alex-pinkus/tree-sitter-swift.git
-[submodule "lang/semgrep-grammars/src/tree-sitter-dart"]
-	path = lang/semgrep-grammars/src/tree-sitter-dart
-	url = https://github.com/UserNobody14/tree-sitter-dart.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-julia"]
 	path = lang/semgrep-grammars/src/tree-sitter-julia
 	url = https://github.com/tree-sitter/tree-sitter-julia
@@ -136,3 +133,9 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-requirements"]
 	path = lang/semgrep-grammars/src/tree-sitter-requirements
 	url = git@github.com:tree-sitter-grammars/tree-sitter-requirements.git
+[submodule "lang/semgrep-grammars/src/--force"]
+	path = lang/semgrep-grammars/src/--force
+	url = https://github.com/UserNobody14/tree-sitter-dart.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-dart"]
+	path = lang/semgrep-grammars/src/tree-sitter-dart
+	url = https://github.com/UserNobody14/tree-sitter-dart.git

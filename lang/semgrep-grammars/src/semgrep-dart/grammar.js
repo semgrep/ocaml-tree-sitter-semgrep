@@ -25,7 +25,7 @@ module.exports = grammar(base_grammar, {
     program: ($, previous) =>
       choice(previous, $.semgrep_expression),
 
-    semgrep_ellipsis: $ => '...',
+    semgrep_ellipsis: $ => prec.left(1, '...'),
     semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
