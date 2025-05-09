@@ -15,6 +15,7 @@ module.exports = {
     [$.semgrep_expression_ellipsis, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.semgrep_ellipsis],
     [$.class_body, $.public_field_definition],
+    [$.pair, $.pair_pattern],
   ]),
 
   rules: {
@@ -28,7 +29,14 @@ module.exports = {
     // Alternate "entry point". Allows parsing a standalone expression.
     semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
+    // To permit {...}, for `...` in objects.
     pair: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // To permit `(...) => 1`, for `...` in parameter patterns.
+    pair_pattern: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
     ),
