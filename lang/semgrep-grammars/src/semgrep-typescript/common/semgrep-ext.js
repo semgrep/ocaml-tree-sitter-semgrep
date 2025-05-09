@@ -28,6 +28,11 @@ module.exports = {
     // Alternate "entry point". Allows parsing a standalone expression.
     semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
+    pair: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
     /*
       semgrep metavariables are already valid javascript/typescript
       identifiers so we do nothing for them.
