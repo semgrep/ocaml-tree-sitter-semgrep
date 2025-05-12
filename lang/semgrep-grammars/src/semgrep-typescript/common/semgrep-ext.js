@@ -27,7 +27,20 @@ module.exports = {
     ),
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.semgrep_pattern),
+
+    semgrep_pattern: $ => choice(
+      $.expression,
+      $.pair,
+    ),
+
+    semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+
+    _jsx_child: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavariable,
+    ),
 
     // To permit {...}, for `...` in objects.
     pair: ($, previous) => choice(
