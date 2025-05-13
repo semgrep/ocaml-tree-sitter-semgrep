@@ -14,6 +14,8 @@ module.exports = {
     [$.semgrep_expression_ellipsis, $.rest_type, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.semgrep_ellipsis],
+    [$.class_body, $.public_field_definition],
+    [$.pair, $.pair_pattern],
   ]),
 
   rules: {
@@ -21,6 +23,35 @@ module.exports = {
       previous,
       // Used as a semgrep pattern
       $.switch_case,
+      $.semgrep_expression,
+    ),
+
+    // Alternate "entry point". Allows parsing a standalone expression.
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.semgrep_pattern),
+
+    semgrep_pattern: $ => choice(
+      $.expression,
+      $.pair,
+    ),
+
+    semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+
+    _jsx_child: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavariable,
+    ),
+
+    // To permit {...}, for `...` in objects.
+    pair: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // To permit `(...) => 1`, for `...` in parameter patterns.
+    pair_pattern: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
     ),
 
     /*
