@@ -31,6 +31,11 @@ module.exports = grammar(base_grammar, {
             '<...', $._expression, '...>'
     ),
 
+    _top_level_definition: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
 
     // Alternate "entry point". Allows parsing a standalone expression.
