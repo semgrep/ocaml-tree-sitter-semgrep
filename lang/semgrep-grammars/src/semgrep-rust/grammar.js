@@ -10,6 +10,11 @@ const standard_grammar = require('tree-sitter-rust/grammar');
 module.exports = grammar(standard_grammar, {
   name: 'rust',
 
+  conflicts: ($, previous) => previous.concat([
+    [$._non_delim_token, $.ellipsis],
+    [$._token_pattern, $.ellipsis],
+  ]),
+
   rules: {
 
     // Entry point

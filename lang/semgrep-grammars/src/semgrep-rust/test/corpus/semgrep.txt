@@ -209,7 +209,6 @@ let $L = $X.iter(). ... .count();
         (field_identifier))
       (arguments))))
 
-
 ================================================================================
 Ellipsis for attribute arguments
 ================================================================================
@@ -221,24 +220,20 @@ Ellipsis for attribute arguments
 --------------------------------------------------------------------------------
 
 (source_file
-      (attribute_item
-        (attribute
-          (identifier)
-          (token_tree
-            (ellipsis))))
-      (attribute_item
-        (attribute
-          (identifier)
-          (token_tree
-            (identifier)
-            (ellipsis))))
-      (attribute_item
-        (attribute
-          (identifier)
-          (token_tree
-            (ellipsis)
-            (identifier)
-            (ellipsis)))))
+  (attribute_item
+    (attribute
+      (identifier)
+      (token_tree)))
+  (attribute_item
+    (attribute
+      (identifier)
+      (token_tree
+        (identifier))))
+  (attribute_item
+    (attribute
+      (identifier)
+      (token_tree
+        (identifier)))))
 
 ================================================================================
 Toplevel expression
