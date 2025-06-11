@@ -104,6 +104,21 @@ module.exports = {
       '}'
     ),
 
+    member_expression: $ => prec('member', seq(
+      field('object', choice($.expression, $.primary_expression, $.import)),
+      choice('.', field('optional_chain', $.optional_chain)),
+      field('property', choice(
+        $.private_property_identifier,
+        alias($.identifier, $.property_identifier),
+        $.semgrep_ellipsis
+      ),
+    ))),
+
+    import_specifier: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
 
