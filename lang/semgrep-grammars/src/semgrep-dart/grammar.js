@@ -25,14 +25,26 @@ module.exports = grammar(base_grammar, {
     program: ($, previous) =>
       choice(previous, $.semgrep_expression),
 
-    semgrep_ellipsis: $ => '...',
+    semgrep_ellipsis: $ => prec.left(1, '...'),
     semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     deep_ellipsis: $ => seq(
             '<...', $._expression, '...>'
     ),
 
+    _top_level_definition: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: ($) => seq("__SEMGREP_EXPRESSION", $._expression),
+    semgrep_expression: ($) => seq("__SEMGREP_EXPRESSION", $.semgrep_pattern),
+
+    semgrep_pattern: $ => choice(
+      $._expression,
+      $._statement,
+    ),
 
     _expression: ($, previous) => choice(
       previous,
