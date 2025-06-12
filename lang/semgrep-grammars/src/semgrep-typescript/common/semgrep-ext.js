@@ -20,16 +20,9 @@ module.exports = {
     // Seems that it's highly conflicting with the possibility of a standalone expression.
     // Bright side, patterns need to be parsed but once and are usually very small.
     // Conflicts shouldn't be so expensive.
-    [$.assignment_expression, $._property_name],
-    [$.assignment_expression, $.primary_type],
-    [$.assignment_expression, $.literal_type],
-    [$.assignment_expression, $.predefined_type],
-    [$.primary_expression, $.field_definition, $.method_definition],
     [$.primary_expression, $.method_definition, $.method_signature],
-    [$.primary_expression, $.public_field_definition],
+    [$.primary_expression, $.method_definition, $.method_signature, $.index_signature],
     [$.primary_expression, $.index_signature],
-    [$.primary_expression, $.method_definition, $.public_field_definition, $.method_signature, $.index_signature],
-    [$.primary_expression, $.method_definition, $.public_field_definition, $.method_signature],
     // Conflict for `pattern` having ellipses
     [$.pattern, $._formal_parameter],
     // Conflict for allowing `...` to be a statement
@@ -70,7 +63,11 @@ module.exports = {
       $.abstract_method_signature,
       $.index_signature,
       $.method_signature,
-      $.public_field_definition,
+      // to inline method definitions here, we would technically need to include this
+      // this, however, allows something which could potentially look like `x: ty`
+      // which is ambiguous with property patterns
+      // to allow the least confusion, let's just leave this out
+      // $.public_field_definition,
       seq(
         repeat(field('decorator', $.decorator)),
         $.method_definition,
