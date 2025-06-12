@@ -35,7 +35,7 @@ module.exports = {
     // Conflict for allowing `...` to be a statement
     [$.spread_element, $.rest_pattern, $.semgrep_ellipsis],
     [$.spread_element, $.rest_pattern, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
-    [$.statement, $.pair, $.pair_pattern]
+    [$.statement, $.pair, $.pair_pattern],
   ]),
 
 
@@ -87,6 +87,28 @@ module.exports = {
       optional($._automatic_semicolon),
     )),
 
+    // This allows us to put `...` in the condition of a for loop.
+    for_statement: $ => seq(
+      'for',
+      '(',
+      choice(
+        $.semgrep_ellipsis,
+        seq(
+          choice(
+            field('initializer', choice($.lexical_declaration, $.variable_declaration)),
+            seq(field('initializer', $._expressions), ';'),
+            field('initializer', $.empty_statement),
+          ),
+          field('condition', choice(
+            seq($._expressions, ';'),
+            $.empty_statement,
+          )),
+          field('increment', optional($._expressions)),
+        ),
+      ),
+      ')',
+      field('body', $.statement),
+    ),
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
 
     _jsx_child: ($, previous) => choice(
