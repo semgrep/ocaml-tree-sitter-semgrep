@@ -171,6 +171,12 @@ module.exports = {
     // Allows `...` as in `<div ... href={foo}></div>`
     _jsx_attribute: ($, previous) => choice(previous, $.semgrep_ellipsis),
 
+    // Allows metavariables in `<div foo=$FOO></div>`
+    _jsx_attribute_value: ($, previous) => choice(
+      previous,
+      $.semgrep_metavariable,
+    ),
+
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
 
