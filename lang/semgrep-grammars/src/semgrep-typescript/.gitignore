@@ -1,4 +1,3 @@
-/common/scanner.h
 /typescript/src/scanner.c
 /tsx/src/scanner.c
 /typescript/corpus/tree-sitter-typescript
