@@ -32,6 +32,10 @@ module.exports = {
     [$.primary_expression, $.method_definition, $.public_field_definition, $.method_signature],
     // Conflict for `pattern` having ellipses
     [$.pattern, $._formal_parameter],
+    // Conflict for allowing `...` to be a statement
+    [$.spread_element, $.rest_pattern, $.semgrep_ellipsis],
+    [$.spread_element, $.rest_pattern, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.statement, $.pair, $.pair_pattern]
   ]),
 
 
@@ -48,6 +52,11 @@ module.exports = {
 
     deep_ellipsis: $ => seq(
       '<...', $.expression, '...>'
+    ),
+
+    statement: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
     ),
 
     semgrep_pattern: $ => choice(
@@ -107,6 +116,7 @@ module.exports = {
       identifiers so we do nothing for them.
     */
 
+    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
 
     /* ellipsis in function parameters
@@ -197,6 +207,7 @@ module.exports = {
       previous,
       $.semgrep_expression_ellipsis,
       $.deep_ellipsis,
+      $.semgrep_metavar_ellipsis,
     ),
 
 /* TODO: restore this when the changes are made in semgrep.
