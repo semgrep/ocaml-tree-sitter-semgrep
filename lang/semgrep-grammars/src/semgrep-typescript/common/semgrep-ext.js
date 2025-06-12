@@ -30,6 +30,8 @@ module.exports = {
     [$.primary_expression, $.index_signature],
     [$.primary_expression, $.method_definition, $.public_field_definition, $.method_signature, $.index_signature],
     [$.primary_expression, $.method_definition, $.public_field_definition, $.method_signature],
+    // Conflict for `pattern` having ellipses
+    [$.pattern, $._formal_parameter],
   ]),
 
 
@@ -93,6 +95,11 @@ module.exports = {
     pair_pattern: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+    ),
+
+    pattern: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis
     ),
 
     /*
