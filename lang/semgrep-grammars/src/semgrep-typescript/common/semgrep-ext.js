@@ -23,6 +23,7 @@ module.exports = {
     [$.primary_expression, $.method_definition, $.method_signature],
     [$.primary_expression, $.method_definition, $.method_signature, $.index_signature],
     [$.primary_expression, $.index_signature],
+    [$.public_field_definition],
     // Conflict for `pattern` having ellipses
     [$.pattern, $._formal_parameter],
     // Conflict for allowing `...` to be a statement
@@ -57,24 +58,33 @@ module.exports = {
       $.pair,
       $.method_pattern,
       $.function_declaration_pattern,
+      $.finally_clause,
+      $.catch_clause,
     ),
 
-    method_pattern: $ => seq(
-      // We also had to factor out decorators here, not faithful to the original grammar,
-      // so that we could have decorators in front of method signatures too.
-      repeat(field('decorator', $.decorator)),
-      choice(
-        $.abstract_method_signature,
-        $.index_signature,
-        $.method_signature,
-        // to inline method definitions here, we would technically need to include this
-        // this, however, allows something which could potentially look like `x: ty`
-        // which is ambiguous with property patterns
-        // to allow the least confusion, let's just leave this out
-        // $.public_field_definition,
-        seq(
-          $.method_definition,
-          optional($._semicolon),
+    method_pattern: $ => choice(
+      // we extracted this from the below `choice`, which contained the definitions of
+      // class body elements, to allow us to match those patterns
+      // however, `public_field_definition` is kinda funky and is potentially ambiguous
+      // with property patterns, as something of the form `x : ty` could either be a
+      // class property or a pair in a record
+      // so we will allow public field definitions, but only in the presence of decorators
+      seq(
+        repeat1(field('decorator', $.decorator)),
+        $.public_field_definition,
+      ),
+      seq(
+        // We also had to factor out decorators here, not faithful to the original grammar,
+        // so that we could have decorators in front of method signatures too.
+        repeat(field('decorator', $.decorator)),
+        choice(
+          $.abstract_method_signature,
+          $.index_signature,
+          $.method_signature,
+          seq(
+            $.method_definition,
+            optional($._semicolon),
+          )
         )
       )
     ),
@@ -87,6 +97,15 @@ module.exports = {
       field('body', $.statement_block),
       optional($._automatic_semicolon),
     )),
+
+    // inlined from `tree-sitter-javascript`
+    // This allows us to write `import foo from $X;`
+    _from_clause: $ => seq(
+      'from', choice(
+        field('source', $.string),
+        $.semgrep_metavariable,
+      )
+    ),
 
     // This allows us to put `...` in the condition of a for loop.
     for_statement: $ => seq(
