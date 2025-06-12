@@ -44,6 +44,10 @@ module.exports = {
     // Alternate "entry point". Allows parsing a standalone expression.
     semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.semgrep_pattern),
 
+    deep_ellipsis: $ => seq(
+      '<...', $.expression, '...>'
+    ),
+
     semgrep_pattern: $ => choice(
       $.expression,
       $.pair,
@@ -62,7 +66,7 @@ module.exports = {
       )
     ),
 
-    function_declaration: $ => prec.right('declaration', seq(
+    function_declaration_pattern: $ => prec.right('declaration', seq(
       optional('async'),
       'function',
       field('name', $.identifier),
@@ -175,6 +179,7 @@ module.exports = {
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_expression_ellipsis,
+      $.deep_ellipsis,
     ),
 
 /* TODO: restore this when the changes are made in semgrep.
