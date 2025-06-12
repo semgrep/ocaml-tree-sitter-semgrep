@@ -59,19 +59,23 @@ module.exports = {
       $.function_declaration_pattern,
     ),
 
-    method_pattern: $ => choice(
-      $.abstract_method_signature,
-      $.index_signature,
-      $.method_signature,
-      // to inline method definitions here, we would technically need to include this
-      // this, however, allows something which could potentially look like `x: ty`
-      // which is ambiguous with property patterns
-      // to allow the least confusion, let's just leave this out
-      // $.public_field_definition,
-      seq(
-        repeat(field('decorator', $.decorator)),
-        $.method_definition,
-        optional($._semicolon),
+    method_pattern: $ => seq(
+      // We also had to factor out decorators here, not faithful to the original grammar,
+      // so that we could have decorators in front of method signatures too.
+      repeat(field('decorator', $.decorator)),
+      choice(
+        $.abstract_method_signature,
+        $.index_signature,
+        $.method_signature,
+        // to inline method definitions here, we would technically need to include this
+        // this, however, allows something which could potentially look like `x: ty`
+        // which is ambiguous with property patterns
+        // to allow the least confusion, let's just leave this out
+        // $.public_field_definition,
+        seq(
+          $.method_definition,
+          optional($._semicolon),
+        )
       )
     ),
 
