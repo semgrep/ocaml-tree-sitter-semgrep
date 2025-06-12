@@ -63,6 +63,7 @@ module.exports = {
       $.expression,
       $.pair,
       $.method_pattern,
+      $.function_declaration_pattern,
     ),
 
     method_pattern: $ => choice(
@@ -80,7 +81,7 @@ module.exports = {
     function_declaration_pattern: $ => prec.right('declaration', seq(
       optional('async'),
       'function',
-      field('name', $.identifier),
+      choice(field('name', $.identifier), $.semgrep_ellipsis),
       $._call_signature,
       field('body', $.statement_block),
       optional($._automatic_semicolon),
