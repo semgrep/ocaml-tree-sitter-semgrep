@@ -162,10 +162,14 @@ module.exports = {
       ),
     ))),
 
+    // Allows `...` as in `import { ... } from 'foo'`
     import_specifier: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
     ),
+
+    // Allows `...` as in `<div ... href={foo}></div>`
+    _jsx_attribute: ($, previous) => choice(previous, $.semgrep_ellipsis),
 
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
