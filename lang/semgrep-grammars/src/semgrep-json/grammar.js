@@ -31,9 +31,17 @@ module.exports = grammar(base_grammar, {
       '{', commaSep($.pair), optional(','), '}',
     ),
 
+    // stolen from `tree-sitter-javascript`
+    identifier: $ => {
+      const alpha = /[^\x00-\x1F\s\p{Zs}0-9:;`"'@#.,|^&<=>+\-*/\\%?!~()\[\]{}\uFEFF\u2060\u200B]|\\u[0-9a-fA-F]{4}|\\u\{[0-9a-fA-F]+\}/
+      const alphanumeric = /[^\x00-\x1F\s\p{Zs}:;`"'@#.,|^&<=>+\-*/\\%?!~()\[\]{}\uFEFF\u2060\u200B]|\\u[0-9a-fA-F]{4}|\\u\{[0-9a-fA-F]+\}/
+      return token(seq(alpha, repeat(alphanumeric)))
+    },
+
     string: ($, previous) => choice(
       previous,
       $.semgrep_metavariable,
+      $.identifier,
     ),
 
     _value: ($, previous) => prec(1, choice(
