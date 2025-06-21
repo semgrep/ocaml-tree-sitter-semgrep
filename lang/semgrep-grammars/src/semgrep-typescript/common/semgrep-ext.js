@@ -14,13 +14,144 @@ module.exports = {
     [$.semgrep_expression_ellipsis, $.rest_type, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.spread_element, $.rest_pattern],
     [$.semgrep_expression_ellipsis, $.semgrep_ellipsis],
+    [$.class_body, $.public_field_definition],
+    [$.pair, $.pair_pattern],
+    // Crazy amount of conflicts here, from allowing `method_pattern` to exist.
+    // Seems that it's highly conflicting with the possibility of a standalone expression.
+    // Bright side, patterns need to be parsed but once and are usually very small.
+    // Conflicts shouldn't be so expensive.
+    [$.primary_expression, $.method_definition, $.method_signature],
+    [$.primary_expression, $.method_definition, $.method_signature, $.index_signature],
+    [$.primary_expression, $.index_signature],
+    [$.public_field_definition],
+    // Conflict for `pattern` having ellipses
+    [$.pattern, $._formal_parameter],
+    // Conflict for allowing `...` to be a statement
+    [$.spread_element, $.rest_pattern, $.semgrep_ellipsis],
+    [$.spread_element, $.rest_pattern, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.statement, $.pair, $.pair_pattern],
   ]),
+
 
   rules: {
     program: ($, previous) => choice(
       previous,
       // Used as a semgrep pattern
       $.switch_case,
+      $.semgrep_expression,
+    ),
+
+    // Alternate "entry point". Allows parsing a standalone expression.
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.semgrep_pattern),
+
+    deep_ellipsis: $ => seq(
+      '<...', $.expression, '...>'
+    ),
+
+    statement: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    semgrep_pattern: $ => choice(
+      $.expression,
+      $.pair,
+      $.method_pattern,
+      $.function_declaration_pattern,
+      $.finally_clause,
+      $.catch_clause,
+    ),
+
+    method_pattern: $ => choice(
+      // we extracted this from the below `choice`, which contained the definitions of
+      // class body elements, to allow us to match those patterns
+      // however, `public_field_definition` is kinda funky and is potentially ambiguous
+      // with property patterns, as something of the form `x : ty` could either be a
+      // class property or a pair in a record
+      // so we will allow public field definitions, but only in the presence of decorators
+      seq(
+        repeat1(field('decorator', $.decorator)),
+        $.public_field_definition,
+      ),
+      seq(
+        // We also had to factor out decorators here, not faithful to the original grammar,
+        // so that we could have decorators in front of method signatures too.
+        repeat(field('decorator', $.decorator)),
+        choice(
+          $.abstract_method_signature,
+          $.index_signature,
+          $.method_signature,
+          seq(
+            $.method_definition,
+            optional($._semicolon),
+          )
+        )
+      )
+    ),
+
+    function_declaration_pattern: $ => prec.right('declaration', seq(
+      optional('async'),
+      'function',
+      choice(field('name', $.identifier), $.semgrep_ellipsis),
+      $._call_signature,
+      field('body', $.statement_block),
+      optional($._automatic_semicolon),
+    )),
+
+    // inlined from `tree-sitter-javascript`
+    // This allows us to write `import foo from $X;`
+    _from_clause: $ => seq(
+      'from', choice(
+        field('source', $.string),
+        $.semgrep_metavariable,
+      )
+    ),
+
+    // This allows us to put `...` in the condition of a for loop.
+    for_statement: $ => seq(
+      'for',
+      '(',
+      choice(
+        $.semgrep_ellipsis,
+        seq(
+          choice(
+            field('initializer', choice($.lexical_declaration, $.variable_declaration)),
+            seq(field('initializer', $._expressions), ';'),
+            field('initializer', $.empty_statement),
+          ),
+          field('condition', choice(
+            seq($._expressions, ';'),
+            $.empty_statement,
+          )),
+          field('increment', optional($._expressions)),
+        ),
+      ),
+      ')',
+      field('body', $.statement),
+    ),
+    semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
+
+    _jsx_child: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavariable,
+    ),
+
+    // To permit {...}, for `...` in objects.
+    pair: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // To permit `(...) => 1`, for `...` in parameter patterns.
+    pair_pattern: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    pattern: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis
     ),
 
     /*
@@ -28,6 +159,7 @@ module.exports = {
       identifiers so we do nothing for them.
     */
 
+    semgrep_metavar_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
     semgrep_ellipsis: $ => '...',
 
     /* ellipsis in function parameters
@@ -73,6 +205,31 @@ module.exports = {
       '}'
     ),
 
+    member_expression: $ => prec('member', seq(
+      field('object', choice($.expression, $.primary_expression, $.import)),
+      choice('.', field('optional_chain', $.optional_chain)),
+      field('property', choice(
+        $.private_property_identifier,
+        alias($.identifier, $.property_identifier),
+        $.semgrep_ellipsis
+      ),
+    ))),
+
+    // Allows `...` as in `import { ... } from 'foo'`
+    import_specifier: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // Allows `...` as in `<div ... href={foo}></div>`
+    _jsx_attribute: ($, previous) => choice(previous, $.semgrep_ellipsis),
+
+    // Allows metavariables in `<div foo=$FOO></div>`
+    _jsx_attribute_value: ($, previous) => choice(
+      previous,
+      $.semgrep_metavariable,
+    ),
+
 /* TODO: restore this when the changes are made in semgrep.
    Remove the XXXXXXX when uncommenting.
 
@@ -92,6 +249,8 @@ module.exports = {
     primary_expression: ($, previous) => choice(
       previous,
       $.semgrep_expression_ellipsis,
+      $.deep_ellipsis,
+      $.semgrep_metavar_ellipsis,
     ),
 
 /* TODO: restore this when the changes are made in semgrep.
