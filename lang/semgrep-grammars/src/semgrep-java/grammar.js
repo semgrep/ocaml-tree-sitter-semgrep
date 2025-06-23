@@ -65,7 +65,7 @@ module.exports = grammar(base_grammar, {
       $.toplevel_explicit_constructor_invocation,
     ),
 
-    enum_constant: ($, previous) => choice(
+    enum_body_declarations: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
     ),

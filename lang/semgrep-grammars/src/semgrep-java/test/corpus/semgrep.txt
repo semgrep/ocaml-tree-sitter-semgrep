@@ -466,7 +466,7 @@ enum $A { ... }
       (identifier)))
     (identifier)
     (enum_body
-      (enum_constant
+      (enum_body_declarations
         (semgrep_ellipsis)))))
 
 
