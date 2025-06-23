@@ -290,3 +290,37 @@ foo. ... .bar
     (field_access
       (identifier))
     (identifier)))
+
+================================================================================
+Dot access ellipsis
+================================================================================
+
+@$METHOD(..., produces = MediaType.TEXT_HTML, ...)
+$TYPE $FN(...) {
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (method_declaration
+    (modifiers
+      (annotation
+        (identifier)
+        (annotation_argument_list
+          (element_value_pair
+            (semgrep_ellipsis))
+          (element_value_pair
+            (identifier)
+            (field_access
+              (identifier)
+              (identifier)))
+          (element_value_pair
+            (semgrep_ellipsis)))))
+    (type_identifier)
+    (identifier)
+    (formal_parameters
+      (formal_parameter
+        (semgrep_ellipsis)))
+    (block
+      (semgrep_ellipsis))))

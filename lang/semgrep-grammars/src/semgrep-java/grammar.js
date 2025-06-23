@@ -33,8 +33,11 @@ module.exports = grammar(base_grammar, {
     // an LR(1) conflict. However, even if it is, it should be an innocuous one.
     [$.primary_expression, $.statement],
 
+    // This is from permitting typed metavars to exist
     [$._type, $.formal_parameter, $.receiver_parameter],
     [$.annotated_type, $.receiver_parameter],
+
+    [$.primary_expression, $.element_value_pair],
   ]),
 
   rules: {
@@ -74,6 +77,11 @@ module.exports = grammar(base_grammar, {
       field('field', choice($.identifier, $._reserved_identifier, $.this, '...')),
     ),
 
+    element_value_pair: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
 
     formal_parameter: ($, previous) => choice(
       previous,
@@ -94,12 +102,12 @@ module.exports = grammar(base_grammar, {
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
     deep_ellipsis: $ => seq('<...', $.expression, '...>'),
 
-    typed_metavariable: $ => prec(1000, seq(
+    typed_metavariable: $ => seq(
       '(',
        $._type,
        $.identifier,
        ')'
-    )),
+    ),
 
     // partial of method_declaration
     partial_method: $ => seq(
