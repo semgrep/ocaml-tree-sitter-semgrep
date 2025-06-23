@@ -38,6 +38,9 @@ module.exports = grammar(base_grammar, {
     [$.annotated_type, $.receiver_parameter],
 
     [$.primary_expression, $.element_value_pair],
+
+    // this is from adding toplevel_explicit_constructor_invocation
+    [$.type_parameter, $._unannotated_type],
   ]),
 
   rules: {
@@ -45,10 +48,73 @@ module.exports = grammar(base_grammar, {
     // programs, but which should be valid Semgrep patterns.
     program: ($, previous) => choice(
       previous,
+      // We have to add a whole bunch of constructs because there are
+      // certain things that can only appear in certain contexts, e.g.
+      // class bodies and other nested things, but we want to be able
+      // to write at the top-level for the purpose of patterns.
+      // This is a bit of a hack, but it's the best we can do for now.
       $.constructor_declaration,
+      $.enum_declaration,
+      $.static_initializer,
+      $.annotation_type_declaration,
       $.expression,
       $.partials,
+      // This needs to be slightly higher priority than the `statement`
+      // kind below, so we allow both standalone and with multiple statements
       prec(1, $.typed_metavariable_declaration),
+      $.toplevel_explicit_constructor_invocation,
+    ),
+
+    enum_constant: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // This is a copy of `explicit_constructor_invocation`,
+    // which must otherwise occur within a constructor body.
+    // We also wanted to not require the semicolon.
+    // Unfortunately, we must copy it wholesale here.
+    toplevel_explicit_constructor_invocation: $ => seq(
+      choice(
+        seq(
+          field('type_arguments', optional($.type_arguments)),
+          field('constructor', choice($.this, $.super)),
+        ),
+        seq(
+          field('object', choice($.primary_expression)),
+          '.',
+          field('type_arguments', optional($.type_arguments)),
+          field('constructor', $.super),
+        ),
+      ),
+      field('arguments', $.argument_list),
+      optional(';'),
+    ),
+
+    // Mostly a copy of `interface_body`, but we want to allow ellipses
+    // in it.
+    // Unfortunately, we can't do much better than copying its definition
+    // wholesale here.
+    interface_body: $ => seq(
+      '{',
+      repeat(choice(
+        $.constant_declaration,
+        $.enum_declaration,
+        $.method_declaration,
+        $.class_declaration,
+        $.interface_declaration,
+        $.record_declaration,
+        $.annotation_type_declaration,
+        $.semgrep_ellipsis,
+        ';',
+      )),
+      '}',
+    ),
+
+    // So we can put ellipses within annotation type declarations
+    annotation_type_element_declaration: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -119,6 +185,8 @@ module.exports = grammar(base_grammar, {
     partials: $ => choice(
        $.partial_method,
        $.annotation,
+      // For partial `finally` patterns
+      $.finally_clause,
     ),
 
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),

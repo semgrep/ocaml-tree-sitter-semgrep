@@ -404,3 +404,109 @@ catch (...) {
       (catch_formal_parameter
         (semgrep_ellipsis))
       (block))))
+
+================================================================================
+Dots in interface
+================================================================================
+
+interface $INTERFACE extends Remote {
+  ...
+  $RETURNTYPE $METHOD(Object $PARAM) throws RemoteException;
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (interface_declaration
+    (identifier)
+    (extends_interfaces
+      (type_list
+        (type_identifier)))
+    (interface_body
+      (semgrep_ellipsis)
+      (method_declaration
+        (type_identifier)
+        (identifier)
+        (formal_parameters
+          (formal_parameter
+            (type_identifier)
+            (identifier)))
+        (throws
+          (type_identifier))))))
+
+================================================================================
+Dots in interface with at sign
+================================================================================
+
+public @interface $IF { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (annotation_type_declaration
+    (modifiers)
+    (identifier)
+    (annotation_type_body
+      (annotation_type_element_declaration
+        (semgrep_ellipsis)))))
+
+================================================================================
+Dots in enum
+================================================================================
+
+@foo
+enum $A { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (enum_declaration
+  (modifiers
+    (marker_annotation
+      (identifier)))
+    (identifier)
+    (enum_body
+      (enum_constant
+        (semgrep_ellipsis)))))
+
+
+================================================================================
+Super call with ellipsis
+================================================================================
+
+super(...)
+
+--------------------------------------------------------------------------------
+
+(program
+  (toplevel_explicit_constructor_invocation
+    (super)
+    (argument_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Dots in static
+================================================================================
+
+static { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (static_initializer
+    (block
+      (semgrep_ellipsis))))
+
+================================================================================
+Partial finally
+================================================================================
+
+finally { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (partials
+    (finally_clause
+      (block
+        (semgrep_ellipsis)))))
