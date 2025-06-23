@@ -48,7 +48,7 @@ module.exports = grammar(base_grammar, {
       $.constructor_declaration,
       $.expression,
       $.partials,
-      $.typed_metavariable_declaration,
+      prec(1, $.typed_metavariable_declaration),
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -71,20 +71,21 @@ module.exports = grammar(base_grammar, {
     // Unfortunately, there's a lot of different kinds of declarations, so it is
     // hard to go to all the relevant nonterminals and patch them, but we can allow
     // the 98% case here.
-    typed_metavariable_declaration: $ => seq(
+    typed_metavariable_declaration: $ => prec.right(seq(
       '(',
       $._type,
       $.identifier,
       ')',
       '=',
       $.expression,
-      optional(';')
-    ),
+      ';'
+    )),
 
     statement: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
-      $.semgrep_named_ellipsis
+      $.semgrep_named_ellipsis,
+      $.typed_metavariable_declaration
     ),
 
     field_access: $ => seq(
