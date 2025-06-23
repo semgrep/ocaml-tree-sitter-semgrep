@@ -338,3 +338,17 @@ Single annotation
     (annotation
       (identifier)
       (annotation_argument_list))))
+
+================================================================================
+Parens around LHS of assignment
+================================================================================
+
+(Saxreader $READER) = ...;
+
+--------------------------------------------------------------------------------
+
+(program
+  (typed_metavariable_declaration
+    (type_identifier)
+    (identifier)
+    (semgrep_ellipsis)))

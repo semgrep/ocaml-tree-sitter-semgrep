@@ -48,6 +48,7 @@ module.exports = grammar(base_grammar, {
       $.constructor_declaration,
       $.expression,
       $.partials,
+      $.typed_metavariable_declaration,
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -59,6 +60,25 @@ module.exports = grammar(base_grammar, {
       $.semgrep_named_ellipsis,
       $.typed_metavariable,
       $.deep_ellipsis,
+    ),
+
+    // This looks like `(Saxonreader $READER) = ...;`
+    // This isn't real Java code, but I have observed that many Semgrep rules
+    // take this form. It seems that this is something the old Menhir parser allowed,
+    // and perhaps it's easier for the jsonnet rule generation pipeline to write
+    // patterns in this way.
+    // Regardless, it seems the easiest thing to do is to support this behavior.
+    // Unfortunately, there's a lot of different kinds of declarations, so it is
+    // hard to go to all the relevant nonterminals and patch them, but we can allow
+    // the 98% case here.
+    typed_metavariable_declaration: $ => seq(
+      '(',
+      $._type,
+      $.identifier,
+      ')',
+      '=',
+      $.expression,
+      ';'
     ),
 
     statement: ($, previous) => choice(
