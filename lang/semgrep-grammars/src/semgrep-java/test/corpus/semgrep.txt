@@ -242,3 +242,37 @@ Named ellipsis expression
     (binary_expression
       (decimal_integer_literal)
       (semgrep_named_ellipsis))))
+
+================================================================================
+Named ellipsis expression
+================================================================================
+
+int x = (void $X);
+
+--------------------------------------------------------------------------------
+
+(program
+  (local_variable_declaration
+    (integral_type)
+    (variable_declarator
+      (identifier)
+      (typed_metavariable
+        (void_type)
+        (identifier)))))
+
+
+================================================================================
+Deep ellipsis
+================================================================================
+
+int x = <... 1 ...>;
+
+--------------------------------------------------------------------------------
+
+(program
+  (local_variable_declaration
+    (integral_type)
+    (variable_declarator
+      (identifier)
+      (deep_ellipsis
+      (decimal_integer_literal)))))
