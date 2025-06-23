@@ -64,6 +64,17 @@ module.exports = grammar(base_grammar, {
       $.semgrep_named_ellipsis
     ),
 
+    field_access: $ => seq(
+      field('object', choice($.primary_expression, $.super)),
+      optional(seq(
+        '.',
+        $.super,
+      )),
+      '.',
+      field('field', choice($.identifier, $._reserved_identifier, $.this, '...')),
+    ),
+
+
     formal_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
