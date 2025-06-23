@@ -44,12 +44,15 @@ module.exports = grammar(base_grammar, {
       previous,
       $.constructor_declaration,
       $.expression,
-      $.partials
+      $.partials,
+      $.semgrep_expression
     ),
 
     semgrep_ellipsis: $ => '...',
     semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
 
+    // Alternate "entry point". Allows parsing a standalone expression.
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
     primary_expression: ($, previous) => choice(
       previous,
