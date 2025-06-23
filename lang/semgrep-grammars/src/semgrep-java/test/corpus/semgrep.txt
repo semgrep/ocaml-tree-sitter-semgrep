@@ -276,16 +276,3 @@ int x = <... 1 ...>;
       (identifier)
       (deep_ellipsis
       (decimal_integer_literal)))))
-
-================================================================================
-Semgrep expression entry point
-================================================================================
-
-__SEMGREP_EXPRESSION <... foo ...>
-
---------------------------------------------------------------------------------
-
-(program
-  (semgrep_expression
-    (deep_ellipsis
-      (identifier))))
