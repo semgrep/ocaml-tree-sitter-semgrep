@@ -131,6 +131,34 @@ module.exports = grammar(base_grammar, {
        ')'
     ),
 
+    type_parameter: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis
+    ),
+
+    // inlined from the original grammar, so we can permit an ellipsis in
+    // the for header
+    for_statement: $ => seq(
+      'for', '(',
+      choice(
+        seq(
+          choice(
+          field('init', $.local_variable_declaration),
+          seq(
+              commaSep(field('init', $.expression)),
+              ';',
+            ),
+          ),
+          field('condition', optional($.expression)), ';',
+          commaSep(field('update', $.expression)),
+        ),
+        $.semgrep_ellipsis,
+      ),
+      ')',
+      field('body', $.statement),
+    ),
+
     // partial of method_declaration
     partial_method: $ => seq(
       optional($.modifiers),
@@ -138,3 +166,26 @@ module.exports = grammar(base_grammar, {
     ),
   }
 });
+
+/**
+ * Creates a rule to match one or more of the rules separated by a comma
+ *
+ * @param {RuleOrLiteral} rule
+ *
+ * @returns {SeqRule}
+ */
+function commaSep1(rule) {
+  return seq(rule, repeat(seq(',', rule)));
+}
+
+
+/**
+ * Creates a rule to optionally match one or more of the rules separated by a comma
+ *
+ * @param {RuleOrLiteral} rule
+ *
+ * @returns {ChoiceRule}
+ */
+function commaSep(rule) {
+  return optional(commaSep1(rule));
+}

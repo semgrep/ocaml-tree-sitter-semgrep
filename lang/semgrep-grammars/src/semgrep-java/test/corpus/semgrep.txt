@@ -352,3 +352,34 @@ Parens around LHS of assignment
     (type_identifier)
     (identifier)
     (semgrep_ellipsis)))
+
+================================================================================
+Dots in generics
+================================================================================
+
+class Foo<...> { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (class_declaration
+    (identifier)
+        (type_parameters
+          (type_parameter
+            (semgrep_ellipsis)))
+        (class_body
+          (semgrep_ellipsis))))
+
+================================================================================
+Dots in for loop
+================================================================================
+
+for(...) { ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (for_statement
+    (semgrep_ellipsis)
+    (block
+      (semgrep_ellipsis))))
