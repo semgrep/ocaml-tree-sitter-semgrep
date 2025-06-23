@@ -78,7 +78,7 @@ module.exports = grammar(base_grammar, {
       ')',
       '=',
       $.expression,
-      ';'
+      optional(';')
     ),
 
     statement: ($, previous) => choice(
