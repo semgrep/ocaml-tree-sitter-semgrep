@@ -97,6 +97,7 @@ module.exports = grammar(base_grammar, {
 
     partials: $ => choice(
        $.partial_method,
+       $.annotation,
     ),
 
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
