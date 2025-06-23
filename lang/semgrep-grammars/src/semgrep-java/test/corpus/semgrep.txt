@@ -383,3 +383,24 @@ for(...) { ... }
     (semgrep_ellipsis)
     (block
       (semgrep_ellipsis))))
+
+================================================================================
+Dots in catch
+================================================================================
+
+try {
+        ...
+}
+catch (...) {
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (try_statement
+    (block
+      (semgrep_ellipsis))
+    (catch_clause
+      (catch_formal_parameter
+        (semgrep_ellipsis))
+      (block))))

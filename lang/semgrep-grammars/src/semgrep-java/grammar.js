@@ -137,6 +137,11 @@ module.exports = grammar(base_grammar, {
       $.semgrep_named_ellipsis
     ),
 
+    catch_formal_parameter: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
     // inlined from the original grammar, so we can permit an ellipsis in
     // the for header
     for_statement: $ => seq(
