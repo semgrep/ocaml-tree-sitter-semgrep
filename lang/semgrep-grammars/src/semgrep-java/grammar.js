@@ -187,6 +187,7 @@ module.exports = grammar(base_grammar, {
        $.annotation,
       // For partial `finally` patterns
       $.finally_clause,
+      $.partial_try_statement,
     ),
 
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
@@ -237,6 +238,11 @@ module.exports = grammar(base_grammar, {
       optional($.modifiers),
       $._method_header
     ),
+
+    partial_try_statement: $ => seq(
+      'try',
+      field('body', $.block),
+    )
   }
 });
 
