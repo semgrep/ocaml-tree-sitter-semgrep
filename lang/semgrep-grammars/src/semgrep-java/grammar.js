@@ -61,7 +61,7 @@ module.exports = grammar(base_grammar, {
       $.partials,
       // This needs to be slightly higher priority than the `statement`
       // kind below, so we allow both standalone and with multiple statements
-      prec(1, $.typed_metavariable_declaration),
+      $.toplevel_typed_metavariable_declaration,
       $.toplevel_explicit_constructor_invocation,
     ),
 
@@ -137,6 +137,15 @@ module.exports = grammar(base_grammar, {
     // Unfortunately, there's a lot of different kinds of declarations, so it is
     // hard to go to all the relevant nonterminals and patch them, but we can allow
     // the 98% case here.
+    toplevel_typed_metavariable_declaration: $ => prec.right(1, seq(
+      '(',
+      $._type,
+      $.identifier,
+      ')',
+      '=',
+      $.expression,
+      optional(';')
+    )),
     typed_metavariable_declaration: $ => prec.right(seq(
       '(',
       $._type,

@@ -348,7 +348,21 @@ Parens around LHS of assignment
 --------------------------------------------------------------------------------
 
 (program
-  (typed_metavariable_declaration
+  (toplevel_typed_metavariable_declaration
+    (type_identifier)
+    (identifier)
+    (semgrep_ellipsis)))
+
+================================================================================
+Parens around LHS of assignment with no semicolon
+================================================================================
+
+(Saxreader $READER) = ...
+
+--------------------------------------------------------------------------------
+
+(program
+  (toplevel_typed_metavariable_declaration
     (type_identifier)
     (identifier)
     (semgrep_ellipsis)))
