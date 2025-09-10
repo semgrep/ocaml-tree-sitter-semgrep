@@ -27,6 +27,7 @@ SUPPORTED_TS_LANGUAGES = \
   elixir \
   fsharp \
   go \
+  gosu \
 	gomod \
   hack \
   haskell \
@@ -83,6 +84,7 @@ SUPPORTED_DIALECTS = \
   elixir \
   fsharp \
   go \
+  gosu \
   hack \
   hcl \
   html \
@@ -149,7 +151,8 @@ STAT_LANGUAGES2 = \
   solidity \
   tsx \
   typescript \
-  move-on-sui
+  move-on-sui \
+  gosu
 
 STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
