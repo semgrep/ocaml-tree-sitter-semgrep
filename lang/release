@@ -157,7 +157,7 @@ copy_fyi_files() {
 export_dir="export"
 mkdir -p "$export_dir"
 repo="semgrep-$lang"
-remote_url="git@github.com:semgrep/$repo.git"
+remote_url="git@github.com:${GITHUB_ORG:-semgrep}/$repo.git"
 
 (
   cd "$export_dir"
