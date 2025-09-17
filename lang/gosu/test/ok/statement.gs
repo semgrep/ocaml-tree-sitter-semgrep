@@ -1,1 +1,1 @@
-x.ok("test")
+x.ok("test", b)
