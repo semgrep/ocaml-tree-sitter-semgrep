@@ -49,7 +49,7 @@ module.exports = grammar(base_grammar, {
             )
         },
       
-      // Ellipsis
+        // Ellipsis
         expression: ($, previous) => {
             return choice(
                 previous,
@@ -105,6 +105,13 @@ module.exports = grammar(base_grammar, {
             );
         },
 
+        error_parameter: ($, previous) => {
+            return choice(
+               previous,
+               $.ellipsis
+            );
+        },
+
         for_statement: ($, previous) => {
             return choice(
                previous,
@@ -124,6 +131,20 @@ module.exports = grammar(base_grammar, {
             return choice(
                 previous,
                 seq('{', $.ellipsis, '}')
+            );
+        },
+
+        using_directive: ($, previous) => {
+            return choice(
+                previous,
+                seq('using', $.ellipsis, 'for', choice($.any_source_type, $.type_name))
+            );
+        },
+
+        assembly_statement: ($, previous) => {
+            return choice(
+                previous,
+                seq('assembly', optional($.assembly_flags), '{', $.ellipsis, '}')
             );
         },
 

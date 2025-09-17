@@ -135,3 +135,78 @@ event $EV(...);
     (identifier)
     (event_parameter
       (ellipsis))))
+
+=====================================
+Error pattern
+=====================================
+
+error $EV(...);
+---
+
+(source_file
+  (error_declaration
+    (identifier)
+    (error_parameter
+      (ellipsis))))
+
+=====================================
+Struct pattern
+=====================================
+
+struct $EV{ ... }
+---
+
+(source_file
+  (struct_declaration
+    (identifier)
+    (struct_body
+      (struct_member
+        (ellipsis)))))
+
+=====================================
+Using for directive pattern
+=====================================
+
+using ... for $X
+---
+
+(source_file
+  (using_directive
+    (ellipsis)
+    (type_name
+      (user_defined_type
+        (identifier)))))
+
+=====================================
+Assembly block pattern
+=====================================
+
+assembly ("memory-safe") {
+  ...
+}
+---
+
+(source_file
+  (statement
+    (assembly_statement
+      (assembly_flags
+        (string))
+      (ellipsis))))
+
+=====================================
+Unchecked block pattern
+=====================================
+
+unchecked {
+  ...
+}
+---
+
+(source_file
+  (statement
+    (block_statement
+      (unchecked)
+      (statement
+        (expression_statement
+          (ellipsis))))))
+
