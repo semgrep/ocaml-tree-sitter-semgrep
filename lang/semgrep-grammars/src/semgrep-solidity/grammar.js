@@ -119,21 +119,15 @@ module.exports = grammar(base_grammar, {
             );
         },
 
-      //TODO? it would be better to refactor the original grammar with
-      // a enum_member so we don't have to copy-paste the original rule
-      enum_declaration: $ =>  seq(
-            'enum',
-            field("enum_type_name", $.identifier),
-            '{',
-            commaSep($._enum_member),
-            '}',
-      ),
-      _enum_member: $ => choice(
-          alias($.identifier, $.enum_value),
-          $.ellipsis
-      ),
+        // AKA enum_member
+        enum_body: ($, previous) => {
+            return choice(
+                previous,
+                seq('{', $.ellipsis, '}')
+            );
+        },
 
-      // The actual ellipsis rules
+        // The actual ellipsis rules
         deep_ellipsis: $ => seq(
             '<...', $.expression, '...>'
         ),
