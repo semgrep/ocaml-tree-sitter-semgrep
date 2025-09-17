@@ -52,3 +52,8 @@ https://github.com/OlympusDAO/olympus-contracts
 https://github.com/makerdao/multicall
 https://github.com/pancakeswap/pancake-farm
 https://github.com/certikfoundation/security-oracle-smart-contracts
+https://github.com/Uniswap/v4-core
+https://github.com/maple-labs/maple-core-v2
+https://github.com/Vectorized/solady
+https://github.com/morpho-org/morpho-blue
+https://github.com/panoptic-labs/panoptic-v1-core
