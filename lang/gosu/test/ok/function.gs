@@ -1,3 +1,3 @@
-function bar() {
+function bar(username, password) {
   var x = "x";
 }
