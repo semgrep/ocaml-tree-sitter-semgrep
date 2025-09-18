@@ -28,6 +28,6 @@ module.exports = grammar(base_grammar, {
       choice(...previous.members, $.semgrep_ellipsis),
 
     _expression: ($, previous) =>
-      choice(...previous.members, $.semgrep_ellipsis),
+      choice(previous, $.semgrep_ellipsis),
   },
 });
