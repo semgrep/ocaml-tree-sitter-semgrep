@@ -18,6 +18,9 @@ module.exports = grammar(base_grammar, {
   rules: {
     semgrep_ellipsis: ($) => "...",
 
+    parameterDeclaration: ($, previous) =>
+      choice(previous, $.semgrep_ellipsis),
+
     usesStatement: ($, previous) =>
       choice(previous, $.semgrep_ellipsis),
 
