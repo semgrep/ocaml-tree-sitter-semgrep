@@ -4,12 +4,13 @@
   Extends the standard php grammar with semgrep pattern constructs.
 */
 
-const base_grammar = require('tree-sitter-php/grammar');
+const base_grammar = require('tree-sitter-php/php/grammar');
 
 module.exports = grammar(base_grammar, {
   name: 'php',
 
   conflicts: ($, previous) => previous.concat([
+    [$._interpolated_string_body_heredoc],
   ]),
 
   /*
