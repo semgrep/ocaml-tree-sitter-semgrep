@@ -53,6 +53,25 @@ module.exports = {
       $.semgrep_ellipsis,
     ),
 
+    // For `var $X = $FUNC($REQ, $RES, ...) {...}`.
+    // Unfortunately, it seems we used to allow this pattern, which really should
+    // have a `function` keyword.
+    // It normally fails to parse because we insert a semicolon
+    // var $X = $FUNC($REQ, $RES, ...) {...}
+    //                                ^ here
+    // and don't know how to interpret it properly.
+    assign_lambda: $ => seq(
+      'var',
+      field('name', choice($.identifier, $._destructuring_pattern)),
+      '=',
+      // Notably, we cannot use `function_expression` here, which would expect
+      // a `function` keyword!
+      // $.function_expression,
+      field('name', optional($.identifier)),
+      $._call_signature,
+      field('body', $.statement_block),
+    ),
+
     semgrep_pattern: $ => choice(
       $.expression,
       $.pair,
@@ -60,6 +79,7 @@ module.exports = {
       $.function_declaration_pattern,
       $.finally_clause,
       $.catch_clause,
+      $.assign_lambda,
     ),
 
     method_pattern: $ => choice(
