@@ -74,7 +74,7 @@ module.exports = {
 
     semgrep_pattern: $ => choice(
       $.expression,
-      $.pair,
+      seq($.pair, optional($._semicolon)),
       $.method_pattern,
       $.function_declaration_pattern,
       $.finally_clause,
