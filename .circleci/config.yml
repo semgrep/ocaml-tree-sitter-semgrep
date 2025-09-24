@@ -149,6 +149,7 @@ workflows:
                 - elixir
                 - fsharp
                 - go
+                - gosu
                 - hack
                 - haskell
                 - hcl
