@@ -36,6 +36,9 @@ jobs:
       language:
         type: string
     steps:
+      - run:
+          name: Make checkout speedy
+          command: git config --global fetch.parallel 50
       - checkout
       - run: git submodule update --init --recursive --depth 1
       - run:
@@ -76,6 +79,9 @@ jobs:
     # resource_class: xlarge
     working_directory: ~/ocaml-tree-sitter
     steps:
+      - run:
+          name: Make checkout speedy
+          command: git config --global fetch.parallel 50
       - checkout
       - run: git submodule update --init --recursive --depth 1
       - run:
@@ -101,6 +107,9 @@ jobs:
     # resource_class: xlarge
     working_directory: ~/ocaml-tree-sitter
     steps:
+      - run:
+          name: Make checkout speedy
+          command: git config --global fetch.parallel 50
       - checkout
       - run: git submodule update --init --recursive --depth 1
       - run:
