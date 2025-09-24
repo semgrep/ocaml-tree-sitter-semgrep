@@ -140,7 +140,9 @@ STAT_LANGUAGES1 = \
 
 STAT_LANGUAGES2 = \
   apex \
+  gosu \
   lua \
+  move-on-sui \
   ocaml \
   php \
   promql \
@@ -150,9 +152,7 @@ STAT_LANGUAGES2 = \
   rust \
   solidity \
   tsx \
-  typescript \
-  move-on-sui \
-  gosu
+  typescript
 
 STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
