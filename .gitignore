@@ -26,3 +26,6 @@ bindings/
 
 # tree-sitter-cli download
 /downloads/
+
+# vim swap files
+*.swp
