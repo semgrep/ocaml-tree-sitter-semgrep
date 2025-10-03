@@ -23,7 +23,7 @@ module.exports = grammar(standard_grammar, {
 
   conflicts: ($, previous) => [
     ...previous,
-    [$._expression, $.parameter]
+    [$.expression, $.parameter],
   ],
 
   rules: {
@@ -37,7 +37,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $._expression),
+    semgrep_expression: $ => seq('__SEMGREP_EXPRESSION', $.expression),
 
     // Metavariables
     identifier: ($, previous) => {
@@ -66,7 +66,7 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
-    _declaration: ($, previous) => {
+    declaration: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis
@@ -75,24 +75,10 @@ module.exports = grammar(standard_grammar, {
 
     // We want ellipses to be interchangeable with namespace member declarations, so
     // we need to add them in to `type_declaration` here. 
-    _type_declaration: ($, previous) => { 
+    type_declaration: ($, previous) => { 
       return choice(
         ...previous.members,
         $.ellipsis
-      )
-    },
-
-    // We do this because a file scoped namespace declaration is a top-level 
-    // thing, but ellipses are more particular. We want ellipses to be used 
-    // in conjunction with file scoped namespace declarations.
-    // Unfortunately, in the base grammar, we can either have ellipsis 
-    // statements, or a file scoped declaration! That's no good. To play 
-    // around the previous grammar, we simply allow what came before to also 
-    // occur before a file scoped namespace declaration.
-    file_scoped_namespace_declaration: ($, previous) => {
-      return seq(
-        seq(repeat($.global_statement), repeat($._namespace_member_declaration)),
-        previous,
       )
     },
 
@@ -115,7 +101,7 @@ module.exports = grammar(standard_grammar, {
     },
 
     // Expression ellipsis
-    _expression: ($, previous) => {
+    expression: ($, previous) => {
       return choice(
         ...previous.members,
         $.ellipsis,
@@ -127,22 +113,22 @@ module.exports = grammar(standard_grammar, {
 
     // TODO: how to use PREC.DOT from original grammar instead of 18 below?
     member_access_ellipsis_expression : $ => prec(18, seq(
-      field('expression', choice($._expression, $.predefined_type, $._name)),
+      field('expression', choice($.expression, $.predefined_type, $._name)),
       choice('.', '->'),
       $.ellipsis
      )),
 
     // use syntax similar to a cast_expression, but with metavar
     //TODO: use PREC.CAST from original grammar instead of 17 below
-    typed_metavariable: $ => prec.right(17, seq(
+    typed_metavariable: $ => prec(17, prec.dynamic(1, seq(
       '(',
-      field('type', $._type),
+      field('type', $.type),
       field('metavar', $._semgrep_metavariable),
       ')',
-    )),
+    ))),
 
     deep_ellipsis: $ => seq(
-      '<...', $._expression, '...>'
+      '<...', $.expression, '...>'
     ),
 
     ellipsis: $ => '...',
