@@ -52,6 +52,7 @@ SUPPORTED_TS_LANGUAGES = \
 	requirements \
   ruby \
   rust \
+	scala \
   sfapex \
   sml \
   solidity \
@@ -107,6 +108,7 @@ SUPPORTED_DIALECTS = \
   r \
   ruby \
   rust \
+	scala \
   solidity \
   sqlite \
   swift \
@@ -150,6 +152,7 @@ STAT_LANGUAGES2 = \
   r \
   ruby \
   rust \
+	scala \
   solidity \
   tsx \
   typescript

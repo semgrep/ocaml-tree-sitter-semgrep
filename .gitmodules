@@ -139,3 +139,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-gosu"]
 	path = lang/semgrep-grammars/src/tree-sitter-gosu
 	url = git@github.com:tarides/tree-sitter-gosu.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-scala"]
+	path = lang/semgrep-grammars/src/tree-sitter-scala
+	url = https://github.com/tree-sitter/tree-sitter-scala.git
