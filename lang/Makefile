@@ -25,6 +25,7 @@ SUPPORTED_TS_LANGUAGES = \
   dart \
   dockerfile \
   elixir \
+  fga \
   fsharp \
   go \
   gosu \
@@ -82,6 +83,7 @@ SUPPORTED_DIALECTS = \
   dart \
   dockerfile \
   elixir \
+  fga \
   fsharp \
   go \
   gosu \
@@ -129,6 +131,7 @@ STAT_LANGUAGES1 = \
   c-sharp-pro \
   dockerfile \
   elixir \
+  fga \
   go \
   hack \
   haskell \
