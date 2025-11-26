@@ -270,6 +270,47 @@ obj. ... .foo().bar()
     (call_suffix
       (value_arguments))))
 
+===========================================
+Expression with 'constructor' as identifier
+===========================================
+
+allArgs.map { args ->
+  constructor.call(args.internalContext, args.objectValue)
+}
+
+---
+
+(source_file
+  (call_expression
+    (navigation_expression
+      (simple_identifier)
+      (navigation_suffix
+        (simple_identifier)))
+    (call_suffix
+      (annotated_lambda
+        (lambda_literal
+          (lambda_parameters
+            (variable_declaration
+              (simple_identifier)))
+          (statements
+            (call_expression
+              (navigation_expression
+                (simple_identifier)
+                (navigation_suffix
+                  (simple_identifier)))
+              (call_suffix
+                (value_arguments
+                  (value_argument
+                    (navigation_expression
+                      (simple_identifier)
+                      (navigation_suffix
+                        (simple_identifier))))
+                  (value_argument
+                    (navigation_expression
+                      (simple_identifier)
+                      (navigation_suffix
+                        (simple_identifier)))))))))))))
+
 =====================================
 Class with a newline
 =====================================
@@ -283,12 +324,12 @@ constructor(arg: Int) {
 
 (source_file
   (class_declaration
-    (type_identifier))
-  (partial_class_declaration
-    (class_parameter
-      (simple_identifier)
-      (user_type
-        (type_identifier)))
+    (type_identifier)
+    (primary_constructor
+      (class_parameter
+        (simple_identifier)
+        (user_type
+          (type_identifier))))
     (class_body
       (property_declaration
         (modifiers
@@ -319,14 +360,13 @@ class Foo {
     (type_identifier)
     (class_body
       (class_declaration
-        (type_identifier))
-      (secondary_constructor
-        (function_value_parameters
-          (parameter
+        (type_identifier)
+        (primary_constructor
+          (class_parameter
             (simple_identifier)
             (user_type
               (type_identifier))))
-        (statements
+        (class_body
           (property_declaration
             (modifiers
               (visibility_modifier))
