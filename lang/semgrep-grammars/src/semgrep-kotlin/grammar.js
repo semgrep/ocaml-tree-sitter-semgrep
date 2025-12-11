@@ -15,6 +15,10 @@ const standard_grammar = require('tree-sitter-kotlin/grammar');
 module.exports = grammar(standard_grammar, {
     name: 'kotlin',
 
+    conflicts: ($, previous) => previous.concat([
+      [$.simple_identifier, $.partial_class_declaration],
+    ]),
+
     rules: {
 
         // Entry point
@@ -34,6 +38,7 @@ module.exports = grammar(standard_grammar, {
         simple_identifier: ($, previous) => {
             return choice(
                 previous,
+                "constructor",
                 /\$[a-zA-Z_][a-zA-Z_0-9]*/
             )
         },
