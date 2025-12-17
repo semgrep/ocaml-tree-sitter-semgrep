@@ -16,7 +16,15 @@ module.exports = grammar(standard_grammar, {
   name: "kotlin",
 
   conflicts: ($, previous) =>
-    previous.concat([[$.simple_identifier, $.partial_class_declaration]]),
+    previous.concat([
+      [$.simple_identifier, $.partial_class_declaration],
+      // ambiguity between partial_class_declaration and secondary_constructor
+      [$._class_parameters, $.function_value_parameters],
+      [$.class_parameter, $._function_value_parameter],
+      [$.parameter_modifiers, $._modifier],
+      [$.modifiers, $.parameter_modifiers],
+      [$.class_parameter, $.parameter],
+    ]),
 
   rules: {
     // Entry point
@@ -51,10 +59,6 @@ module.exports = grammar(standard_grammar, {
       return choice(previous, seq($._member_access_operator, $.ellipsis));
     },
 
-    _class_member_declaration: ($, previous) => {
-      return choice(previous, $.ellipsis);
-    },
-
     _function_value_parameter: ($, previous) => {
       return choice(previous, $.ellipsis);
     },
@@ -70,11 +74,10 @@ module.exports = grammar(standard_grammar, {
     // to be a standalone statement in its own right. This way, we can parse both parts
     // individually, and stitch them together at parsing time.
 
-    // We only need to amend statements here, because the consumers of _declaration are
-    // only class_member_declaration, top_level_object and _statement.
-    // The former has `secondary_constructor`, which already looks like what we want to
-    // add, and the second seems to be unused.
-    // So we just need to fix _statement.
+    // We amend _statement and _class_member_declaration here, because the
+    // consumers of _declaration are only _class_member_declaration,
+    // top_level_object and _statement. We ignore top_level_object since it
+    // seems unused in the grammar.
 
     // A more proper fix would likely require changes to the external scanner to properly
     // handle automatic semicolon insertion, which is the cause of this whole issue.
@@ -82,6 +85,15 @@ module.exports = grammar(standard_grammar, {
     // https://github.com/fwcd/tree-sitter-kotlin/issues/75
     _statement: ($, previous) =>
       choice(...previous.members, $.partial_class_declaration),
+
+    // _class_member_declaration has secondary_constructor but it accepts
+    // function_value_parameters, not class_parameters which is what we want to
+    // accept here.
+    _class_member_declaration: ($, previous) =>
+      choice(
+        choice(...previous.members, $.partial_class_declaration),
+        $.ellipsis,
+      ),
 
     partial_class_declaration: ($) =>
       prec.left(
