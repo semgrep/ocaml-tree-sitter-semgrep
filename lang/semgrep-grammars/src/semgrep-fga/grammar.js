@@ -2,16 +2,16 @@ const base_grammar = require('../tree-sitter-fga/grammar');
 
 module.exports = grammar(base_grammar, {
   name: 'fga',
-  
+
   conflicts: ($, previous) => previous.concat([
     [$.relations]
   ]),
-  
+
   rules: {
     semgrep_ellipsis: $ => '...',
 
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
-    
+
     type_declaration: ($, previous) => seq(
       optional('extend'),
       'type',
@@ -19,14 +19,14 @@ module.exports = grammar(base_grammar, {
       '\n',
       optional($.relations)
     ),
-    
+
     definition: ($, previous) => seq(
       'define',
       field('relation', choice($.identifier, $.semgrep_metavariable)),
       ':',
       $.relation_def
     ),
-    
+
     _module_file: ($, previous) => seq(
       choice($.model, $.module),
       repeat(choice(
@@ -35,7 +35,7 @@ module.exports = grammar(base_grammar, {
         $.semgrep_ellipsis
       ))
     ),
-    
+
     relations: ($, previous) => seq(
       'relations',
       repeat(choice(
@@ -43,7 +43,7 @@ module.exports = grammar(base_grammar, {
         $.semgrep_ellipsis
       ))
     ),
-    
+
     _expression: ($, previous) => choice(
       ...previous.members,
       $.semgrep_ellipsis,
@@ -55,7 +55,7 @@ module.exports = grammar(base_grammar, {
       ':',
       choice($.type_identifier, $.semgrep_metavariable)  // Allow $TYPE
     ),
-    
+
     direct_relationship: ($, previous) => seq(
       '[',
       choice(
