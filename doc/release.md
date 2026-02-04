@@ -57,7 +57,6 @@ ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-sem
 * [dart](https://github.com/returntocorp/semgrep-dart)
 * [dockerfile](https://github.com/returntocorp/semgrep-dockerfile)
 * [elixir](https://github.com/returntocorp/semgrep-elixir)
-* [fsharp](https://github.com/returntocorp/semgrep-fsharp)
 * [go](https://github.com/returntocorp/semgrep-go)
 * [hack](https://github.com/returntocorp/semgrep-hack)
 * [hcl](https://github.com/returntocorp/semgrep-hcl)
