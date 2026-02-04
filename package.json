@@ -21,7 +21,6 @@
     "tree-sitter-ruby": "file:lang/semgrep-grammars/src/tree-sitter-ruby",
     "tree-sitter-rust": "file:lang/semgrep-grammars/src/tree-sitter-rust",
     "tree-sitter-sqlite": "file:lang/semgrep-grammars/src/tree-sitter-sqlite",
-    "tree-sitter-typescript": "file:lang/semgrep-grammars/src/tree-sitter-typescript",
-    "tree-sitter-vue": "file:lang/semgrep-grammars/src/tree-sitter-vue"
+    "tree-sitter-typescript": "file:lang/semgrep-grammars/src/tree-sitter-typescript"
   }
 }
