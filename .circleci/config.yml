@@ -173,7 +173,6 @@ workflows:
                 - ruby
                 - rust
                 - sfapex
-                - sml
                 - solidity
                 - sqlite
                 - swift
