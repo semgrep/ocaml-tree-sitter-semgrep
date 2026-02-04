@@ -85,7 +85,6 @@ ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-sem
 * [swift](https://github.com/returntocorp/semgrep-swift)
 * [tsx](https://github.com/returntocorp/semgrep-tsx)
 * [typescript](https://github.com/returntocorp/semgrep-typescript)
-* [vue](https://github.com/returntocorp/semgrep-vue)
 
 GitHub homepage is: `https://github.com/returntocorp/semgrep-$lang`
 
