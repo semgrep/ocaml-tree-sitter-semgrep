@@ -53,7 +53,6 @@ SUPPORTED_TS_LANGUAGES = \
   ruby \
   rust \
   sfapex \
-  sml \
   solidity \
   sqlite \
   swift \
