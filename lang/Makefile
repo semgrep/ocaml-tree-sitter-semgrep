@@ -25,7 +25,6 @@ SUPPORTED_TS_LANGUAGES = \
   dart \
   dockerfile \
   elixir \
-  fsharp \
   go \
   gosu \
 	gomod \
@@ -80,7 +79,6 @@ SUPPORTED_DIALECTS = \
   dart \
   dockerfile \
   elixir \
-  fsharp \
   go \
   gosu \
   hack \
