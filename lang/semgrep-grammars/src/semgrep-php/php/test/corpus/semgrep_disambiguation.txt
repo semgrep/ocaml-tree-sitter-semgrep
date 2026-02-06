@@ -1,0 +1,628 @@
+========================
+Distinguish Ellipsis from Variadic Unpacking
+========================
+
+<?php
+function test(...$args) {
+  call(...$args);
+}
+function pattern(...) {
+  call(...);
+}
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    (name)
+    (formal_parameters
+      (variadic_parameter
+        (variable_name
+          (name))))
+    (compound_statement
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments
+            (argument
+              (variadic_unpacking
+                (variable_name
+                  (name)))))))))
+  (function_definition
+    (name)
+    (formal_parameters
+      (simple_parameter
+        (semgrep_ellipsis)))
+    (compound_statement
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments
+            (variadic_placeholder)))))))
+
+========================
+Metavariable vs Regular Variable
+========================
+
+<?php
+$regular_var = 1;
+$METAVAR = 2;
+$_another_var = 3;
+$_ANON = 4;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (integer))))
+
+========================
+Deep Expression vs Comparison
+========================
+
+<?php
+$a = $x < $y;
+$b = <... $EXPR ...>;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (variable_name
+          (name))
+        (variable_name
+          (name)))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (deep_expression
+        (semgrep_metavariable)))))
+
+========================
+Ellipsis in String vs Literal Dots
+========================
+
+<?php
+echo "...";
+echo '...';
+$result = $obj->method(...);
+
+---
+
+(program
+  (php_tag)
+  (echo_statement
+    (encapsed_string
+      (string_content)))
+  (echo_statement
+    (string
+      (string_content)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_call_expression
+        (variable_name
+          (name))
+        (name)
+        (arguments
+          (variadic_placeholder))))))
+
+========================
+Method Arrow vs Ellipsis Method Chain
+========================
+
+<?php
+$x = $obj->prop;
+$y = $obj->method();
+$z = $obj->...->final();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_access_expression
+        (variable_name
+          (name))
+        (name))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_call_expression
+        (variable_name
+          (name))
+        (name)
+        (arguments))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_call_expression
+        (semgrep_ellipsis_method_chain
+          (variable_name
+            (name)))
+        (name)
+        (arguments)))))
+
+========================
+Metavariable in Comment Context
+========================
+
+<?php
+// $VAR is not a metavariable
+/* $ALSO not a metavariable */
+$REAL_METAVAR = true;
+
+---
+
+(program
+  (php_tag)
+  (comment)
+  (comment)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (boolean))))
+
+========================
+Empty vs Ellipsis Arguments
+========================
+
+<?php
+no_args();
+ellipsis_args(...);
+mixed_args($X, ...);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments)))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (variadic_placeholder))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis))))))
+
+========================
+Metavariable Dollar Dollar
+========================
+
+<?php
+$$VAR;
+$$DYNAMIC_VAR = 1;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (variable_name
+      (name
+        (semgrep_metavariable))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name
+          (semgrep_metavariable)))
+      (integer))))
+
+========================
+Metavariable Case Sensitivity
+========================
+
+<?php
+$UPPER = 1;
+$Upper = 2;
+$upper = 3;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (integer))))
+
+========================
+Ellipsis Between Statements No Semicolon
+========================
+
+<?php
+if (true) {
+  statement1();
+  ...
+  statement2();
+}
+
+---
+
+(program
+  (php_tag)
+  (if_statement
+    (parenthesized_expression
+      (boolean))
+    (compound_statement
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments)))
+      (semgrep_ellipsis)
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments))))))
+
+========================
+Deep Expression with Complex Nesting
+========================
+
+<?php
+$a = foo(bar(<... $X->dangerous() ...>));
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (function_call_expression
+              (name)
+              (arguments
+                (argument
+                  (deep_expression
+                    (member_call_expression
+                      (name
+                        (semgrep_metavariable))
+                      (name)
+                      (arguments))))))))))))
+
+========================
+Metavariable in Array Key and Value
+========================
+
+<?php
+$arr[$KEY] = $VALUE;
+$data = [$KEY1 => $VAL1, $KEY2 => $VAL2];
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (semgrep_metavariable))
+      (semgrep_metavariable)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (array_creation_expression
+        (array_element_initializer
+          (semgrep_metavariable)
+          (semgrep_metavariable))
+        (array_element_initializer
+          (semgrep_metavariable)
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis With Trailing Comma
+========================
+
+<?php
+function_call($X, ..., );
+$arr = [$A, ..., ];
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis)))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (array_creation_expression
+        (array_element_initializer
+          (semgrep_metavariable))
+        (array_element_initializer
+          (semgrep_ellipsis))))))
+
+========================
+Metavariable in Reference Parameters
+========================
+
+<?php
+function test(&$PARAM) {
+  return $PARAM;
+}
+call(& $VAR);
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    (name)
+    (formal_parameters
+      (simple_parameter
+        (reference_modifier)
+        (variable_name
+          (semgrep_metavariable))))
+    (compound_statement
+      (return_statement
+        (semgrep_metavariable))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (reference_modifier)
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Array Destructuring
+========================
+
+<?php
+[$first, ..., $last] = $array;
+list($a, ..., $z) = get_values();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (list_literal
+        (variable_name
+          (name))
+        (semgrep_ellipsis)
+        (variable_name
+          (name)))
+      (variable_name
+        (name))))
+  (expression_statement
+    (assignment_expression
+      (list_literal
+        (variable_name
+          (name))
+        (semgrep_ellipsis)
+        (variable_name
+          (name)))
+      (function_call_expression
+        (name)
+        (arguments)))))
+
+========================
+Metavariable in Arrow Function
+========================
+
+<?php
+$fn = fn($PARAM) => $PARAM * 2;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (arrow_function
+        (formal_parameters
+          (simple_parameter
+            (variable_name
+              (semgrep_metavariable))))
+        (binary_expression
+          (semgrep_metavariable)
+          (integer))))))
+
+========================
+Multiple Metavariables in Binary Chain
+========================
+
+<?php
+$result = $A && $B || $C && $D;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (binary_expression
+          (semgrep_metavariable)
+          (semgrep_metavariable))
+        (binary_expression
+          (semgrep_metavariable)
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Interface Declaration
+========================
+
+<?php
+interface IExample {
+  public function method1();
+  ...
+  public function methodN();
+}
+
+---
+
+(program
+  (php_tag)
+  (interface_declaration
+    (name)
+    (declaration_list
+      (method_declaration
+        (visibility_modifier)
+        (name)
+        (formal_parameters))
+      (semgrep_ellipsis)
+      (method_declaration
+        (visibility_modifier)
+        (name)
+        (formal_parameters)))))
+
+========================
+Metavariable in Null Coalesce
+========================
+
+<?php
+$value = $VAR ?? $DEFAULT;
+$result = $A ?? $B ?? $C;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (semgrep_metavariable)
+        (semgrep_metavariable))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (semgrep_metavariable)
+        (binary_expression
+          (semgrep_metavariable)
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Match Expression
+========================
+
+<?php
+match ($VAR) {
+  $CASE1 => $RESULT1,
+  ...,
+  default => $DEFAULT
+};
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (match_expression
+      (parenthesized_expression
+        (semgrep_metavariable))
+      (match_block
+        (match_conditional_expression
+          (match_condition_list
+            (semgrep_metavariable))
+          (semgrep_metavariable))
+        (match_conditional_expression
+          (match_condition_list
+            (semgrep_ellipsis)
+            (name))
+          (semgrep_metavariable))))))
+
+========================
+Metavariable with Number Suffix
+========================
+
+<?php
+$VAR1 = 1;
+$VAR2 = 2;
+$ARG_1 + $ARG_2;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (integer)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (integer)))
+  (expression_statement
+    (binary_expression
+      (semgrep_metavariable)
+      (semgrep_metavariable))))
