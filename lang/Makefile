@@ -54,13 +54,11 @@ SUPPORTED_TS_LANGUAGES = \
   ruby \
   rust \
   sfapex \
-  sml \
   solidity \
   sqlite \
   swift \
   toml \
   typescript \
-  vue
 
 # List of all language variants, as they're made available to semgrep.
 #
@@ -115,7 +113,6 @@ SUPPORTED_DIALECTS = \
   toml \
   tsx \
   typescript \
-  vue
 
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.

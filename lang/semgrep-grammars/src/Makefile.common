@@ -16,6 +16,15 @@ export NODE_PATH
 
 # If grammar.js was present at a fixed location, we could define a simple
 # make target like 'src/parser.c: grammar.js'.
+# Switch on tree sitter version (before/after 0.24.0) due to some
+# configuration changes. See
+# <https://github.com/tree-sitter/tree-sitter/commit/b2359e402070445181482f2e351400276d94c968>.
+#
+# We do this by getting the version from tree-sitter, which is printed as
+# tree-sitter MAJOR.MINOR.PATCH (GIT_SHA)
+# where (GIT_SHA) is only present for dirty source builds.
+# Then we strip this down to just MAJOR.MINOR.PATCH with sed below, and check
+# how it sorts against 0.24.0 using the version sorting feature of sort.
 .PHONY: build
 build:
 	$(MAKE) prep
@@ -24,7 +33,13 @@ build:
 	  echo "Generate parser in $$(pwd)/$$dir"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
-	    (cd "$$dir" && tree-sitter generate --no-bindings); \
+    	if tree-sitter --version \
+    	  | sed "s/^tree-sitter \\([0-9.]*\\).*$$/0.24.0\\n\\1/" \
+    	  | sort -V -C 2>/dev/null; then \
+    	  (cd "$$dir" && tree-sitter generate --abi=14) \
+    	else \
+    	  (cd "$$dir" && tree-sitter generate --no-bindings) \
+    	fi \
 	  else \
 	    echo "$$dir/src/parser.c is up to date."; \
 	  fi; \

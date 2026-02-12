@@ -46,9 +46,6 @@
 [submodule "core"]
 	path = core
 	url = https://github.com/returntocorp/ocaml-tree-sitter-core.git
-[submodule "lang/semgrep-grammars/src/tree-sitter-vue"]
-	path = lang/semgrep-grammars/src/tree-sitter-vue
-	url = https://github.com/semgrep/tree-sitter-vue.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-html"]
 	path = lang/semgrep-grammars/src/tree-sitter-html
 	url = https://github.com/tree-sitter/tree-sitter-html.git
@@ -91,9 +88,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-haskell"]
 	path = lang/semgrep-grammars/src/tree-sitter-haskell
 	url = https://github.com/tree-sitter/tree-sitter-haskell.git
-[submodule "lang/semgrep-grammars/src/tree-sitter-sml"]
-	path = lang/semgrep-grammars/src/tree-sitter-sml
-	url = https://github.com/MatthewFluet/tree-sitter-sml
 [submodule "lang/semgrep-grammars/src/tree-sitter-cairo"]
 	path = lang/semgrep-grammars/src/tree-sitter-cairo
 	url = https://github.com/avnu-labs/tree-sitter-cairo
@@ -106,9 +100,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-make"]
 	path = lang/semgrep-grammars/src/tree-sitter-make
 	url = https://github.com/returntocorp/tree-sitter-make
-[submodule "lang/semgrep-grammars/src/tree-sitter-fsharp"]
-	path = lang/semgrep-grammars/src/tree-sitter-fsharp
-	url = https://github.com/Nsidorenco/tree-sitter-fsharp.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-ql"]
 	path = lang/semgrep-grammars/src/tree-sitter-ql
 	url = https://github.com/tree-sitter/tree-sitter-ql
