@@ -89,6 +89,12 @@ module.exports = grammar(standard_grammar, {
       ')'
     ),
 
+    struct_body: ($, previous) => seq(
+      '{',
+      $.ellipsis,
+      '}'
+    ),
+
     _non_special_token: ($, previous) => choice(
       previous,
       $.ellipsis,
