@@ -73,6 +73,20 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    field_initializer: ($, previous) => {
+      return choice(
+        previous,
+        $.ellipsis
+      );
+    },
+
+    _use_clause: ($, previous) => {
+      return choice(
+        ...previous.members,
+        $.ellipsis,
+      );
+    },
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(
@@ -87,12 +101,6 @@ module.exports = grammar(standard_grammar, {
       '(',
       choice($._expression, $.semgrep_typed_metavar),
       ')'
-    ),
-
-    struct_body: ($, previous) => seq(
-      '{',
-      $.ellipsis,
-      '}'
     ),
 
     _non_special_token: ($, previous) => choice(

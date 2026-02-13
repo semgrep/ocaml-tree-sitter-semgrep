@@ -162,6 +162,38 @@ struct $FOO {
         (ellipsis)))))
 
 ================================================================================
+Ellipsis for struct initialization
+================================================================================
+
+$FOO {
+  ...
+};
+
+$FOO {
+  $VAR: $TYPE,
+  ...
+};
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (ellipsis)))))
+  (expression_statement
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (field_identifier)
+          (identifier))
+        (field_initializer
+          (ellipsis))))))
+
+================================================================================
 Deep expression ellipsis
 ================================================================================
 
@@ -328,3 +360,44 @@ $...X;
 (source_file
   (expression_statement
     (identifier)))
+
+================================================================================
+Use statement ellipsis
+================================================================================
+
+use ...;
+use crate::{...};
+use crate::{..., $PACKAGE, ...};
+use crate::{http::{Client, Request, ...}, util::fmt, ...};
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (use_declaration
+    (ellipsis))
+  (use_declaration
+    (scoped_use_list
+      (crate)
+      (use_list
+        (ellipsis))))
+  (use_declaration
+    (scoped_use_list
+      (crate)
+      (use_list
+        (ellipsis)
+        (identifier)
+        (ellipsis))))
+  (use_declaration
+    (scoped_use_list
+      (crate)
+      (use_list
+        (scoped_use_list
+          (identifier)
+          (use_list
+            (identifier)
+            (identifier)
+            (ellipsis)))
+        (scoped_identifier
+          (identifier)
+          (identifier))
+        (ellipsis)))))

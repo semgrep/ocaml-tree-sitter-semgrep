@@ -1,7 +1,6 @@
 fn main() {
-    struct User {
-        name: String,
-        age: u32,
-        email: String,
-    }
+    let user = User {
+        name: "John Doe",
+        age: 30,
+    };
 }
