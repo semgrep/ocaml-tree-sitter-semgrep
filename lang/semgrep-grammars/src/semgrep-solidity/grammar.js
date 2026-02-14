@@ -24,11 +24,10 @@ module.exports = grammar(base_grammar, {
         source_file: ($, previous) => {
           return choice(
             previous,
-            repeat1($._statement),
-            $._expression,
+            repeat1($.statement),
+            $.expression,
             $.constructor_definition,
             $.modifier_definition,
-            $.event_definition,
           );
         },
 
@@ -47,9 +46,9 @@ module.exports = grammar(base_grammar, {
                 ),
             )
         },
-      
+
       // Ellipsis
-        _expression: ($, previous) => {
+        expression: ($, previous) => {
             return choice(
                 previous,
                 $.ellipsis,
@@ -70,7 +69,7 @@ module.exports = grammar(base_grammar, {
        // TODO: how to use PREC.MEMBER from original grammar instead of hardcoded value?
        member_ellipsis_expression : $ => prec(1, seq(
             field('object', choice(
-                $._expression,
+                $.expression,
                 $.identifier,
             )),
             '.',
@@ -97,8 +96,7 @@ module.exports = grammar(base_grammar, {
             );
         },
 
-        // typo on name in the original grammar so we must copy the typo
-        event_paramater: ($, previous) => {
+        event_parameter: ($, previous) => {
             return choice(
                previous,
                $.ellipsis
@@ -108,7 +106,7 @@ module.exports = grammar(base_grammar, {
         for_statement: ($, previous) => {
             return choice(
                previous,
-               seq('for', '(', $.ellipsis, ')', $._statement)
+               seq('for', '(', $.ellipsis, ')', $.statement)
             );
         },
 
@@ -119,23 +117,20 @@ module.exports = grammar(base_grammar, {
             );
         },
 
-      //TODO? it would be better to refactor the original grammar with
-      // a enum_member so we don't have to copy-paste the original rule
-      enum_declaration: $ =>  seq(
-            'enum',
-            field("enum_type_name", $.identifier),
-            '{',
-            commaSep($._enum_member),
-            '}',
-      ),
-      _enum_member: $ => choice(
-          alias($.identifier, $.enum_value),
-          $.ellipsis
-      ),
+        enum_body: $ => choice(
+          seq(
+              '{',
+              choice(
+                commaSep(alias($.identifier, $.enum_value)),
+                $.ellipsis
+              ),
+              '}',
+          ),
+        ),
 
       // The actual ellipsis rules
         deep_ellipsis: $ => seq(
-            '<...', $._expression, '...>'
+            '<...', $.expression, '...>'
         ),
 
         ellipsis: $ => '...',
