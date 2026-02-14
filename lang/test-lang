@@ -63,6 +63,8 @@ sublangs="$lang"
 # dialects for each tree-sitter-X project.
 if [[ "$lang" = typescript ]]; then
   sublangs="typescript tsx"
+elif [[ "$lang" = php ]]; then
+  sublangs="php php-only"
 elif [[ "$lang" = sfapex ]]; then
   # sosl and soql are subgrammars of apex which have their own test suites
   # but we don't care about them as standalone languages.
