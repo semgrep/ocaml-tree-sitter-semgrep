@@ -26,7 +26,6 @@ SUPPORTED_TS_LANGUAGES = \
   dockerfile \
   elixir \
   fga \
-  fsharp \
   go \
   gosu \
 	gomod \
@@ -82,7 +81,6 @@ SUPPORTED_DIALECTS = \
   dockerfile \
   elixir \
   fga \
-  fsharp \
   go \
   gosu \
   hack \
