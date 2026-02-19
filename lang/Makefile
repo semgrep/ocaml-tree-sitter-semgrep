@@ -203,6 +203,30 @@ dry:
 	  ./release $$lang --dry-run; \
 	done
 
+.PHONY: gen-all
+gen-all:
+	set -eu; \
+        for lang in $(SUPPORTED_DIALECTS); do \
+	  make -C $$lang clean; \
+	  make -C $$lang; \
+	done
+
+.PHONY: push-to-branch-all
+push-to-branch-all:
+	set -eu; \
+        for lang in $(SUPPORTED_DIALECTS); do \
+	  cd export/semgrep-$$lang; \
+    if git show-ref --verify --quiet refs/heads/katrina/parsing-timeout; then \
+      echo "Branch katrina/parsing-timeout already exists, skipping..."; \
+    else \
+      git checkout -b katrina/parsing-timeout; \
+      git add .; \
+      git commit -m "Add parsing timeout"; \
+      git push --set-upstream origin katrina/parsing-timeout; \
+    fi; \
+    cd ../..; \
+	done
+
 .PHONY: stat
 stat:
 	$(MAKE) stat1
