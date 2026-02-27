@@ -44,6 +44,7 @@ SUPPORTED_TS_LANGUAGES = \
   move-on-sui \
   ocaml \
   php \
+  powershell \
   promql \
   proto \
   python \
@@ -98,6 +99,7 @@ SUPPORTED_DIALECTS = \
   move-on-sui \
   ocaml \
   php \
+  powershell \
   promql \
   proto \
   python \
@@ -143,6 +145,7 @@ STAT_LANGUAGES2 = \
   move-on-sui \
   ocaml \
   php \
+  powershell \
   promql \
   python \
   r \

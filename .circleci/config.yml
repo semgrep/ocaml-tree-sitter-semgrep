@@ -165,6 +165,7 @@ workflows:
                 - move-on-sui
                 - ocaml
                 - php
+                - powershell
                 - promql
                 - proto
                 - python
