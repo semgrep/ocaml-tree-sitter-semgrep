@@ -27,14 +27,24 @@ module.exports = grammar(base_grammar, {
   */
     // Metavariables
 
-   // Rather than creating a separate metavariable term 
+   // Rather than creating a separate metavariable term
    // and adding it to identifiers, this instead overrides the
-   // regex that is defined in the original tree-sitter grammar. 
-   // this is needed since currently in the original tree-sitter grammar, 
+   // regex that is defined in the original tree-sitter grammar.
+   // this is needed since currently in the original tree-sitter grammar,
    // identifier is a terminal, and thus can't do
    // the usual choice/previous shadowing definition.
 
     identifier: $ => /\$?[_\p{XID_Start}][_\p{XID_Continue}]*/,
-      
+
+    // Allow '...' in the attribute position of a dot-access expression,
+    // so that patterns like `a. ... .d` work for matching call chains.
+    // This mirrors the Java grammar's field_access override.
+    // PREC.call = 22 in the base Python grammar.
+    attribute: $ => prec(22, seq(
+      field('object', $.primary_expression),
+      '.',
+      field('attribute', choice($.identifier, '...')),
+    )),
+
   }
 });
