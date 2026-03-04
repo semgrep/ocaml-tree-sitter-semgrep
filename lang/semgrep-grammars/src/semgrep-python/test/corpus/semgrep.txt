@@ -1,4 +1,18 @@
 ====================================
+Ellipsis in dot-access chain
+====================================
+
+a. ... .d
+---
+
+(module
+  (expression_statement
+    (attribute
+      (attribute
+        (identifier))
+      (identifier))))
+
+====================================
 Metavariable in match
 ====================================
 
