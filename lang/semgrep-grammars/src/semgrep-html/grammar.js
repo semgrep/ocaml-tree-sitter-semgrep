@@ -90,5 +90,12 @@ module.exports = grammar(base_grammar, {
     ),
 
     semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+
+    // Override base text rule to allow unescaped '>' in character data.
+    // The XML 1.1 spec (and HTML spec) only requires '<' and '&' to be
+    // escaped; '>' is legal in text content. The upstream tree-sitter-html
+    // grammar excludes '>' from text, which causes parse errors on valid
+    // XML like <item>1 > 0</item>.
+    text: _ => /[^<&\s]([^<&]*[^<&\s])?/,
   }
 });
