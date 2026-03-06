@@ -133,3 +133,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-fga"]
 	path = lang/semgrep-grammars/src/tree-sitter-fga
 	url = https://github.com/semgrep/tree-sitter-fga.git
+[submodule "lang/semgrep-grammars/src/tree-sitter-powershell"]
+	path = lang/semgrep-grammars/src/tree-sitter-powershell
+	url = https://github.com/airbus-cert/tree-sitter-powershell
