@@ -1,1 +1,22 @@
-../prep.common
+#! /usr/bin/env bash
+#
+# Import and patch up external files.
+#
+set -eu -o pipefail
+
+mkdir -p src
+(
+  cd src
+  rm -f scanner.c scanner.h
+  ln -sf ../../tree-sitter-php/common/scanner.h .
+  sed -e "s#../../common/scanner.h#./scanner.h#" > scanner.c < ../../tree-sitter-php/php/src/scanner.c
+)
+
+mkdir -p test/corpus
+(
+  cd test/corpus
+  rm -f inherited
+  mkdir inherited
+  cp ../../../tree-sitter-php/test/corpus/* inherited
+  rm inherited/php_only.txt
+)
