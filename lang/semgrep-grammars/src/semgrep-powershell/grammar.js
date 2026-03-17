@@ -43,5 +43,12 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_ellipsis,
     )),
+
+    // Allow ellipsis in method invocation argument lists
+    // e.g. $OBJ.GetMethods(...)
+    argument_expression: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
   }
 });

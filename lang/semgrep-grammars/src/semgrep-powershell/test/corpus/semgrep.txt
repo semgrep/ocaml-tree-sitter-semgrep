@@ -116,6 +116,36 @@ $x = ...
         value: (semgrep_ellipsis)))))
 
 =====================================
+Ellipsis in method arguments
+=====================================
+
+$OBJ.GetMethods(...)
+
+---
+
+(program
+  (statement_list
+    (pipeline
+      (pipeline_chain
+        (logical_expression
+          (bitwise_expression
+            (comparison_expression
+              (additive_expression
+                (multiplicative_expression
+                  (format_expression
+                    (range_expression
+                      (array_literal_expression
+                        (unary_expression
+                          (invokation_expression
+                            (variable)
+                            (member_name
+                              (simple_name))
+                            (argument_list
+                              argument_expression_list: (argument_expression_list
+                                (argument_expression
+                                  (semgrep_ellipsis))))))))))))))))))
+
+=====================================
 Metavariable in expression
 =====================================
 
