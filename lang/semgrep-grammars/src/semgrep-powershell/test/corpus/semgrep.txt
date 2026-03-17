@@ -146,6 +146,177 @@ $OBJ.GetMethods(...)
                                   (semgrep_ellipsis))))))))))))))))))
 
 =====================================
+Ellipsis at beginning of method arguments
+=====================================
+
+$OBJ.GetMethods(..., "arg2")
+
+---
+
+(program
+  (statement_list
+    (pipeline
+      (pipeline_chain
+        (logical_expression
+          (bitwise_expression
+            (comparison_expression
+              (additive_expression
+                (multiplicative_expression
+                  (format_expression
+                    (range_expression
+                      (array_literal_expression
+                        (unary_expression
+                          (invokation_expression
+                            (variable)
+                            (member_name
+                              (simple_name))
+                            (argument_list
+                              argument_expression_list: (argument_expression_list
+                                (argument_expression
+                                  (semgrep_ellipsis))
+                                (argument_expression
+                                  (logical_argument_expression
+                                    (bitwise_argument_expression
+                                      (comparison_argument_expression
+                                        (additive_argument_expression
+                                          (multiplicative_argument_expression
+                                            (format_argument_expression
+                                              (range_argument_expression
+                                                (unary_expression
+                                                  (string_literal
+                                                    (expandable_string_literal)))))))))))))))))))))))))))
+
+=====================================
+Ellipsis at end of method arguments
+=====================================
+
+$OBJ.GetMethods("arg1", ...)
+
+---
+
+(program
+  (statement_list
+    (pipeline
+      (pipeline_chain
+        (logical_expression
+          (bitwise_expression
+            (comparison_expression
+              (additive_expression
+                (multiplicative_expression
+                  (format_expression
+                    (range_expression
+                      (array_literal_expression
+                        (unary_expression
+                          (invokation_expression
+                            (variable)
+                            (member_name
+                              (simple_name))
+                            (argument_list
+                              argument_expression_list: (argument_expression_list
+                                (argument_expression
+                                  (logical_argument_expression
+                                    (bitwise_argument_expression
+                                      (comparison_argument_expression
+                                        (additive_argument_expression
+                                          (multiplicative_argument_expression
+                                            (format_argument_expression
+                                              (range_argument_expression
+                                                (unary_expression
+                                                  (string_literal
+                                                    (expandable_string_literal)))))))))))
+                                (argument_expression
+                                  (semgrep_ellipsis))))))))))))))))))
+
+=====================================
+Ellipsis in middle of method arguments
+=====================================
+
+$OBJ.GetMethods("arg1", ..., "arg3")
+
+---
+
+(program
+  (statement_list
+    (pipeline
+      (pipeline_chain
+        (logical_expression
+          (bitwise_expression
+            (comparison_expression
+              (additive_expression
+                (multiplicative_expression
+                  (format_expression
+                    (range_expression
+                      (array_literal_expression
+                        (unary_expression
+                          (invokation_expression
+                            (variable)
+                            (member_name
+                              (simple_name))
+                            (argument_list
+                              argument_expression_list: (argument_expression_list
+                                (argument_expression
+                                  (logical_argument_expression
+                                    (bitwise_argument_expression
+                                      (comparison_argument_expression
+                                        (additive_argument_expression
+                                          (multiplicative_argument_expression
+                                            (format_argument_expression
+                                              (range_argument_expression
+                                                (unary_expression
+                                                  (string_literal
+                                                    (expandable_string_literal)))))))))))
+                                (argument_expression
+                                  (semgrep_ellipsis))
+                                (argument_expression
+                                  (logical_argument_expression
+                                    (bitwise_argument_expression
+                                      (comparison_argument_expression
+                                        (additive_argument_expression
+                                          (multiplicative_argument_expression
+                                            (format_argument_expression
+                                              (range_argument_expression
+                                                (unary_expression
+                                                  (string_literal
+                                                    (expandable_string_literal)))))))))))))))))))))))))))
+
+=====================================
+Ellipsis in static method arguments
+=====================================
+
+[System.IO.Path]::Combine(...)
+
+---
+
+(program
+  (statement_list
+    (pipeline
+      (pipeline_chain
+        (logical_expression
+          (bitwise_expression
+            (comparison_expression
+              (additive_expression
+                (multiplicative_expression
+                  (format_expression
+                    (range_expression
+                      (array_literal_expression
+                        (unary_expression
+                          (invokation_expression
+                            (type_literal
+                              (type_spec
+                                (type_name
+                                  (type_name
+                                    (type_name
+                                      (type_identifier))
+                                    (type_identifier))
+                                  (type_identifier))))
+                            (member_name
+                              (simple_name))
+                            (argument_list
+                              argument_expression_list: (argument_expression_list
+                                (argument_expression
+                                  (semgrep_ellipsis))))))))))))))))))
+
+=====================================
 Metavariable in expression
 =====================================
 
