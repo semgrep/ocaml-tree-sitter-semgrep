@@ -136,3 +136,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-powershell"]
 	path = lang/semgrep-grammars/src/tree-sitter-powershell
 	url = https://github.com/airbus-cert/tree-sitter-powershell
+[submodule "lang/semgrep-grammars/src/tree-sitter-scala"]
+	path = lang/semgrep-grammars/src/tree-sitter-scala
+	url = https://github.com/tree-sitter/tree-sitter-scala/
