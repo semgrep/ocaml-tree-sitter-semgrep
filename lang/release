@@ -20,7 +20,7 @@ for 'typescript' and for 'tsx'. You need to release both:
   ./$prog_name typescript
   ./$prog_name tsx
 
-Usage: $prog_name [--dry-run] [--make-new] LANG
+Usage: $prog_name [--dry-run] [--make-new] [--branch BRANCH] LANG
 Options:
   --dry-run
       Do everything except committing the result to the git repo
@@ -29,6 +29,9 @@ Options:
   --make-new
       Make a new local repository in the export dir. Useful when adding
       support for a new language.
+  --branch BRANCH
+      Use the specified branch in the release repo. If the branch does not
+      exist, it will be created and pushed.
   --help
       Print this message and exit.
 EOF
@@ -42,6 +45,7 @@ error() {
 lang=''
 dry_run=false
 make_new=false
+branch_arg=''
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -50,6 +54,13 @@ while [[ $# -gt 0 ]]; do
       ;;
     --make-new)
       make_new=true
+      ;;
+    --branch)
+      shift
+      if [[ $# -eq 0 ]]; then
+        error "--branch requires an argument"
+      fi
+      branch_arg="$1"
       ;;
     --help)
       usage
@@ -179,13 +190,24 @@ remote_url="git@github.com:${GITHUB_ORG:-semgrep}/$repo.git"
   fi
 )
 
-if [[ "$make_new" != true ]];
-then
-  branch=$(git -C "$export_dir/$repo" rev-parse --abbrev-ref HEAD)
-  echo "[$export_dir/$repo] Pulling branch '$branch'"
-  git -C "$export_dir/$repo" pull origin "$branch" --ff-only
+if [[ "$make_new" != true ]]; then
+  if [[ -n "$branch_arg" ]]; then
+    branch="$branch_arg"
+    if git -C "$export_dir/$repo" rev-parse --verify "refs/remotes/origin/$branch" &>/dev/null; then
+      echo "[$export_dir/$repo] Checking out existing branch '$branch'"
+      git -C "$export_dir/$repo" checkout "$branch"
+      git -C "$export_dir/$repo" pull origin "$branch" --ff-only
+    else
+      echo "[$export_dir/$repo] Creating new branch '$branch'"
+      git -C "$export_dir/$repo" checkout -b "$branch"
+    fi
+  else
+    branch=$(git -C "$export_dir/$repo" rev-parse --abbrev-ref HEAD)
+    echo "[$export_dir/$repo] Pulling branch '$branch'"
+    git -C "$export_dir/$repo" pull origin "$branch" --ff-only
+  fi
 else
-  branch="main"
+  branch="${branch_arg:-main}"
 fi
 
 # Copy the files that we find.
