@@ -432,6 +432,59 @@ case class $MODEL(..., $SENSITIVE: String, ...)
         (semgrep_ellipsis)))))
 
 ========================
+Security: hardcoded secret used in JWT HMAC256
+========================
+
+class $CLASS {
+  ...
+  $DECL $SECRET = "...";
+  ...
+  def $FUNC (...): $RETURNTYPE = {
+    ...
+    com.auth0.jwt.algorithms.Algorithm.HMAC256($SECRET);
+    ...
+  }
+  ...
+}
+
+---
+
+(compilation_unit
+  (class_definition
+    (identifier)
+    (template_body
+      (semgrep_ellipsis)
+      (semgrep_val_or_var_definition
+        (semgrep_metavariable)
+        (identifier)
+        (string))
+      (semgrep_ellipsis)
+      (function_definition
+        (identifier)
+        (parameters
+          (parameter
+            (semgrep_ellipsis)))
+        (type_identifier)
+        (block
+          (semgrep_ellipsis)
+          (call_expression
+            (field_expression
+              (field_expression
+                (field_expression
+                  (field_expression
+                    (field_expression
+                      (identifier)
+                      (identifier))
+                    (identifier))
+                  (identifier))
+                (identifier))
+              (identifier))
+            (arguments
+              (semgrep_metavariable)))
+          (semgrep_ellipsis)))
+      (semgrep_ellipsis))))
+
+========================
 Pattern: deep expression for taint check
 ========================
 

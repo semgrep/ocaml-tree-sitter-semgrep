@@ -1,0 +1,94 @@
+From 781325e3ccd057376ec0c47e6816268a2e01265b Mon Sep 17 00:00:00 2001
+From: Cooper Pierce <cooper@semgrep.com>
+Date: Wed, 1 Apr 2026 16:05:17 -0400
+Subject: [PATCH] fix(lambda): support typed implicit parameter in
+ ResultExpr/BlockResult form
+
+Both the Scala 2.13 and Scala 3.4 specifications define two productions for
+anonymous function parameters, distinguished by position:
+
+  Expr       ::=  (Bindings | ['implicit'] (id | '_')) '=>' Expr
+  ResultExpr ::=  (Bindings | (['implicit'] id | '_') ':' CompoundType) '=>' Block
+
+The ResultExpr production applies when the lambda is the sole expression in a
+block, and extends the unparenthesized single-parameter form to allow an
+optional type annotation:
+
+  { implicit request: Request[AnyContent] => body }
+
+This pattern is ubiquitous in Play Framework action handlers. Previously
+tree-sitter-scala parsed this incorrectly: `implicit` was silently consumed by
+the optional() in `seq(optional("implicit"), $._identifier)`, leaving `request`
+as the identifier, and `: Request[AnyContent]` was misparse as a second
+`parameters` child rather than a type annotation.
+
+Verified with scalac 3.7.3 `-Vprint:parser`, which normalizes the source form
+to `(implicit request: Request[AnyContent]) =>`, confirming it is accepted and
+treated as a single typed binding.
+
+The fix splits the former `seq(optional("implicit"), $._identifier)` alternative
+into two explicit branches:
+  - `seq("implicit", $._identifier, optional(seq(":", $._param_type)))` for the
+    implicit case, now allowing an optional type annotation
+  - `$._identifier` for the plain untyped case
+
+Making `implicit` required (rather than optional) in the typed branch avoids new
+LR conflicts: `implicit` at the start of a statement cannot be confused with
+type ascription (`expr : Type`) or `self_type` (`id : Type =>`), so no
+additional conflict declarations are needed.
+
+Spec references:
+  https://www.scala-lang.org/files/archive/spec/2.13/06-expressions.html#anonymous-functions
+  https://www.scala-lang.org/files/archive/spec/3.4/06-expressions.html#anonymous-functions
+  (ResultExpr production, Section 6.23, both versions)
+---
+ grammar.js                  |  3 ++-
+ test/corpus/expressions.txt | 18 ++++++++++++++++++
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/grammar.js b/grammar.js
+index 5b98c1d..9020be2 100644
+--- a/grammar.js
++++ b/grammar.js
+@@ -1175,7 +1175,8 @@ module.exports = grammar({
+             "parameters",
+             choice(
+               $.bindings,
+-              seq(optional("implicit"), $._identifier),
++              seq("implicit", $._identifier, optional(seq(":", field("type", $._param_type)))),
++              $._identifier,
+               $.wildcard,
+             ),
+           ),
+diff --git a/test/corpus/expressions.txt b/test/corpus/expressions.txt
+index f6498cc..4957597 100644
+--- a/test/corpus/expressions.txt
++++ b/test/corpus/expressions.txt
+@@ -1250,6 +1250,24 @@ object O:
+               (type_identifier)))
+           (operator_identifier))))))
+ 
++================================================================================
++Lambda Expression with implicit typed parameter (ResultExpr form)
++================================================================================
++
++{ implicit request: Request[AnyContent] => body }
++
++--------------------------------------------------------------------------------
++
++(compilation_unit
++  (block
++    (lambda_expression
++      (identifier)
++      (generic_type
++        (type_identifier)
++        (type_arguments
++          (type_identifier)))
++      (identifier))))
++
+ ================================================================================
+ Unit expressions
+ ================================================================================
+-- 
+2.39.5 (Apple Git-154)
+
