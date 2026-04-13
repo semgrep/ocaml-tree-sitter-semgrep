@@ -31,6 +31,7 @@ module.exports = grammar(base_grammar, {
         ),
         _simple_expression: ($, previous) => choice(
             previous,
+            $.symbol_literal,
             $.semgrep_metavariable,
             $.deep_expression,
             $.semgrep_ellipsis_metavariable,
@@ -54,5 +55,55 @@ module.exports = grammar(base_grammar, {
             ),
 
         _definition: ($, previous) => choice(previous, $.semgrep_val_or_var_definition),
+
+        // Upstream grammar fixes (until merged upstream)
+
+        // Fix: limit constructor annotation to single argument list.
+        // The base `annotation` rule uses `repeat($.arguments)` which greedily
+        // consumes class_parameters as annotation arguments in constructors
+        // like `class Foo @Inject()(val x: Int)`.
+        _constructor_annotation: $ =>
+            prec.right(
+                seq(
+                    "@",
+                    field("name", $._simple_type),
+                    field("arguments", optional($.arguments)),
+                ),
+            ),
+
+        // Fix: allow empty blocks in quote expressions.
+        quote_expression: ($, _previous) =>
+            prec.left(
+                10, // PREC.macro
+                seq(
+                    "'",
+                    choice(seq("{", optional($._block), "}"), seq("[", $._type, "]"), $.identifier),
+                ),
+            ),
+
+        // Fix: support by-name repeated parameter types (=> T*).
+        repeated_parameter_type: ($, _previous) =>
+            prec.left(
+                5, // PREC.postfix
+                seq(field("type", choice($._type, $.lazy_parameter_type)), "*"),
+            ),
+
+        _class_constructor: ($, _previous) =>
+            seq(
+                field("name", $._identifier),
+                field("type_parameters", optional($.type_parameters)),
+                optional($._constructor_annotation),
+                optional($.access_modifier),
+                field(
+                    "class_parameters",
+                    repeat(seq(optional($._automatic_semicolon), $.class_parameters)),
+                ),
+            ),
+
+        // Feat: Scala 2 symbol literal support.
+        // Deprecated in Scala 3 but still accepted. Lower precedence so
+        // quote_expression wins in Scala 3 contexts.
+        symbol_literal: $ =>
+            prec(-1, seq("'", field("name", $.identifier))),
     },
 });
