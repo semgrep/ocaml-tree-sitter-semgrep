@@ -92,6 +92,28 @@ XML constructs
           (tag_name))))
 
 ===================================
+Unescaped > in text content (valid XML)
+===================================
+<item>1 > 0</item>
+---
+(document
+  (element
+    (start_tag (tag_name))
+    (text)
+    (end_tag (tag_name))))
+
+===================================
+Multiple unescaped > in text
+===================================
+<item>a > b and c > d</item>
+---
+(document
+  (element
+    (start_tag (tag_name))
+    (text)
+    (end_tag (tag_name))))
+
+===================================
 Attribute pattern
 ===================================
 foo="true"
