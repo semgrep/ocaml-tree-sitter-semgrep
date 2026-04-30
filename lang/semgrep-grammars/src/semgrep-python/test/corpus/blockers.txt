@@ -1,0 +1,118 @@
+====================================
+Standalone decorator (semgrep pattern)
+====================================
+
+@$X
+---
+
+(module
+  (decorated_definition
+    (decorator
+      (identifier))))
+
+====================================
+Typed metavariable in call args
+====================================
+
+foo($X : int)
+---
+
+(module
+  (expression_statement
+    (call
+      (identifier)
+      (argument_list
+        (semgrep_typed_metavariable
+          (identifier)
+          (type
+            (identifier)))))))
+
+====================================
+Comprehension with ellipsis body
+====================================
+
+[... for x in items]
+---
+
+(module
+  (expression_statement
+    (list_comprehension
+      (ellipsis)
+      (for_in_clause
+        (identifier)
+        (identifier)))))
+
+====================================
+Comprehension with ellipsis everywhere
+====================================
+
+[... for ... in ...]
+---
+
+(module
+  (expression_statement
+    (list_comprehension
+      (ellipsis)
+      (for_in_clause
+        (ellipsis)
+        (ellipsis)))))
+
+====================================
+Comprehension with ellipsis iterable
+====================================
+
+[x for x in ...]
+---
+
+(module
+  (expression_statement
+    (list_comprehension
+      (identifier)
+      (for_in_clause
+        (identifier)
+        (ellipsis)))))
+
+====================================
+Deep ellipsis in call args
+====================================
+
+foo(<... bar ...>)
+---
+
+(module
+  (expression_statement
+    (call
+      (identifier)
+      (argument_list
+        (semgrep_deep_ellipsis
+          (identifier))))))
+
+====================================
+Deep ellipsis with binary op inside
+====================================
+
+x = <... a + b ...>
+---
+
+(module
+  (expression_statement
+    (assignment
+      (identifier)
+      (semgrep_deep_ellipsis
+        (binary_operator
+          (identifier)
+          (identifier))))))
+
+====================================
+Comparison still works after deep ellipsis
+====================================
+
+a < b
+---
+
+(module
+  (expression_statement
+    (comparison_operator
+      (identifier)
+      (identifier))))
+
