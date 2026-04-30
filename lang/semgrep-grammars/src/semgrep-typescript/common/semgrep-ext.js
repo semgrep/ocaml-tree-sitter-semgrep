@@ -6,6 +6,18 @@
  * Even if we only use one of these parsers to parse patterns, it's simpler to
  * keep the CSTs the same and there's little downside in doing so.
  */
+
+// Local copies of the upstream helpers in
+// `tree-sitter-typescript/common/define-grammar.js`. We re-define them here
+// because they are not exported, but we need the same shapes when we replace
+// upstream rules wholesale (e.g. `object_type`, `enum_body`, `type_parameters`).
+function sepBy1(sep, rule) {
+  return seq(rule, repeat(seq(sep, rule)));
+}
+function commaSep1(rule) {
+  return sepBy1(',', rule);
+}
+
 module.exports = {
   conflicts: ($, previous) => previous.concat([
     [$.semgrep_expression_ellipsis, $.spread_element],
@@ -30,6 +42,75 @@ module.exports = {
     [$.spread_element, $.rest_pattern, $.semgrep_ellipsis],
     [$.spread_element, $.rest_pattern, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
     [$.statement, $.pair, $.pair_pattern],
+    // ----- Conflicts introduced by the LANG-477/489/500/502/504 extensions. -----
+    // LANG-489: `...` in type position conflicts with `rest_type` (`...` + type).
+    [$.semgrep_ellipsis, $.rest_type, $.primary_type],
+    // LANG-477/489: at the top of `semgrep_pattern`, `Foo` could be a
+    // `primary_expression` or the head of a `generic_type`.
+    [$.primary_expression, $._property_name, $.generic_type],
+    // LANG-489: `readonly` can lead either a `readonly_type` or a `_property_name`.
+    [$._property_name, $.readonly_type],
+    [$._property_name, $.constructor_type],
+    [$._property_name, $.generic_type],
+    // LANG-489: a bare `...` at the top level could be either a `pair` ellipsis
+    // or a `primary_type` ellipsis.
+    [$.pair, $.primary_type],
+    // LANG-500: `{ ... }` could be an object literal/pattern or `object_type`.
+    [$.pair, $.pair_pattern, $.object_type],
+    // LANG-489: `(...)` is parenthesized type / parenthesized expression /
+    // parameter pattern.
+    [$._formal_parameter, $.pattern, $.primary_type],
+    // LANG-489: `[...` could begin a tuple type, array pattern, array literal,
+    // or be a stand-alone ellipsis.
+    [$.spread_element, $.rest_pattern, $.rest_type, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.rest_pattern, $.rest_type, $.semgrep_ellipsis],
+    [$.rest_pattern, $.rest_type, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.rest_pattern, $.rest_type, $.semgrep_expression_ellipsis],
+    [$.rest_pattern, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.rest_type, $.semgrep_ellipsis, $.semgrep_expression_ellipsis],
+    [$.rest_type, $.semgrep_ellipsis],
+    // LANG-489: `[id : type]` ambiguity between an `index_signature` and a
+    // tuple-type element with a `type_annotation`.
+    [$.type_annotation, $.index_signature],
+    // LANG-477: standalone decorator pattern collides with method/field patterns.
+    [$.method_definition, $.method_signature, $.existential_type],
+    // LANG-504: `<...>` is ambiguous between `<primary_type>` and
+    // `<type_parameter, ...>`.
+    [$.primary_type, $.type_parameters],
+    // LANG-489: `const` could begin a `lexical_declaration` (statement) or
+    // be the literal `const` of `primary_type`.
+    [$.lexical_declaration, $.primary_type],
+    // LANG-489: a bare `...` at the top level can be a `pair` ellipsis,
+    // a `statement` ellipsis, or a `primary_type` ellipsis.
+    [$.statement, $.pair, $.primary_type],
+    // LANG-500: `{}` at the top level is ambiguous between an object literal,
+    // an object type, and a `statement_block`.
+    [$.statement_block, $.object, $.object_type],
+    // LANG-500: `{ ;` could begin an `object_type` (with a leading separator)
+    // or a `statement_block` containing an `empty_statement`.
+    [$.empty_statement, $.object_type],
+    // LANG-500: `{ static ...` is ambiguous between a `method_definition`/
+    // `method_signature`/`property_signature` (member-position) and a
+    // `primary_expression` (e.g. an identifier `static`).
+    [$.primary_expression, $.method_definition, $.method_signature, $.property_signature],
+    // LANG-500: same with `readonly`, which additionally introduces an
+    // `index_signature` ambiguity.
+    [$.primary_expression, $.method_definition, $.method_signature, $.property_signature, $.index_signature],
+    // LANG-500: `{ export ... }` could be a statement-block / object-type with
+    // an `export_statement` member.
+    [$.statement, $.object_type],
+    // LANG-500: `{ ... }` is ambiguous between several constructs that all
+    // accept `semgrep_ellipsis` as a member or sole content.
+    [$.statement, $.pair, $.pair_pattern, $.object_type],
+    // LANG-489 (statement extension side-effect): `var x = y(` — the `y` could
+    // be a `primary_expression` (in a normal statement) or part of an
+    // `assign_lambda` (`var x = y()...`).
+    [$.primary_expression, $.assign_lambda],
+    // LANG-489: `function NAME(...) { ... }` is now reachable both as a
+    // top-level `statement` (a `function_declaration`) and via
+    // `function_declaration_pattern` / `function_expression`.
+    [$.function_expression, $.function_declaration, $.function_declaration_pattern],
+    [$.function_declaration, $.function_declaration_pattern],
   ]),
 
 
@@ -80,6 +161,17 @@ module.exports = {
       $.finally_clause,
       $.catch_clause,
       $.assign_lambda,
+      // LANG-477: standalone decorator patterns: `@DEC`, `@DEC()`, `@DEC(...)`.
+      $.decorator,
+      // LANG-489 / LANG-500 / LANG-502: declaration-position patterns —
+      // `type T = ...`, `interface I { ... }`, `enum E { ... }`,
+      // `let X: ...`, `function $F<...>(...) { ... }`, etc. all live under
+      // `statement`/`declaration`, not `expression`.
+      $.statement,
+      // LANG-489: bare type-position patterns, e.g. `Pick<T, $K>`.
+      $.type,
+      // LANG-489: type predicates, e.g. `X is T`.
+      $.type_predicate,
     ),
 
     method_pattern: $ => choice(
@@ -225,6 +317,54 @@ module.exports = {
       '}'
     ),
 
+    // LANG-500: allow `...` as a member of `object_type`. Upstream defines
+    // `interface_body` as `alias($.object_type, $.interface_body)`, so this
+    // single override fixes both `interface I { ... }` and `type T = { ... }`.
+    // Mirrors the upstream `object_type` shape verbatim, with `semgrep_ellipsis`
+    // added as one extra member alternative.
+    object_type: $ => seq(
+      choice('{', '{|'),
+      optional(seq(
+        optional(choice(',', ';')),
+        sepBy1(
+          choice(',', $._semicolon),
+          choice(
+            $.export_statement,
+            $.property_signature,
+            $.call_signature,
+            $.construct_signature,
+            $.index_signature,
+            $.method_signature,
+            $.semgrep_ellipsis,
+          ),
+        ),
+        optional(choice(',', $._semicolon)),
+      )),
+      choice('}', '|}'),
+    ),
+
+    // LANG-502: allow `...` as a member of `enum_body`. Mirrors upstream verbatim.
+    enum_body: $ => seq(
+      '{',
+      optional(seq(
+        sepBy1(',', choice(
+          field('name', $._property_name),
+          $.enum_assignment,
+          $.semgrep_ellipsis,
+        )),
+        optional(','),
+      )),
+      '}',
+    ),
+
+    // LANG-504: allow `<...>` and `<$T, ...>` in generic-parameter lists.
+    type_parameters: $ => seq(
+      '<',
+      commaSep1(choice($.type_parameter, $.semgrep_ellipsis)),
+      optional(','),
+      '>',
+    ),
+
     member_expression: $ => prec('member', seq(
       field('object', choice($.expression, $.primary_expression, $.import)),
       choice('.', field('optional_chain', $.optional_chain)),
@@ -270,6 +410,18 @@ module.exports = {
       previous,
       $.semgrep_expression_ellipsis,
       $.deep_ellipsis,
+      $.semgrep_metavar_ellipsis,
+    ),
+
+    // LANG-489 / LANG-504: admit `...` and `$X` (and `$...X`) wherever a type
+    // is expected. `primary_type` is reachable from `type` and from every
+    // `_type`-typed slot (type alias RHS, type annotation, conditional-type
+    // sides, mapped-type value, tuple types, generic type arguments), so a
+    // single extension covers all of those positions.
+    primary_type: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavariable,
       $.semgrep_metavar_ellipsis,
     ),
 
