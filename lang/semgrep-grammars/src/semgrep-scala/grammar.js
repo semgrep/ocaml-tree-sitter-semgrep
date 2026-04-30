@@ -18,6 +18,8 @@ module.exports = grammar(base_grammar, {
         semgrep_expression: $ => seq(token(prec(100, '__SEMGREP_EXPRESSION')), $.expression),
         semgrep_statement: $ => seq(token(prec(100, '__SEMGREP_STATEMENT')), choice($.expression, $._definition)),
         semgrep_member_decl: $ => seq(token(prec(100, '__SEMGREP_MEMBER_DECL')), choice($.function_definition, $.function_declaration, $.val_definition, $.val_declaration, $.var_definition, $.var_declaration)),
+        // LANG-482: bare `case $X => ...` clauses outside a match block.
+        semgrep_case_clause: $ => $.case_clause,
         semgrep_metavariable: _ => token(prec(1, /\$[A-Z][A-Za-z0-9_]*/)),
         semgrep_ellipsis: _ => token(prec(1, '...')),
         semgrep_ellipsis_metavariable: _ => token(prec(1, /\$\.\.\.[A-Za-z_][A-Za-z0-9_]*/)),
@@ -27,6 +29,7 @@ module.exports = grammar(base_grammar, {
             $.semgrep_expression,
             $.semgrep_statement,
             $.semgrep_member_decl,
+            $.semgrep_case_clause,
             previous,
         ),
         _simple_expression: ($, previous) => choice(
@@ -41,6 +44,53 @@ module.exports = grammar(base_grammar, {
         parameter: ($, previous) => choice(previous, $.semgrep_ellipsis),
         class_parameter: ($, previous) => choice(previous, $.semgrep_ellipsis),
         enumerator: ($, previous) => choice(previous, prec(1, $.semgrep_ellipsis)),
+
+        // LANG-488: allow `...` in place of (or interleaved with) case clauses
+        // so patterns like `$X match { ... }` parse cleanly. The upstream
+        // form (with at least one concrete `case_clause`) is kept verbatim so
+        // existing tests that expect a trailing `...` to be absorbed into
+        // the *body* of the last case_clause still parse that way. The new
+        // ellipsis-only alternative is given a deeply-negative precedence
+        // so that contexts admitting both `block` and `case_block` (e.g.
+        // function bodies, finally-clauses) continue to prefer `block`.
+        case_block: $ => choice(
+            prec(-1, seq("{", "}")),
+            seq("{", repeat1($.case_clause), "}"),
+            prec(-10, seq("{", $.semgrep_ellipsis, "}")),
+        ),
+
+        // LANG-492: accept ellipsis / ellipsis-metavariable in type-argument
+        // position, e.g. `List[$...TS]` or `Map[$K, ...]`. Replace the
+        // upstream rule to keep a single shared comma-separated repeat,
+        // avoiding parser-table conflicts with `tuple_type` (which also
+        // begins with `_type ,`).
+        type_arguments: $ =>
+            seq(
+                "[",
+                trailingCommaSep1(choice(
+                    $._type,
+                    $.semgrep_ellipsis,
+                    $.semgrep_ellipsis_metavariable,
+                )),
+                "]",
+            ),
+
+        // LANG-496: `$F _` eta-expansion. Upstream `postfix_expression`
+        // restricts the right-hand side to an `_identifier` (identifier or
+        // operator_identifier), which excludes `_` (a `wildcard`). Add an
+        // alternative that pairs the same operand choice with a literal `_`
+        // so that any `<expr> _` form (including `$F _`) parses as a
+        // postfix_expression.
+        postfix_expression: ($, previous) => choice(
+            previous,
+            prec.left(
+                5, // PREC.postfix
+                seq(
+                    choice($.infix_expression, $.prefix_expression, $._simple_expression),
+                    "_",
+                ),
+            ),
+        ),
 
         // Semgrep pattern: $DECL $NAME = expr
         // Matches val/var definitions where the keyword is abstracted by a
@@ -107,3 +157,13 @@ module.exports = grammar(base_grammar, {
             prec(-1, seq("'", field("name", $.identifier))),
     },
 });
+
+// Local helpers (the upstream grammar.js defines these, but they are not
+// exported from the module).
+function sep1(delimiter, rule) {
+    return seq(rule, repeat(seq(delimiter, rule)));
+}
+
+function trailingCommaSep1(rule) {
+    return seq(sep1(",", rule), optional(","));
+}
