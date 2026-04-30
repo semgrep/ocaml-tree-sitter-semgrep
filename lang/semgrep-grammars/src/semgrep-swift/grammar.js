@@ -71,6 +71,21 @@ module.exports = grammar(base_grammar, {
       $.semgrep_ellipsis,
     ),
 
+    // LANG-499: allow `...` inside `protocol $P { ... }` bodies.
+    _protocol_member_declaration: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
+
+    // LANG-503: allow ellipsis / metavariable-ellipsis in inheritance lists,
+    // covering class, struct, extension, enum, and protocol since they all
+    // share `_inheritance_specifiers`.
+    inheritance_specifier: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_ellipsis_metavar,
+    ),
+
     type_parameter: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
