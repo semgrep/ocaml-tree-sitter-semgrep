@@ -1,0 +1,437 @@
+==========================
+Ellipsis as a statement
+==========================
+
+<?php
+foo();
+...;
+bar();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement (function_call_expression function: (name) arguments: (arguments)))
+  (semgrep_ellipsis)
+  (empty_statement)
+  (expression_statement (function_call_expression function: (name) arguments: (arguments))))
+
+==========================
+Ellipsis as an argument
+==========================
+
+<?php
+foo(1, ..., 2);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      function: (name)
+      arguments: (arguments
+        (argument (integer))
+        (argument (semgrep_ellipsis))
+        (argument (integer))))))
+
+==========================
+Variadic metavariable as argument
+==========================
+
+<?php
+foo($...ARGS);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      function: (name)
+      arguments: (arguments
+        (argument (semgrep_variadic_metavariable))))))
+
+==========================
+Ellipsis as a parameter
+==========================
+
+<?php
+function foo(...) { return 1; }
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    name: (name)
+    parameters: (formal_parameters (semgrep_ellipsis))
+    body: (compound_statement
+      (return_statement (integer)))))
+
+==========================
+Variadic metavariable as parameter
+==========================
+
+<?php
+function foo($...ARGS) { return 1; }
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    name: (name)
+    parameters: (formal_parameters (semgrep_variadic_metavariable))
+    body: (compound_statement
+      (return_statement (integer)))))
+
+==========================
+Deep ellipsis expression
+==========================
+
+<?php
+$x = <...foo($y)...>;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      left: (variable_name (name))
+      right: (semgrep_deep_ellipsis
+        (function_call_expression
+          function: (name)
+          arguments: (arguments (argument (variable_name (name)))))))))
+
+==========================
+Ellipsis inside class body
+==========================
+
+<?php
+class C {
+  ...
+  public function foo() {}
+  ...
+}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (name)
+    body: (declaration_list
+      (semgrep_ellipsis)
+      (method_declaration
+        (visibility_modifier)
+        name: (name)
+        parameters: (formal_parameters)
+        body: (compound_statement))
+      (semgrep_ellipsis))))
+
+==========================
+Ellipsis inside method body
+==========================
+
+<?php
+class C {
+  public function foo() {
+    ...;
+    bar();
+    ...
+  }
+}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (name)
+    body: (declaration_list
+      (method_declaration
+        (visibility_modifier)
+        name: (name)
+        parameters: (formal_parameters)
+        body: (compound_statement
+          (expression_statement (semgrep_ellipsis))
+          (expression_statement (function_call_expression function: (name) arguments: (arguments)))
+          (semgrep_ellipsis))))))
+
+==========================
+Ellipsis inside enum body
+==========================
+
+<?php
+enum Suit {
+  ...
+  case Hearts;
+  ...
+}
+
+---
+
+(program
+  (php_tag)
+  (enum_declaration
+    name: (name)
+    body: (enum_declaration_list
+      (semgrep_ellipsis)
+      (enum_case name: (name))
+      (semgrep_ellipsis))))
+
+==========================
+Ellipsis inside match block
+==========================
+
+<?php
+$x = match($v) {
+  1 => 'a',
+  ...,
+  2 => 'b',
+};
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      left: (variable_name (name))
+      right: (match_expression
+        condition: (parenthesized_expression (variable_name (name)))
+        body: (match_block
+          (match_conditional_expression
+            conditional_expressions: (match_condition_list (integer))
+            return_expression: (string))
+          (semgrep_ellipsis)
+          (match_conditional_expression
+            conditional_expressions: (match_condition_list (integer))
+            return_expression: (string)))))))
+
+==========================
+Metavar as class name
+==========================
+
+<?php
+class $C {
+  public function foo() {}
+}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (semgrep_metavar_ident)
+    body: (declaration_list
+      (method_declaration
+        (visibility_modifier)
+        name: (name)
+        parameters: (formal_parameters)
+        body: (compound_statement)))))
+
+==========================
+Metavar as interface name
+==========================
+
+<?php
+interface $I {}
+
+---
+
+(program
+  (php_tag)
+  (interface_declaration
+    name: (semgrep_metavar_ident)
+    body: (declaration_list)))
+
+==========================
+Metavar as trait name
+==========================
+
+<?php
+trait $T {}
+
+---
+
+(program
+  (php_tag)
+  (trait_declaration
+    name: (semgrep_metavar_ident)
+    body: (declaration_list)))
+
+==========================
+Metavar as enum name
+==========================
+
+<?php
+enum $E {
+  case A;
+}
+
+---
+
+(program
+  (php_tag)
+  (enum_declaration
+    name: (semgrep_metavar_ident)
+    body: (enum_declaration_list
+      (enum_case name: (name)))))
+
+==========================
+Metavar as function name
+==========================
+
+<?php
+function $F() { return 1; }
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    name: (semgrep_metavar_ident)
+    parameters: (formal_parameters)
+    body: (compound_statement
+      (return_statement (integer)))))
+
+==========================
+Metavar as method name
+==========================
+
+<?php
+class C {
+  public function $M() {}
+}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (name)
+    body: (declaration_list
+      (method_declaration
+        (visibility_modifier)
+        name: (semgrep_metavar_ident)
+        parameters: (formal_parameters)
+        body: (compound_statement)))))
+
+==========================
+Metavar as type
+==========================
+
+<?php
+function foo($T $x) { return $x; }
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    name: (name)
+    parameters: (formal_parameters
+      (simple_parameter
+        type: (type_list (named_type (semgrep_metavar_ident)))
+        name: (variable_name (name))))
+    body: (compound_statement
+      (return_statement (variable_name (name))))))
+
+==========================
+Metavar in extends clause
+==========================
+
+<?php
+class C extends $B {}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (name)
+    (base_clause (semgrep_metavar_ident))
+    body: (declaration_list)))
+
+==========================
+Metavar in implements clause
+==========================
+
+<?php
+class C implements $I {}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    name: (name)
+    (class_interface_clause (semgrep_metavar_ident))
+    body: (declaration_list)))
+
+==========================
+Metavar as attribute
+==========================
+
+<?php
+#[$A]
+class C {}
+
+---
+
+(program
+  (php_tag)
+  (class_declaration
+    attributes: (attribute_list (attribute (semgrep_metavar_ident)))
+    name: (name)
+    body: (declaration_list)))
+
+==========================
+Method call with ellipsis
+==========================
+
+<?php
+$obj->foo(...);
+$obj->bar(1, ..., 3);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      object: (variable_name (name))
+      name: (name)
+      arguments: (arguments (argument (semgrep_ellipsis)))))
+  (expression_statement
+    (member_call_expression
+      object: (variable_name (name))
+      name: (name)
+      arguments: (arguments
+        (argument (integer))
+        (argument (semgrep_ellipsis))
+        (argument (integer))))))
+
+==========================
+Variable-variable still parses ($$F)
+==========================
+
+<?php
+$$F = 1;
+$x = $$FOO;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      left: (dynamic_variable_name (variable_name (name)))
+      right: (integer)))
+  (expression_statement
+    (assignment_expression
+      left: (variable_name (name))
+      right: (dynamic_variable_name (variable_name (name))))))
