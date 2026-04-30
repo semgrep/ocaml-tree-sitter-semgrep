@@ -178,5 +178,13 @@ module.exports = grammar(base_grammar, {
     semgrep_ellipsis: $ => '...',
     deep_ellipsis: $ => seq('<...', $._expression, '...>'),
     semgrep_named_ellipsis: $ => /\$\.\.\.[A-Z_][A-Z_0-9]*/,
+
+    // LANG-506: allow `for (...) <body>` as shorthand. The full header form
+    // (with init/cond/update) already works because each component accepts
+    // an _expression and ellipsis is an _expression.
+    _for_statement_body: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+    ),
   }
 });

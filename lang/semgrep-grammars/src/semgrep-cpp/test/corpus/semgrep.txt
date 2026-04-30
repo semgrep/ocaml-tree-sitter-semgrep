@@ -386,3 +386,75 @@ class C { T operator $OP(T x); };
             (parameter_declaration
               (type_identifier)
               (identifier))))))))
+
+================================================================================
+For with ellipsis body (full header)
+================================================================================
+
+for ($I; $C; $S) { ... }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (for_statement
+    initializer: (identifier)
+    condition: (identifier)
+    update: (identifier)
+    body: (compound_statement
+      (semgrep_ellipsis))))
+
+================================================================================
+For with shorthand ellipsis header
+================================================================================
+
+for (...) { foo(); }
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (for_statement
+    (semgrep_ellipsis)
+    body: (compound_statement
+      (expression_statement
+        (call_expression
+          function: (identifier)
+          arguments: (argument_list))))))
+
+================================================================================
+Bare top level ellipsis (statement form)
+================================================================================
+
+...
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (semgrep_ellipsis))
+
+================================================================================
+Typed pointer metavariable
+================================================================================
+
+$T *$X = $E;
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (declaration
+    (type_identifier)
+    (init_declarator
+      (pointer_declarator
+        (identifier))
+      (identifier))))
+
+================================================================================
+Include with metavariable header
+================================================================================
+
+#include $H
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (preproc_include
+    path: (identifier)))
