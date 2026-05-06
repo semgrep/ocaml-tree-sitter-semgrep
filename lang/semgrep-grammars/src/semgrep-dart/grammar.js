@@ -39,9 +39,12 @@ module.exports = grammar(base_grammar, {
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
 
     // Alternate "entry point". Allows parsing a standalone expression.
-    semgrep_expression: ($) => seq("__SEMGREP_EXPRESSION", $.semgrep_pattern),
+    semgrep_expression: ($) => seq("__SEMGREP_EXPRESSION", $._semgrep_pattern),
 
-    semgrep_pattern: $ => choice(
+    // Hidden (leading underscore): the choice node is inlined into
+    // `semgrep_expression`, so the parse tree exposes the inner
+    // expression/statement directly.
+    _semgrep_pattern: $ => choice(
       $._expression,
       $._statement,
     ),
