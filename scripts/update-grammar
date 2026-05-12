@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""Update the upstream tree-sitter grammar submodule for a given language.
+
+Resolves the submodule at lang/semgrep-grammars/src/tree-sitter-<lang>, fetches
+from origin, and checks out the requested ref (default: the remote default
+branch). Then stages the bump, runs `lang/test-lang <lang>`, and finally
+`lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import getpass
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+from typing import NoReturn
+
+MIN_PYTHON = (3, 10)
+
+# Map from a language's lang/ folder name to its tree-sitter-<name> submodule
+# directory when the two differ.
+SUBMODULE_ALIASES = {
+    "gomod": "go-mod",
+    "apex": "sfapex",
+}
+
+# Fallback default branches to try when `origin/HEAD` isn't set on the clone.
+DEFAULT_BRANCH_FALLBACKS = ("origin/main", "origin/master")
+
+
+def die(msg: str) -> NoReturn:
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def run(cmd: list[str | Path], cwd: Path, *, capture: bool = False) -> str:
+    """Run a subprocess, raising on non-zero. Returns stdout when captured."""
+    print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
+    result = subprocess.run(
+        cmd,
+        cwd=cwd,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE if capture else None,
+    )
+    return (result.stdout or "").strip()
+
+
+def repo_root() -> Path:
+    return Path(
+        subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True, text=True, capture_output=True,
+        ).stdout.strip()
+    )
+
+
+def resolve_submodule(root: Path, lang: str) -> Path:
+    base = root / "lang" / "semgrep-grammars" / "src"
+    candidates = dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)])
+    for name in candidates:
+        path = base / f"tree-sitter-{name}"
+        if path.is_dir():
+            return path
+    available = sorted(
+        p.name.removeprefix("tree-sitter-")
+        for p in base.glob("tree-sitter-*")
+        if p.is_dir()
+    )
+    die(
+        f"no submodule found for language '{lang}'.\n"
+        f"  tried: {', '.join(candidates)}\n"
+        f"  available: {', '.join(available)}"
+    )
+
+
+def default_remote_ref(submodule: Path) -> str:
+    """Return the ref a plain `git pull` would track, with fallbacks."""
+    try:
+        return run(
+            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+            cwd=submodule, capture=True,
+        )
+    except subprocess.CalledProcessError:
+        pass
+    for ref in DEFAULT_BRANCH_FALLBACKS:
+        try:
+            run(["git", "rev-parse", "--verify", "--quiet", ref],
+                cwd=submodule, capture=True)
+            return ref
+        except subprocess.CalledProcessError:
+            continue
+    die(
+        f"could not determine the default remote branch in {submodule}; "
+        f"pass --ref explicitly."
+    )
+
+
+def short_sha(submodule: Path, sha: str) -> str:
+    return run(["git", "rev-parse", "--short", sha], cwd=submodule, capture=True)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Update a tree-sitter grammar submodule and run the "
+                    "downstream test-lang / release scripts.",
+    )
+    parser.add_argument(
+        "language",
+        help="Language name (matches lang/semgrep-grammars/src/tree-sitter-<lang>).",
+    )
+    parser.add_argument(
+        "--ref",
+        help="Branch, tag, or commit to check out (default: remote HEAD).",
+    )
+    parser.add_argument(
+        "--fetch",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run 'git fetch' in the submodule before resolving the ref.",
+    )
+    parser.add_argument(
+        "-n", "--dry-run",
+        action="store_true",
+        help="Run everything up to but not including 'lang/release'.",
+    )
+    return parser.parse_args()
+
+
+def update_submodule(args: argparse.Namespace, root: Path) -> tuple[Path, str]:
+    """Check out the requested ref. Returns (submodule_path, new_full_sha)."""
+    submodule = resolve_submodule(root, args.language)
+    old_sha = run(["git", "rev-parse", "HEAD"], cwd=submodule, capture=True)
+
+    if args.fetch:
+        run(["git", "fetch", "--tags", "origin"], cwd=submodule)
+
+    target = args.ref or default_remote_ref(submodule)
+    new_sha = run(["git", "rev-parse", target], cwd=submodule, capture=True)
+
+    rel = submodule.relative_to(root)
+    print(f"Submodule {rel}: {old_sha} -> {new_sha} ({target})")
+
+    if old_sha == new_sha:
+        print("Already up to date.")
+        return submodule, new_sha
+
+    run(["git", "checkout", new_sha], cwd=submodule)
+    run(["git", "add", "--", rel], cwd=root)
+    return submodule, new_sha
+
+
+def main() -> int:
+    if sys.version_info < MIN_PYTHON:
+        die(
+            f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required, "
+            f"found {sys.version.split()[0]}."
+        )
+
+    args = parse_args()
+    if "/" in args.language:
+        die("language name must not contain '/'.")
+
+    root = repo_root()
+    submodule, new_sha = update_submodule(args, root)
+
+    lang_dir = root / "lang"
+    run(["./test-lang", args.language], cwd=lang_dir)
+
+    branch = f"{getpass.getuser()}/update-{args.language}-{short_sha(submodule, new_sha)}"
+
+    release_args = ["./release", args.language, "--branch", branch]
+
+    if args.dry_run:
+        print("Dry run: stopping before " + ' '.join(release_args))
+        return 0
+
+    run(release_args, cwd=lang_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except subprocess.CalledProcessError as exc:
+        die(f"command failed (exit {exc.returncode}): {shlex.join(str(c) for c in exc.cmd)}")
