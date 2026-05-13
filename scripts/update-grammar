@@ -102,6 +102,27 @@ def short_sha(submodule: Path, sha: str) -> str:
     return run(["git", "rev-parse", "--short", sha], cwd=submodule, capture=True)
 
 
+def remove_stale_parsers(root: Path, lang: str) -> None:
+    """Delete generated parser.c files so the build regenerates them.
+
+    Why: the per-grammar Makefiles only regenerate src/parser.c when
+    grammar.js is newer than parser.c. Bumping the upstream submodule
+    changes tree-sitter-<lang>/grammar.js (a transitive require) without
+    touching our grammar.js mtime, leaving a stale parser.c that produces
+    wrong parse trees in tests.
+    """
+    sg_src = root / "lang" / "semgrep-grammars" / "src"
+    semgrep_names = dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)])
+    targets = [root / "lang" / lang / "src" / "parser.c"] + [
+        sg_src / f"semgrep-{name}" / "src" / "parser.c" for name in semgrep_names
+    ]
+    for path in targets:
+        if path.exists():
+            print(f"Removing stale parser to force regeneration: "
+                  f"{path.relative_to(root)}", file=sys.stderr)
+            path.unlink()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Update a tree-sitter grammar submodule and run the "
@@ -165,6 +186,8 @@ def main() -> int:
 
     root = repo_root()
     submodule, new_sha = update_submodule(args, root)
+
+    remove_stale_parsers(root, args.language)
 
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
