@@ -13,6 +13,12 @@ module.exports = grammar(base_grammar, {
     [$._expression, $.formal_parameter],
     [$.spread_element, $.semgrep_ellipsis],
     [$._expression, $.expression_statement],
+    // `...` at top level can be reached two ways now that
+    // expression_statement is permitted at the top level: directly as a
+    // `_top_level_definition` (via the rule below) or wrapped in an
+    // expression_statement. Declaring this conflict lets tree-sitter
+    // use GLR to keep both alternatives alive until disambiguation.
+    [$._top_level_definition, $.expression_statement],
   ]),
 
   /*
@@ -31,9 +37,19 @@ module.exports = grammar(base_grammar, {
             '<...', $._expression, '...>'
     ),
 
+    // Allow expression statements at the top level so that semgrep
+    // patterns like
+    //   $V = get();
+    //   ...
+    //   eval($V);
+    // parse without being misinterpreted as a function signature.
+    // Real Dart forbids bare assignments at the top level, but in
+    // pattern mode this is the only way to express a sequence of
+    // statements without a containing function body.
     _top_level_definition: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.expression_statement,
     ),
 
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
@@ -62,6 +78,16 @@ module.exports = grammar(base_grammar, {
     formal_parameter: ($, previous) => choice(
        $.semgrep_ellipsis,
        previous
+    ),
+
+    // Allow `...` inside class bodies so that the polyglot pattern
+    // `class $X { ... }` parses. Without this, the base grammar's
+    // `_class_member_definition` accepts only declarations and method
+    // signatures and rejects `...`, forcing a Dart-specific .sgrep
+    // workaround like `class $X { }`.
+    _class_member_definition: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
     ),
 }
 });
