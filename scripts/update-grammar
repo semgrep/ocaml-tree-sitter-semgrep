@@ -101,6 +101,69 @@ def default_remote_ref(submodule: Path) -> str:
 def short_sha(submodule: Path, sha: str) -> str:
     return run(["git", "rev-parse", "--short", sha], cwd=submodule, capture=True)
 
+def discover_versions(root: Path) -> dict[str, Path]:
+    """Map tree-sitter version (e.g., '0.22.6') to its languages-<version> file."""
+    versions: dict[str, Path] = {}
+    for path in sorted((root / "lang").glob("languages-*")):
+        if path.name.endswith(".readme"):
+            continue
+        versions[path.name.removeprefix("languages-")] = path
+    return versions
+
+
+def read_languages_entries(path: Path) -> set[str]:
+    return set(line for line in path.read_text().splitlines() if line)
+
+
+def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
+    path.write_text("\n".join(sorted(entries)) + "\n")
+
+
+def languages_list_name(lang: str, root: Path) -> str:
+    """Return the name to use in languages-* (suitable for test-lang)."""
+    alias = SUBMODULE_ALIASES.get(lang, lang)
+    semgrep_dir = (
+        root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{alias}"
+    )
+    if semgrep_dir.is_dir():
+        return alias
+    return lang
+
+
+def language_candidates(lang: str) -> list[str]:
+    return list(dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)]))
+
+
+def check_languages_membership(root: Path, lang: str, version: str,
+                               versions: dict[str, Path]) -> None:
+    """Ensure lang is listed in languages-<version> and absent from the others."""
+
+    lang = languages_list_name(lang, root)
+    expected = versions[version]
+    expected_entries = read_languages_entries(expected)
+    if lang in expected_entries:
+        print(
+            f"Language '{lang}' is already listed in {expected.relative_to(root)}"
+        )
+        return
+
+    # Add lang to the expected languages-* file.
+    expected_entries.add(lang)
+    write_sorted_languages_entries(expected, expected_entries)
+    print(
+        f"Added '{lang}' to {expected.relative_to(root)}"
+    )
+
+    # Remove lang from all other languages-* files.
+    # It should only be listed in one, but let's be defensive.
+    remaining_files = [p for p in versions.values() if p != expected]
+    for path in remaining_files:
+        entries = read_languages_entries(path)
+        if lang in entries:
+            entries.remove(lang)
+            write_sorted_languages_entries(path, entries)
+            print(f"Removed '{lang}' from {path.relative_to(root)}")
+
 
 def remove_stale_parsers(root: Path, lang: str) -> None:
     """Delete generated parser.c files so the build regenerates them.
@@ -123,7 +186,7 @@ def remove_stale_parsers(root: Path, lang: str) -> None:
             path.unlink()
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(version_choices: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Update a tree-sitter grammar submodule and run the "
                     "downstream test-lang / release scripts.",
@@ -131,6 +194,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "language",
         help="Language name (matches lang/semgrep-grammars/src/tree-sitter-<lang>).",
+    )
+    parser.add_argument(
+        "tree_sitter_version",
+        choices=version_choices,
+        metavar="tree-sitter-version",
+        help="Tree-sitter version the language targets. Must match one of the "
+             "lang/languages-<version> files. "
+             f"Choices: {', '.join(version_choices)}.",
     )
     parser.add_argument(
         "--ref",
@@ -180,14 +251,19 @@ def main() -> int:
             f"found {sys.version.split()[0]}."
         )
 
-    args = parse_args()
+    root = repo_root()
+    versions = discover_versions(root)
+    if not versions:
+        die("no lang/languages-* files found.")
+    args = parse_args(list(versions.keys()))
     if "/" in args.language:
         die("language name must not contain '/'.")
 
-    root = repo_root()
     submodule, new_sha = update_submodule(args, root)
-
     remove_stale_parsers(root, args.language)
+
+    check_languages_membership(root, args.language,
+                               args.tree_sitter_version, versions)
 
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
