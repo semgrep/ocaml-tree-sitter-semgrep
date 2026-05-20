@@ -2,12 +2,13 @@
   "grammars": [
     {
       "name": "php_only",
+      "scope": "source.php",
       "path": "."
     }
   ],
   "metadata": {
-    "version": "0.0.0",
-    "license": "MIT",
+    "version": "0.0.0-7d07b41",
+    "license": "GPL",
     "description": "Semgrep-extended PHP-only grammar for tree-sitter",
     "authors": [{ "name": "Semgrep" }],
     "links": {
