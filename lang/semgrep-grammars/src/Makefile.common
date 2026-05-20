@@ -37,8 +37,13 @@ build:
     	  | sed "s/^tree-sitter \\([0-9.]*\\).*$$/0.24.0\\n\\1/" \
     	  | sort -V -C 2>/dev/null; then \
     	  if [ -f "$$dir/tree-sitter.json" ]; then abi=15; else abi=14; fi; \
-    	  (cd "$$dir" && tree-sitter generate --abi=$$abi) \
+    	  (cd "$$dir" && NODE_PATH=$(PROJECT_ROOT)/lang/semgrep-grammars/src tree-sitter generate --abi=$$abi) \
     	else \
+    	  if [ -f "$$dir/tree-sitter.json" ]; then \
+    	    echo "Error: $$dir requires tree-sitter >= 0.25.0 (ABI 15 grammar)." >&2; \
+    	    echo "Switch versions with: cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version 0.26.3" >&2; \
+    	    exit 1; \
+    	  fi; \
     	  (cd "$$dir" && tree-sitter generate --no-bindings) \
     	fi \
 	  else \
@@ -60,6 +65,14 @@ test:
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
 	  echo "Test $$(pwd)/$$dir"; \
 	  (cd "$$dir"; \
+           if [ -f tree-sitter.json ] \
+              && ! tree-sitter --version \
+                   | sed "s/^tree-sitter \\([0-9.]*\\).*$$/0.25.0\\n\\1/" \
+                   | sort -V -C 2>/dev/null; then \
+             echo "Error: $$(pwd) requires tree-sitter >= 0.25.0 (ABI 15 grammar)." >&2; \
+             echo "Switch versions with: cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version 0.26.3" >&2; \
+             exit 1; \
+           fi; \
            show_log() { echo "..."; tail -n 1000 test.log; }; \
            if tree-sitter test > test.log 2>&1; then \
              show_log; \
