@@ -66,4 +66,5 @@ install:
 
 # Used by Conductor at setup time
 .PHONY: agent-setup
-agent-setup: update setup install
+agent-setup: update setup build install
+	pre-commit install
