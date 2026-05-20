@@ -26,6 +26,15 @@ SUBMODULE_ALIASES = {
     "apex": "sfapex",
 }
 
+# Map from a `languages-*` entry (the name passed to test-lang) to the
+# dialects it expands to in `language-variants-*` (the names passed to
+# release). Kept in sync with the hardcoded cases in lang/test-lang.
+LANGUAGE_VARIANTS = {
+    "typescript": ["typescript", "tsx"],
+    "php": ["php", "php-only"],
+    "sfapex": ["apex"],
+}
+
 # Fallback default branches to try when `origin/HEAD` isn't set on the clone.
 DEFAULT_BRANCH_FALLBACKS = ("origin/main", "origin/master")
 
@@ -111,6 +120,16 @@ def discover_versions(root: Path) -> dict[str, Path]:
     return versions
 
 
+def discover_variant_versions(root: Path) -> dict[str, Path]:
+    """Map tree-sitter version to its language-variants-<version> file."""
+    versions: dict[str, Path] = {}
+    for path in sorted((root / "lang").glob("language-variants-*")):
+        if path.name.endswith(".readme"):
+            continue
+        versions[path.name.removeprefix("language-variants-")] = path
+    return versions
+
+
 def read_languages_entries(path: Path) -> set[str]:
     return set(line for line in path.read_text().splitlines() if line)
 
@@ -134,35 +153,39 @@ def language_candidates(lang: str) -> list[str]:
     return list(dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)]))
 
 
-def check_languages_membership(root: Path, lang: str, version: str,
-                               versions: dict[str, Path]) -> None:
-    """Ensure lang is listed in languages-<version> and absent from the others."""
-
-    lang = languages_list_name(lang, root)
+def sync_membership(names: list[str], version: str,
+                    versions: dict[str, Path], root: Path) -> None:
+    """Ensure each name appears in versions[version] and nowhere else."""
     expected = versions[version]
     expected_entries = read_languages_entries(expected)
-    if lang in expected_entries:
-        print(
-            f"Language '{lang}' is already listed in {expected.relative_to(root)}"
-        )
-        return
+    other_files = [p for p in versions.values() if p != expected]
 
-    # Add lang to the expected languages-* file.
-    expected_entries.add(lang)
+    for name in names:
+        if name in expected_entries:
+            print(f"'{name}' already listed in {expected.relative_to(root)}")
+        else:
+            expected_entries.add(name)
+            print(f"Added '{name}' to {expected.relative_to(root)}")
+
+        # Defensively remove from other version files.
+        for path in other_files:
+            entries = read_languages_entries(path)
+            if name in entries:
+                entries.remove(name)
+                write_sorted_languages_entries(path, entries)
+                print(f"Removed '{name}' from {path.relative_to(root)}")
+
     write_sorted_languages_entries(expected, expected_entries)
-    print(
-        f"Added '{lang}' to {expected.relative_to(root)}"
-    )
 
-    # Remove lang from all other languages-* files.
-    # It should only be listed in one, but let's be defensive.
-    remaining_files = [p for p in versions.values() if p != expected]
-    for path in remaining_files:
-        entries = read_languages_entries(path)
-        if lang in entries:
-            entries.remove(lang)
-            write_sorted_languages_entries(path, entries)
-            print(f"Removed '{lang}' from {path.relative_to(root)}")
+
+def check_languages_membership(root: Path, lang: str, version: str,
+                               versions: dict[str, Path],
+                               variant_versions: dict[str, Path]) -> None:
+    """Ensure lang and its variants are listed in the right files."""
+    lang = languages_list_name(lang, root)
+    sync_membership([lang], version, versions, root)
+    variants = LANGUAGE_VARIANTS.get(lang, [lang])
+    sync_membership(variants, version, variant_versions, root)
 
 
 def remove_stale_parsers(root: Path, lang: str) -> None:
@@ -255,6 +278,13 @@ def main() -> int:
     versions = discover_versions(root)
     if not versions:
         die("no lang/languages-* files found.")
+    variant_versions = discover_variant_versions(root)
+    missing_variants = set(versions) - set(variant_versions)
+    if missing_variants:
+        die(
+            "no lang/language-variants-* file for versions: "
+            f"{', '.join(sorted(missing_variants))}."
+        )
     args = parse_args(list(versions.keys()))
     if "/" in args.language:
         die("language name must not contain '/'.")
@@ -263,7 +293,8 @@ def main() -> int:
     remove_stale_parsers(root, args.language)
 
     check_languages_membership(root, args.language,
-                               args.tree_sitter_version, versions)
+                               args.tree_sitter_version,
+                               versions, variant_versions)
 
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
