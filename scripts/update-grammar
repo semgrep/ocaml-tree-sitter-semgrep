@@ -4,7 +4,7 @@
 Steps performed (in order):
 1. Verify the outer repo and the target submodule have clean working trees.
 2. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<lang>,
-   fetch from origin, and check out the requested ref (default: remote HEAD).
+   fetch from origin, and check out the ref passed via --ref.
 3. Delete the cached parser.c files so the build regenerates them.
 4. Sync lang/languages-<version> and lang/language-variants-<version> so
    the language is listed exactly once across version files.
@@ -49,11 +49,9 @@ LANGUAGE_VARIANTS = {
     "sfapex": ["apex"],
 }
 
-# Fallback default branches to try when `origin/HEAD` isn't set on the clone.
-DEFAULT_BRANCH_FALLBACKS = ("origin/main", "origin/master")
-
 
 def die(msg: str) -> NoReturn:
+    """Print `msg` to stderr and exit the process with status 1."""
     print(f"error: {msg}", file=sys.stderr)
     sys.exit(1)
 
@@ -74,15 +72,15 @@ def capture(cmd: list[str | Path], cwd: Path) -> str:
 
 
 def repo_root() -> Path:
-    return Path(
-        subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            check=True, text=True, capture_output=True,
-        ).stdout.strip()
-    )
+    """Return the repo root (`scripts/update-grammar`'s grandparent)."""
+    return Path(__file__).resolve().parent.parent
 
 
 def resolve_submodule(root: Path, lang: str) -> Path:
+    """Return the submodule path for `lang` (or its `SUBMODULE_ALIASES` entry).
+
+    Dies with the list of available submodules if neither exists.
+    """
     base = root / "lang" / "semgrep-grammars" / "src"
     candidates = language_candidates(lang)
     for name in candidates:
@@ -101,26 +99,8 @@ def resolve_submodule(root: Path, lang: str) -> Path:
     )
 
 
-def default_remote_ref(submodule: Path) -> str:
-    """Return the ref a plain `git pull` would track, with fallbacks."""
-    try:
-        return capture(
-            ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-            cwd=submodule,
-        )
-    except subprocess.CalledProcessError:
-        pass
-    for ref in DEFAULT_BRANCH_FALLBACKS:
-        if run(["git", "rev-parse", "--verify", "--quiet", ref],
-               cwd=submodule, check=False) == 0:
-            return ref
-    die(
-        f"could not determine the default remote branch in {submodule}; "
-        f"pass --ref explicitly."
-    )
-
-
 def short_sha(submodule: Path, sha: str) -> str:
+    """Return `sha` abbreviated to `ABBREV_LEN` chars via `git rev-parse`."""
     return capture(
         ["git", "rev-parse", f"--short={ABBREV_LEN}", sha], cwd=submodule,
     )
@@ -136,10 +116,12 @@ def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
 
 
 def read_languages_entries(path: Path) -> set[str]:
+    """Return the set of non-blank lines in a `languages-*` file."""
     return {line for line in path.read_text().splitlines() if line.strip()}
 
 
 def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
+    """Write `entries` to `path`, one per line, sorted, with a trailing newline."""
     path.write_text("\n".join(sorted(entries)) + "\n")
 
 
@@ -155,6 +137,7 @@ def languages_list_name(lang: str, root: Path) -> str:
 
 
 def language_candidates(lang: str) -> list[str]:
+    """Return `[lang, alias]` deduplicated; callers try the canonical name first."""
     return list(dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)]))
 
 
@@ -203,15 +186,14 @@ def remove_stale_parsers(root: Path, lang: str) -> None:
     wrong parse trees in tests.
     """
     sg_src = root / "lang" / "semgrep-grammars" / "src"
-    targets = [root / "lang" / lang / "src" / "parser.c"] + [
-        sg_src / f"semgrep-{name}" / "src" / "parser.c"
-        for name in language_candidates(lang)
+    targets = [
+        root / "lang" / lang / "src" / "parser.c",
+        *(sg_src / f"semgrep-{name}" / "src" / "parser.c"
+          for name in language_candidates(lang)),
     ]
-    for path in targets:
-        if path.exists():
-            print(f"Removing stale parser to force regeneration: "
-                  f"{path.relative_to(root)}", file=sys.stderr)
-            path.unlink()
+    for path in filter(Path.exists, targets):
+        print(f"Removing stale parser: {path.relative_to(root)}", file=sys.stderr)
+        path.unlink()
 
 
 def require_clean_worktree(repo: Path) -> None:
@@ -232,6 +214,7 @@ def require_clean_worktree(repo: Path) -> None:
 
 
 def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
+    """Parse CLI args; `version_choices` constrains the `tree-sitter-version` positional."""
     parser = argparse.ArgumentParser(
         description="Update a tree-sitter grammar submodule and run the "
                     "downstream test-lang / release scripts.",
@@ -250,7 +233,8 @@ def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--ref",
-        help="Branch, tag, or commit to check out (default: remote HEAD).",
+        required=True,
+        help="Branch, tag, or commit in the submodule to check out.",
     )
     parser.add_argument(
         "--fetch",
@@ -268,19 +252,18 @@ def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
     return parser.parse_args()
 
 
-def update_submodule(submodule: Path, root: Path, ref: str | None,
+def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
-    """Check out the requested ref. Returns (old_sha, new_sha)."""
+    """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
     old_sha = capture(["git", "rev-parse", "HEAD"], cwd=submodule)
 
     if fetch:
         run(["git", "fetch", "--tags", "origin"], cwd=submodule)
 
-    target = ref or default_remote_ref(submodule)
-    new_sha = capture(["git", "rev-parse", target], cwd=submodule)
+    new_sha = capture(["git", "rev-parse", ref], cwd=submodule)
 
     rel = submodule.relative_to(root)
-    print(f"Submodule {rel}: {old_sha} -> {new_sha} ({target})")
+    print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
 
     if old_sha == new_sha:
         print("Already up to date.")
@@ -292,18 +275,15 @@ def update_submodule(submodule: Path, root: Path, ref: str | None,
 
 
 def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
-    """Switch `repo` to `branch`, creating it if needed.
+    """Switch `repo` to `branch`, creating it from current HEAD if missing.
 
-    If `at` is given, force-align `branch` to that ref (via `checkout -B`)
-    so a stale branch from a prior run can't silently move HEAD off the
-    intended commit. Without `at`, the branch is created from current HEAD
-    when missing, or switched to when it already exists.
+    With `at`, force-align `branch` to that ref via `checkout -B` so a
+    stale branch from a prior run can't move HEAD off the intended commit.
 
     Why: `git push --recurse-submodules={check,on-demand}` matches the
-    outer branch name against a branch in each submodule. If the submodule
-    is in detached HEAD (as it is right after we check out a SHA) or on a
-    different branch, the push fails with `src refspec ... must name a ref`.
-    Mirroring the branch name in both repos avoids that.
+    outer branch name against a branch in each submodule. Detached HEAD
+    or a mismatched branch makes the push fail with
+    `src refspec ... must name a ref`; mirroring the name avoids that.
     """
     if at is not None:
         run(["git", "checkout", "-B", branch, at], cwd=repo)
@@ -320,6 +300,10 @@ def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
 
 
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
+    """Stage and commit the update; no-op if nothing changed.
+
+    `git add -A` is safe because `main` enforces a clean tree up front.
+    """
     run(["git", "add", "-A"], cwd=root)
     if run(["git", "diff", "--cached", "--quiet"], cwd=root, check=False) == 0:
         print("No changes to commit.")
@@ -329,6 +313,7 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
 
 
 def main() -> int:
+    """Drive the full update flow; see module docstring for the step list."""
     root = repo_root()
     version_files = discover_version_files(root, "languages")
     if not version_files:
@@ -370,17 +355,11 @@ def main() -> int:
         print("Skipping release: would have run " + shlex.join(release_args))
         return 0
 
-    # Mirror the branch name in both repos so `git push --recurse-submodules`
-    # finds a matching ref in the submodule. The submodule branch is forced
-    # to `new_sha` so a stale branch from a prior run can't move HEAD off
-    # the bump. The outer repo branch is created from current HEAD so the
-    # staged changes commit cleanly on top of it.
+    # Submodule first so the outer commit records it already on the branch.
     ensure_on_branch(submodule, branch, at=new_sha)
     ensure_on_branch(root, branch)
 
-    # `release` requires a clean git status, so commit everything the
-    # update produced (submodule bump, languages-* edits, regenerated
-    # parsers, deleted stale parser.c files) before invoking it.
+    # `release` requires a clean git status, so commit first.
     commit_changes(root, args.language, old_short, new_short)
 
     run(release_args, cwd=lang_dir)
