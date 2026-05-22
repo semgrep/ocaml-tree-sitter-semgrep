@@ -17,8 +17,6 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-MIN_PYTHON = (3, 10)
-
 # Map from a language's lang/ folder name to its tree-sitter-<name> submodule
 # directory when the two differ.
 SUBMODULE_ALIASES = {
@@ -68,7 +66,7 @@ def repo_root() -> Path:
 
 def resolve_submodule(root: Path, lang: str) -> Path:
     base = root / "lang" / "semgrep-grammars" / "src"
-    candidates = dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)])
+    candidates = language_candidates(lang)
     for name in candidates:
         path = base / f"tree-sitter-{name}"
         if path.is_dir():
@@ -110,28 +108,18 @@ def default_remote_ref(submodule: Path) -> str:
 def short_sha(submodule: Path, sha: str) -> str:
     return run(["git", "rev-parse", "--short", sha], cwd=submodule, capture=True)
 
-def discover_versions(root: Path) -> dict[str, Path]:
-    """Map tree-sitter version (e.g., '0.22.6') to its languages-<version> file."""
+def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
+    """Map tree-sitter version (e.g., '0.22.6') to its `<prefix>-<version>` file."""
     versions: dict[str, Path] = {}
-    for path in sorted((root / "lang").glob("languages-*")):
+    for path in sorted((root / "lang").glob(f"{prefix}-*")):
         if path.name.endswith(".readme"):
             continue
-        versions[path.name.removeprefix("languages-")] = path
-    return versions
-
-
-def discover_variant_versions(root: Path) -> dict[str, Path]:
-    """Map tree-sitter version to its language-variants-<version> file."""
-    versions: dict[str, Path] = {}
-    for path in sorted((root / "lang").glob("language-variants-*")):
-        if path.name.endswith(".readme"):
-            continue
-        versions[path.name.removeprefix("language-variants-")] = path
+        versions[path.name.removeprefix(f"{prefix}-")] = path
     return versions
 
 
 def read_languages_entries(path: Path) -> set[str]:
-    return set(line for line in path.read_text().splitlines() if line)
+    return {line for line in path.read_text().splitlines() if line.strip()}
 
 
 def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
@@ -154,11 +142,11 @@ def language_candidates(lang: str) -> list[str]:
 
 
 def sync_membership(names: list[str], version: str,
-                    versions: dict[str, Path], root: Path) -> None:
-    """Ensure each name appears in versions[version] and nowhere else."""
-    expected = versions[version]
+                    version_files: dict[str, Path], root: Path) -> None:
+    """Ensure each name appears in version_files[version] and nowhere else."""
+    expected = version_files[version]
     expected_entries = read_languages_entries(expected)
-    other_files = [p for p in versions.values() if p != expected]
+    other_files = [p for p in version_files.values() if p != expected]
 
     for name in names:
         if name in expected_entries:
@@ -179,13 +167,13 @@ def sync_membership(names: list[str], version: str,
 
 
 def check_languages_membership(root: Path, lang: str, version: str,
-                               versions: dict[str, Path],
-                               variant_versions: dict[str, Path]) -> None:
+                               version_files: dict[str, Path],
+                               variant_version_files: dict[str, Path]) -> None:
     """Ensure lang and its variants are listed in the right files."""
     lang = languages_list_name(lang, root)
-    sync_membership([lang], version, versions, root)
+    sync_membership([lang], version, version_files, root)
     variants = LANGUAGE_VARIANTS.get(lang, [lang])
-    sync_membership(variants, version, variant_versions, root)
+    sync_membership(variants, version, variant_version_files, root)
 
 
 def remove_stale_parsers(root: Path, lang: str) -> None:
@@ -198,15 +186,32 @@ def remove_stale_parsers(root: Path, lang: str) -> None:
     wrong parse trees in tests.
     """
     sg_src = root / "lang" / "semgrep-grammars" / "src"
-    semgrep_names = dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)])
     targets = [root / "lang" / lang / "src" / "parser.c"] + [
-        sg_src / f"semgrep-{name}" / "src" / "parser.c" for name in semgrep_names
+        sg_src / f"semgrep-{name}" / "src" / "parser.c"
+        for name in language_candidates(lang)
     ]
     for path in targets:
         if path.exists():
             print(f"Removing stale parser to force regeneration: "
                   f"{path.relative_to(root)}", file=sys.stderr)
             path.unlink()
+
+
+def require_clean_worktree(root: Path) -> None:
+    """Abort if the working tree has any pre-existing changes.
+
+    Why: the script later runs `git add -A` to stage everything the
+    update produced. If the tree was already dirty, we'd commit the
+    user's unrelated WIP. `lang/release` also requires a clean tree —
+    failing here is faster and gives a clearer error.
+    """
+    status = run(["git", "status", "--porcelain"], cwd=root, capture=True)
+    if status:
+        die(
+            "working tree is not clean. Commit or stash changes before "
+            "running update-grammar, or pass --dry-run.\n"
+            f"{status}"
+        )
 
 
 def parse_args(version_choices: list[str]) -> argparse.Namespace:
@@ -267,45 +272,59 @@ def update_submodule(args: argparse.Namespace, root: Path) -> tuple[Path, str]:
     return submodule, new_sha
 
 
-def main() -> int:
-    if sys.version_info < MIN_PYTHON:
-        die(
-            f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required, "
-            f"found {sys.version.split()[0]}."
-        )
+def commit_changes(root: Path, lang: str, new_short: str) -> None:
+    run(["git", "add", "-A"], cwd=root)
+    try:
+        run(["git", "diff", "--cached", "--quiet"], cwd=root, capture=True)
+    except subprocess.CalledProcessError:
+        message = f"Update tree-sitter-{lang} grammar to {new_short}"
+        run(["git", "commit", "-m", message], cwd=root)
+        return
+    print("No changes to commit.")
 
+
+def main() -> int:
     root = repo_root()
-    versions = discover_versions(root)
-    if not versions:
+    version_files = discover_version_files(root, "languages")
+    if not version_files:
         die("no lang/languages-* files found.")
-    variant_versions = discover_variant_versions(root)
-    missing_variants = set(versions) - set(variant_versions)
+    variant_version_files = discover_version_files(root, "language-variants")
+    missing_variants = set(version_files) - set(variant_version_files)
     if missing_variants:
         die(
             "no lang/language-variants-* file for versions: "
             f"{', '.join(sorted(missing_variants))}."
         )
-    args = parse_args(list(versions.keys()))
+    args = parse_args(list(version_files.keys()))
     if "/" in args.language:
         die("language name must not contain '/'.")
+
+    if not args.dry_run:
+        require_clean_worktree(root)
 
     submodule, new_sha = update_submodule(args, root)
     remove_stale_parsers(root, args.language)
 
     check_languages_membership(root, args.language,
                                args.tree_sitter_version,
-                               versions, variant_versions)
+                               version_files, variant_version_files)
 
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
 
-    branch = f"{getpass.getuser()}/update-{args.language}-{short_sha(submodule, new_sha)}"
+    new_short = short_sha(submodule, new_sha)
+    branch = f"{getpass.getuser()}/update-{args.language}-{new_short}"
 
     release_args = ["./release", args.language, "--branch", branch]
 
     if args.dry_run:
-        print("Dry run: stopping before " + ' '.join(release_args))
+        print("Dry run: stopping before " + shlex.join(release_args))
         return 0
+
+    # `release` requires a clean git status, so commit everything the
+    # update produced (submodule bump, languages-* edits, regenerated
+    # parsers, deleted stale parser.c files) before invoking it.
+    commit_changes(root, args.language, new_short)
 
     run(release_args, cwd=lang_dir)
     return 0
