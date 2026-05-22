@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """Update the upstream tree-sitter grammar submodule for a given language.
 
-Resolves the submodule at lang/semgrep-grammars/src/tree-sitter-<lang>, fetches
-from origin, and checks out the requested ref (default: the remote default
-branch). Then stages the bump, runs `lang/test-lang <lang>`, and finally
-`lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+Steps performed (in order):
+1. Verify the outer repo and the target submodule have clean working trees.
+2. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<lang>,
+   fetch from origin, and check out the requested ref (default: remote HEAD).
+3. Delete the cached parser.c files so the build regenerates them.
+4. Sync lang/languages-<version> and lang/language-variants-<version> so
+   the language is listed exactly once across version files.
+5. Run `lang/test-lang <lang>` to verify the bump.
+6. Create a matching branch `$USER/update-<lang>-<short-sha>` in both the
+   outer repo and the submodule (so `git push --recurse-submodules` finds
+   a matching ref instead of failing). Commit the staged changes.
+7. Run `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+
+Pass `--skip-release` to run steps 1-5 only (no branch/commit/release).
 """
 
 from __future__ import annotations
@@ -14,8 +24,14 @@ import getpass
 import shlex
 import subprocess
 import sys
+from collections.abc import Collection
 from pathlib import Path
 from typing import NoReturn
+
+# Length used when abbreviating SHAs in branch names and commit messages.
+# Pinned so the script produces the same output regardless of the user's
+# local `core.abbrev` config.
+ABBREV_LEN = 8
 
 # Map from a language's lang/ folder name to its tree-sitter-<name> submodule
 # directory when the two differ.
@@ -42,17 +58,19 @@ def die(msg: str) -> NoReturn:
     sys.exit(1)
 
 
-def run(cmd: list[str | Path], cwd: Path, *, capture: bool = False) -> str:
-    """Run a subprocess, raising on non-zero. Returns stdout when captured."""
+def run(cmd: list[str | Path], cwd: Path, *, check: bool = True) -> int:
+    """Run a subprocess. Returns returncode; raises on non-zero unless check=False."""
+    print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
+    return subprocess.run(cmd, cwd=cwd, check=check).returncode
+
+
+def capture(cmd: list[str | Path], cwd: Path) -> str:
+    """Run a subprocess and return stripped stdout. Raises on non-zero."""
     print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
     result = subprocess.run(
-        cmd,
-        cwd=cwd,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE if capture else None,
+        cmd, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE,
     )
-    return (result.stdout or "").strip()
+    return result.stdout.strip()
 
 
 def repo_root() -> Path:
@@ -86,19 +104,16 @@ def resolve_submodule(root: Path, lang: str) -> Path:
 def default_remote_ref(submodule: Path) -> str:
     """Return the ref a plain `git pull` would track, with fallbacks."""
     try:
-        return run(
+        return capture(
             ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
-            cwd=submodule, capture=True,
+            cwd=submodule,
         )
     except subprocess.CalledProcessError:
         pass
     for ref in DEFAULT_BRANCH_FALLBACKS:
-        try:
-            run(["git", "rev-parse", "--verify", "--quiet", ref],
-                cwd=submodule, capture=True)
+        if run(["git", "rev-parse", "--verify", "--quiet", ref],
+               cwd=submodule, check=False) == 0:
             return ref
-        except subprocess.CalledProcessError:
-            continue
     die(
         f"could not determine the default remote branch in {submodule}; "
         f"pass --ref explicitly."
@@ -106,7 +121,9 @@ def default_remote_ref(submodule: Path) -> str:
 
 
 def short_sha(submodule: Path, sha: str) -> str:
-    return run(["git", "rev-parse", "--short", sha], cwd=submodule, capture=True)
+    return capture(
+        ["git", "rev-parse", f"--short={ABBREV_LEN}", sha], cwd=submodule,
+    )
 
 def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
     """Map tree-sitter version (e.g., '0.22.6') to its `<prefix>-<version>` file."""
@@ -170,9 +187,9 @@ def check_languages_membership(root: Path, lang: str, version: str,
                                version_files: dict[str, Path],
                                variant_version_files: dict[str, Path]) -> None:
     """Ensure lang and its variants are listed in the right files."""
-    lang = languages_list_name(lang, root)
-    sync_membership([lang], version, version_files, root)
-    variants = LANGUAGE_VARIANTS.get(lang, [lang])
+    list_name = languages_list_name(lang, root)
+    sync_membership([list_name], version, version_files, root)
+    variants = LANGUAGE_VARIANTS.get(list_name, [list_name])
     sync_membership(variants, version, variant_version_files, root)
 
 
@@ -197,24 +214,24 @@ def remove_stale_parsers(root: Path, lang: str) -> None:
             path.unlink()
 
 
-def require_clean_worktree(root: Path) -> None:
-    """Abort if the working tree has any pre-existing changes.
+def require_clean_worktree(repo: Path) -> None:
+    """Abort if `repo`'s working tree has any pre-existing changes.
 
     Why: the script later runs `git add -A` to stage everything the
     update produced. If the tree was already dirty, we'd commit the
     user's unrelated WIP. `lang/release` also requires a clean tree —
     failing here is faster and gives a clearer error.
     """
-    status = run(["git", "status", "--porcelain"], cwd=root, capture=True)
+    status = capture(["git", "status", "--porcelain"], cwd=repo)
     if status:
         die(
-            "working tree is not clean. Commit or stash changes before "
-            "running update-grammar, or pass --dry-run.\n"
+            f"working tree at {repo} is not clean. Commit or stash changes "
+            f"before running update-grammar, or pass --skip-release.\n"
             f"{status}"
         )
 
 
-def parse_args(version_choices: list[str]) -> argparse.Namespace:
+def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Update a tree-sitter grammar submodule and run the "
                     "downstream test-lang / release scripts.",
@@ -242,45 +259,73 @@ def parse_args(version_choices: list[str]) -> argparse.Namespace:
         help="Run 'git fetch' in the submodule before resolving the ref.",
     )
     parser.add_argument(
-        "-n", "--dry-run",
+        "--skip-release",
         action="store_true",
-        help="Run everything up to but not including 'lang/release'.",
+        help="Run steps 1-5 only: bump the submodule, update languages-*, "
+             "remove stale parsers, and run test-lang. Skip the branch "
+             "creation, commit, and lang/release steps.",
     )
     return parser.parse_args()
 
 
-def update_submodule(args: argparse.Namespace, root: Path) -> tuple[Path, str]:
-    """Check out the requested ref. Returns (submodule_path, new_full_sha)."""
-    submodule = resolve_submodule(root, args.language)
-    old_sha = run(["git", "rev-parse", "HEAD"], cwd=submodule, capture=True)
+def update_submodule(submodule: Path, root: Path, ref: str | None,
+                     fetch: bool) -> tuple[str, str]:
+    """Check out the requested ref. Returns (old_sha, new_sha)."""
+    old_sha = capture(["git", "rev-parse", "HEAD"], cwd=submodule)
 
-    if args.fetch:
+    if fetch:
         run(["git", "fetch", "--tags", "origin"], cwd=submodule)
 
-    target = args.ref or default_remote_ref(submodule)
-    new_sha = run(["git", "rev-parse", target], cwd=submodule, capture=True)
+    target = ref or default_remote_ref(submodule)
+    new_sha = capture(["git", "rev-parse", target], cwd=submodule)
 
     rel = submodule.relative_to(root)
     print(f"Submodule {rel}: {old_sha} -> {new_sha} ({target})")
 
     if old_sha == new_sha:
         print("Already up to date.")
-        return submodule, new_sha
+        return old_sha, new_sha
 
     run(["git", "checkout", new_sha], cwd=submodule)
     run(["git", "add", "--", rel], cwd=root)
-    return submodule, new_sha
+    return old_sha, new_sha
 
 
-def commit_changes(root: Path, lang: str, new_short: str) -> None:
-    run(["git", "add", "-A"], cwd=root)
-    try:
-        run(["git", "diff", "--cached", "--quiet"], cwd=root, capture=True)
-    except subprocess.CalledProcessError:
-        message = f"Update tree-sitter-{lang} grammar to {new_short}"
-        run(["git", "commit", "-m", message], cwd=root)
+def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
+    """Switch `repo` to `branch`, creating it if needed.
+
+    If `at` is given, force-align `branch` to that ref (via `checkout -B`)
+    so a stale branch from a prior run can't silently move HEAD off the
+    intended commit. Without `at`, the branch is created from current HEAD
+    when missing, or switched to when it already exists.
+
+    Why: `git push --recurse-submodules={check,on-demand}` matches the
+    outer branch name against a branch in each submodule. If the submodule
+    is in detached HEAD (as it is right after we check out a SHA) or on a
+    different branch, the push fails with `src refspec ... must name a ref`.
+    Mirroring the branch name in both repos avoids that.
+    """
+    if at is not None:
+        run(["git", "checkout", "-B", branch, at], cwd=repo)
         return
-    print("No changes to commit.")
+    current = capture(["git", "branch", "--show-current"], cwd=repo)
+    if current == branch:
+        return
+    exists = run(
+        ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+        cwd=repo, check=False,
+    ) == 0
+    cmd = ["git", "checkout", branch] if exists else ["git", "checkout", "-b", branch]
+    run(cmd, cwd=repo)
+
+
+def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
+    run(["git", "add", "-A"], cwd=root)
+    if run(["git", "diff", "--cached", "--quiet"], cwd=root, check=False) == 0:
+        print("No changes to commit.")
+        return
+    message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
+    run(["git", "commit", "-m", message], cwd=root)
 
 
 def main() -> int:
@@ -295,14 +340,17 @@ def main() -> int:
             "no lang/language-variants-* file for versions: "
             f"{', '.join(sorted(missing_variants))}."
         )
-    args = parse_args(list(version_files.keys()))
+    args = parse_args(version_files.keys())
     if "/" in args.language:
         die("language name must not contain '/'.")
 
-    if not args.dry_run:
-        require_clean_worktree(root)
+    submodule = resolve_submodule(root, args.language)
 
-    submodule, new_sha = update_submodule(args, root)
+    if not args.skip_release:
+        require_clean_worktree(root)
+        require_clean_worktree(submodule)
+
+    old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
     remove_stale_parsers(root, args.language)
 
     check_languages_membership(root, args.language,
@@ -312,19 +360,28 @@ def main() -> int:
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
 
+    old_short = short_sha(submodule, old_sha)
     new_short = short_sha(submodule, new_sha)
     branch = f"{getpass.getuser()}/update-{args.language}-{new_short}"
 
     release_args = ["./release", args.language, "--branch", branch]
 
-    if args.dry_run:
-        print("Dry run: stopping before " + shlex.join(release_args))
+    if args.skip_release:
+        print("Skipping release: would have run " + shlex.join(release_args))
         return 0
+
+    # Mirror the branch name in both repos so `git push --recurse-submodules`
+    # finds a matching ref in the submodule. The submodule branch is forced
+    # to `new_sha` so a stale branch from a prior run can't move HEAD off
+    # the bump. The outer repo branch is created from current HEAD so the
+    # staged changes commit cleanly on top of it.
+    ensure_on_branch(submodule, branch, at=new_sha)
+    ensure_on_branch(root, branch)
 
     # `release` requires a clean git status, so commit everything the
     # update produced (submodule bump, languages-* edits, regenerated
     # parsers, deleted stale parser.c files) before invoking it.
-    commit_changes(root, args.language, new_short)
+    commit_changes(root, args.language, old_short, new_short)
 
     run(release_args, cwd=lang_dir)
     return 0
