@@ -105,6 +105,7 @@ def short_sha(submodule: Path, sha: str) -> str:
         ["git", "rev-parse", f"--short={ABBREV_LEN}", sha], cwd=submodule,
     )
 
+
 def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
     """Map tree-sitter version (e.g., '0.22.6') to its `<prefix>-<version>` file."""
     versions: dict[str, Path] = {}
@@ -126,7 +127,11 @@ def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
 
 
 def languages_list_name(lang: str, root: Path) -> str:
-    """Return the name to use in languages-* (suitable for test-lang)."""
+    """Return `lang`'s alias if `semgrep-<alias>/` exists, else `lang` itself.
+
+    This is the name to record in `languages-*` (matching what `test-lang`
+    expects on its command line).
+    """
     alias = SUBMODULE_ALIASES.get(lang, lang)
     semgrep_dir = (
         root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{alias}"
@@ -213,7 +218,8 @@ def require_clean_worktree(repo: Path) -> None:
         )
 
 
-def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
+def parse_args(version_choices: Collection[str],
+               argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI args; `version_choices` constrains the `tree-sitter-version` positional."""
     parser = argparse.ArgumentParser(
         description="Update a tree-sitter grammar submodule and run the "
@@ -249,7 +255,7 @@ def parse_args(version_choices: Collection[str]) -> argparse.Namespace:
              "remove stale parsers, and run test-lang. Skip the branch "
              "creation, commit, and lang/release steps.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def update_submodule(submodule: Path, root: Path, ref: str,
