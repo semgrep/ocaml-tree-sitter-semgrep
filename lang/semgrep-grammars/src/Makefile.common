@@ -1,59 +1,47 @@
 #
-# Generic makefile to be symlinked or to be included at the root of the
-# semgrep-* folders as follows:
-#
-#   include ../Makefile.common
+# Build the upstream and semgrep-extended grammars under
+# lang/semgrep-grammars/src/. Each grammar is generated using the tree-sitter
+# version pinned for it in lang/languages-<version> or
+# lang/language-variants-<version>. There is no globally-selected tree-sitter
+# binary here.
 #
 
 PROJECT_ROOT = $(shell git rev-parse --show-toplevel)
-NAME = $(shell pwd | xargs basename)
+LANG_SCRIPTS = $(PROJECT_ROOT)/lang/scripts
 
-include $(PROJECT_ROOT)/tree-sitter-config.mk
-
-# The folder containing the tree-sitter-* repos and semgrep-* folders
 NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH) make
 export NODE_PATH
 
-# Make function: $(call ts_version_at_least,<version>)
-# Expands to a shell pipeline that exits 0 if the installed tree-sitter
-# version >= <version>, non-zero otherwise. Mirrors the `ts_version_at_least`
-# function in scripts/ocaml-tree-sitter-gen-c.
-#
-# tree-sitter prints its version as
-#   tree-sitter MAJOR.MINOR.PATCH (GIT_SHA)
-# where (GIT_SHA) is only present for dirty source builds. We strip it down
-# to MAJOR.MINOR.PATCH with sed and check how it sorts against the requested
-# version using the version sorting feature of sort.
-#
-# Switching on tree-sitter version is needed because of configuration changes
-# across releases (e.g. ABI 14 added in 0.24.0, ABI 15 added in 0.25.0). See
-# <https://github.com/tree-sitter/tree-sitter/commit/b2359e402070445181482f2e351400276d94c968>.
-ts_version_at_least = tree-sitter --version | sed "s/^tree-sitter \\([0-9.]*\\).*$$/$(1)\\n\\1/" | sort -V -C 2>/dev/null
-
+# Per-grammar build: ABI is selected from the presence of tree-sitter.json
+# (ABI 15) vs absence (ABI 14). The tree-sitter binary itself comes from the
+# version directory that owns this grammar.
 .PHONY: build
 build:
 	$(MAKE) prep
-	echo "Using $$(tree-sitter --version)"; \
-	for dir in $$(find . -name grammar.js | xargs -I{} dirname {}); \
-	do \
-	  echo "Generate parser in $$(pwd)/$$dir"; \
+	set -eu; \
+	for dir in $$(find . -name grammar.js | xargs -I{} dirname {}); do \
+	  ts_version=$$($(LANG_SCRIPTS)/ts-version-for-grammar-dir "$$dir"); \
+	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
+	  if [ ! -x "$$ts_bindir/tree-sitter" ]; then \
+	    echo "Error: tree-sitter $$ts_version is not installed at $$ts_bindir." >&2; \
+	    echo "Install it with: cd $(PROJECT_ROOT)/core && ./scripts/install-tree-sitter-cli $$ts_version" >&2; \
+	    exit 1; \
+	  fi; \
+	  echo "Generate parser in $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
-    	if $(call ts_version_at_least,0.24.0); then \
-    	  if [ -f "$$dir/tree-sitter.json" ]; then abi=15; else abi=14; fi; \
-    	  cmd="tree-sitter generate --abi=$$abi"; \
-    	  echo "  Running in $$dir: $$cmd"; \
-    	  (cd "$$dir" && NODE_PATH=$(PROJECT_ROOT)/lang/semgrep-grammars/src $$cmd) \
-    	else \
-    	  if [ -f "$$dir/tree-sitter.json" ]; then \
-    	    echo "Error: $$dir requires tree-sitter >= 0.25.0 (ABI 15 grammar)." >&2; \
-    	    echo "Switch versions with: cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version 0.26.3" >&2; \
-    	    exit 1; \
-    	  fi; \
-    	  cmd="tree-sitter generate --no-bindings"; \
-    	  echo "  Running in $$dir: $$cmd"; \
-    	  (cd "$$dir" && $$cmd) \
-    	fi \
+	    if [ -f "$$dir/tree-sitter.json" ]; then \
+	      gen_args="--abi=15"; \
+	    elif printf '%s\n%s\n' 0.24.0 "$$ts_version" | sort -V -C 2>/dev/null; then \
+	      gen_args="--abi=14"; \
+	    else \
+	      gen_args="--no-bindings"; \
+	    fi; \
+	    echo "  Running in $$dir: tree-sitter generate $$gen_args"; \
+	    (cd "$$dir" \
+	     && PATH="$$ts_bindir:$$PATH" \
+	        NODE_PATH=$(PROJECT_ROOT)/lang/semgrep-grammars/src \
+	        tree-sitter generate $$gen_args); \
 	  else \
 	    echo "$$dir/src/parser.c is up to date."; \
 	  fi; \
@@ -69,17 +57,18 @@ prep:
 test:
 	# 'tree-sitter test' can emit a large number of repetitive error
 	# messages when compiling 'parser.c'.
-	set -e; \
+	set -eu; \
 	for dir in $$(find . | grep 'grammar.js$$' | xargs -L1 dirname); do \
-	  echo "Test $$(pwd)/$$dir"; \
+	  ts_version=$$($(LANG_SCRIPTS)/ts-version-for-grammar-dir "$$dir"); \
+	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
+	  if [ ! -x "$$ts_bindir/tree-sitter" ]; then \
+	    echo "Error: tree-sitter $$ts_version is not installed at $$ts_bindir." >&2; \
+	    exit 1; \
+	  fi; \
+	  echo "Test $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
 	  (cd "$$dir"; \
-           if [ -f tree-sitter.json ] && ! $(call ts_version_at_least,0.25.0); then \
-             echo "Error: $$(pwd) requires tree-sitter >= 0.25.0 (ABI 15 grammar)." >&2; \
-             echo "Switch versions with: cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version 0.26.3" >&2; \
-             exit 1; \
-           fi; \
            show_log() { echo "..."; tail -n 1000 test.log; }; \
-           if tree-sitter test > test.log 2>&1; then \
+           if PATH="$$ts_bindir:$$PATH" tree-sitter test > test.log 2>&1; then \
              show_log; \
            else \
              show_log; \

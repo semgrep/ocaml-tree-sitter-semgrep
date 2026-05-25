@@ -1,0 +1,45 @@
+#! /usr/bin/env bash
+#
+# Print the tree-sitter version that should be used to build the grammar in
+# the given directory. The directory's canonical grammar name is taken from
+# tree-sitter.json or src/grammar.json when present, falling back to the
+# directory basename. Underscores are normalized to hyphens to match lang
+# directory names (e.g. php_only -> php-only).
+#
+set -eu
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <grammar-dir>" >&2
+  exit 2
+fi
+
+dir="$1"
+# Resolve to an absolute path so that "." (or any relative path) yields a
+# meaningful basename for the fallback below.
+dir=$(cd "$dir" && pwd)
+script_dir=$(cd "$(dirname "$0")" && pwd)
+
+# Extract a name from tree-sitter.json or src/grammar.json. We avoid a jq
+# dependency: tree-sitter writes a flat enough JSON for a regex to suffice.
+extract_name() {
+  local file="$1" key="$2"
+  # Match "<key>": "value" allowing whitespace and any indentation.
+  sed -n -E "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"([^\"]+)\".*/\\1/p" "$file" \
+    | head -n 1
+}
+
+name=""
+if [[ -f "$dir/tree-sitter.json" ]]; then
+  name=$(extract_name "$dir/tree-sitter.json" name)
+fi
+if [[ -z "$name" ]] && [[ -f "$dir/src/grammar.json" ]]; then
+  name=$(extract_name "$dir/src/grammar.json" name)
+fi
+if [[ -z "$name" ]]; then
+  name=$(basename "$dir")
+  name="${name#tree-sitter-}"
+  name="${name#semgrep-}"
+fi
+name="${name//_/-}"
+
+exec "$script_dir/ts-version-for-lang" "$name"
