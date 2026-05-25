@@ -1,0 +1,50 @@
+#! /usr/bin/env bash
+#
+# Print the tree-sitter version that should be used to build a given
+# language or grammar.
+#
+# The mapping lives in lang/languages-<version> files: a name listed in
+# lang/languages-0.22.6 means "build this with tree-sitter 0.22.6", etc.
+# Exits non-zero with an error message if the name is not listed.
+#
+set -eu
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <lang>" >&2
+  exit 2
+fi
+
+name="$1"
+script_dir=$(cd "$(dirname "$0")" && pwd)
+lang_dir=$(dirname "$script_dir")
+
+match_versions=()
+for f in "$lang_dir"/languages-* "$lang_dir"/language-variants-*; do
+  # Skip readme files like languages-0.20.6.readme.
+  case "$f" in
+    *.readme) continue ;;
+  esac
+  [[ -f "$f" ]] || continue
+  if grep -q -x -F "$name" "$f"; then
+    v=$(basename "$f" | sed -E 's/^(languages|language-variants)-//')
+    match_versions+=("$v")
+  fi
+done
+
+# De-duplicate (a name may appear in both languages-X and language-variants-X
+# for the same version).
+unique_versions=$(printf '%s\n' "${match_versions[@]+"${match_versions[@]}"}" | sort -u)
+unique_count=$(printf '%s\n' "$unique_versions" | grep -c . || true)
+
+if [[ $unique_count -eq 0 ]]; then
+  echo "Error: '$name' is not listed in any $lang_dir/languages-* or $lang_dir/language-variants-* file." >&2
+  echo "Add it to the file matching the tree-sitter version it should use." >&2
+  exit 1
+fi
+if [[ $unique_count -gt 1 ]]; then
+  echo "Error: '$name' resolves to multiple tree-sitter versions:" >&2
+  echo "$unique_versions" >&2
+  exit 1
+fi
+
+echo "$unique_versions"
