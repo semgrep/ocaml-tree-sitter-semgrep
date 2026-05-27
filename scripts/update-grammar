@@ -116,8 +116,12 @@ def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
 
 
 def read_languages_entries(path: Path) -> set[str]:
-    """Return the set of non-blank lines in a `languages-*` file."""
-    return {line for line in path.read_text().splitlines() if line.strip()}
+    """Return the set of non-blank, stripped lines in a `languages-*` file."""
+    return {
+        stripped
+        for line in path.read_text().splitlines()
+        if (stripped := line.strip())
+    }
 
 
 def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
@@ -371,10 +375,15 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+def _entrypoint() -> None:
+    """Top-level guard so `__main__` doesn't define anything at module scope."""
     try:
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(130)
     except subprocess.CalledProcessError as exc:
         die(f"command failed (exit {exc.returncode}): {shlex.join(str(c) for c in exc.cmd)}")
+
+
+if __name__ == "__main__":
+    _entrypoint()

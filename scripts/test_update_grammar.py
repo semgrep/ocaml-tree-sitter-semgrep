@@ -60,12 +60,9 @@ class TestBase(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        stdout_ctx = redirect_stdout(StringIO())
-        stderr_ctx = redirect_stderr(StringIO())
-        stdout_ctx.__enter__()
-        stderr_ctx.__enter__()
-        self.addCleanup(stderr_ctx.__exit__, None, None, None)
-        self.addCleanup(stdout_ctx.__exit__, None, None, None)
+        for ctx in (redirect_stdout(StringIO()), redirect_stderr(StringIO())):
+            ctx.__enter__()
+            self.addCleanup(ctx.__exit__, None, None, None)
 
 
 class FilesystemTest(TestBase):
@@ -110,15 +107,12 @@ class LanguagesEntriesTests(FilesystemTest):
             ug.read_languages_entries(path), {"python", "ruby"}
         )
 
-    def test_read_preserves_inner_whitespace_verbatim(self):
-        # Pins current behavior: lines are kept as written (not stripped),
-        # so trailing spaces on a name make it distinct from the bare name.
-        # If this ever changes, the assertion below should be updated.
+    def test_read_strips_surrounding_whitespace(self):
         path = self.root / "languages-0.22.6"
-        path.write_text("python \nruby\n")
-        entries = ug.read_languages_entries(path)
-        self.assertIn("python ", entries)
-        self.assertNotIn("python", entries)
+        path.write_text("python \n  ruby\n\tgo\t\n")
+        self.assertEqual(
+            ug.read_languages_entries(path), {"python", "ruby", "go"}
+        )
 
 
 class DiscoverVersionFilesTests(FilesystemTest):
@@ -133,6 +127,7 @@ class DiscoverVersionFilesTests(FilesystemTest):
         result = ug.discover_version_files(self.root, "languages")
         self.assertEqual(set(result), {"0.22.6", "0.26.3"})
         self.assertEqual(result["0.22.6"].name, "languages-0.22.6")
+        self.assertEqual(result["0.26.3"].name, "languages-0.26.3")
 
     def test_ignores_readme_files(self):
         (self.lang / "languages-0.22.6").write_text("")
@@ -162,6 +157,13 @@ class ResolveSubmoduleTests(FilesystemTest):
         make_repo(self.root, submodule_dirs=("tree-sitter-go-mod",))
         expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-go-mod"
         self.assertEqual(ug.resolve_submodule(self.root, "gomod"), expected)
+
+    def test_finds_alias_name_passed_directly(self):
+        # Passing "go-mod" (the alias target) directly should also resolve,
+        # since `language_candidates` deduplicates to just ["go-mod"].
+        make_repo(self.root, submodule_dirs=("tree-sitter-go-mod",))
+        expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-go-mod"
+        self.assertEqual(ug.resolve_submodule(self.root, "go-mod"), expected)
 
     def test_prefers_canonical_over_alias_when_both_exist(self):
         make_repo(
@@ -239,10 +241,10 @@ class CheckLanguagesMembershipTests(FilesystemTest):
             self.root, "typescript", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        self.assertEqual(ug.read_languages_entries(langs), {"typescript"})
-        self.assertEqual(
-            ug.read_languages_entries(variants), {"typescript", "tsx"}
-        )
+        langs_entries = ug.read_languages_entries(langs)
+        variants_entries = ug.read_languages_entries(variants)
+        self.assertEqual(langs_entries, {"typescript"})
+        self.assertEqual(variants_entries, {"typescript", "tsx"})
 
     def test_default_lang_appears_in_both_unchanged(self):
         langs, variants = self._setup_files(semgrep_dirs=("semgrep-python",))
@@ -250,8 +252,10 @@ class CheckLanguagesMembershipTests(FilesystemTest):
             self.root, "python", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        self.assertEqual(ug.read_languages_entries(langs), {"python"})
-        self.assertEqual(ug.read_languages_entries(variants), {"python"})
+        langs_entries = ug.read_languages_entries(langs)
+        variants_entries = ug.read_languages_entries(variants)
+        self.assertEqual(langs_entries, {"python"})
+        self.assertEqual(variants_entries, {"python"})
 
     def test_alias_resolution_when_semgrep_dir_exists(self):
         # With a semgrep-sfapex dir present, the alias is selected as the
@@ -261,8 +265,10 @@ class CheckLanguagesMembershipTests(FilesystemTest):
             self.root, "apex", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        self.assertEqual(ug.read_languages_entries(langs), {"sfapex"})
-        self.assertEqual(ug.read_languages_entries(variants), {"apex"})
+        langs_entries = ug.read_languages_entries(langs)
+        variants_entries = ug.read_languages_entries(variants)
+        self.assertEqual(langs_entries, {"sfapex"})
+        self.assertEqual(variants_entries, {"apex"})
 
     def test_dies_when_no_semgrep_dir_exists(self):
         langs, variants = self._setup_files()
