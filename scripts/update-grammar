@@ -56,19 +56,24 @@ def die(msg: str) -> NoReturn:
     sys.exit(1)
 
 
-def run(cmd: list[str | Path], cwd: Path, *, check: bool = True) -> int:
-    """Run a subprocess. Returns returncode; raises on non-zero unless check=False."""
-    print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
-    return subprocess.run(cmd, cwd=cwd, check=check).returncode
+def run(
+    cmd: list[str | Path], cwd: Path,
+    *, check: bool = True, capture: bool = False,
+) -> subprocess.CompletedProcess:
+    """Run a subprocess in `cwd` and return the CompletedProcess.
 
+    With `capture=True`, stdout is captured as text and available on
+    `.stdout`; otherwise stdout is inherited so the user sees command
+    output (e.g. fetch progress, test-lang / release output) live.
 
-def capture(cmd: list[str | Path], cwd: Path) -> str:
-    """Run a subprocess and return stripped stdout. Raises on non-zero."""
+    With `check=False`, non-zero exits return normally; inspect
+    `.returncode` instead.
+    """
     print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
-    result = subprocess.run(
-        cmd, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE,
+    return subprocess.run(
+        cmd, cwd=cwd, check=check, text=True,
+        stdout=subprocess.PIPE if capture else None,
     )
-    return result.stdout.strip()
 
 
 def repo_root() -> Path:
@@ -101,9 +106,10 @@ def resolve_submodule(root: Path, lang: str) -> Path:
 
 def short_sha(submodule: Path, sha: str) -> str:
     """Return `sha` abbreviated to `ABBREV_LEN` chars via `git rev-parse`."""
-    return capture(
-        ["git", "rev-parse", f"--short={ABBREV_LEN}", sha], cwd=submodule,
-    )
+    return run(
+        ["git", "rev-parse", f"--short={ABBREV_LEN}", sha],
+        cwd=submodule, capture=True,
+    ).stdout.strip()
 
 
 def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
@@ -212,7 +218,9 @@ def require_clean_worktree(repo: Path) -> None:
     user's unrelated WIP. `lang/release` also requires a clean tree —
     failing here is faster and gives a clearer error.
     """
-    status = capture(["git", "status", "--porcelain"], cwd=repo)
+    status = run(
+        ["git", "status", "--porcelain"], cwd=repo, capture=True,
+    ).stdout.strip()
     if status:
         die(
             f"working tree at {repo} is not clean. Commit or stash changes "
@@ -264,12 +272,16 @@ def parse_args(version_choices: Collection[str],
 def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
     """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
-    old_sha = capture(["git", "rev-parse", "HEAD"], cwd=submodule)
+    old_sha = run(
+        ["git", "rev-parse", "HEAD"], cwd=submodule, capture=True,
+    ).stdout.strip()
 
     if fetch:
         run(["git", "fetch", "--tags", "origin"], cwd=submodule)
 
-    new_sha = capture(["git", "rev-parse", ref], cwd=submodule)
+    new_sha = run(
+        ["git", "rev-parse", ref], cwd=submodule, capture=True,
+    ).stdout.strip()
 
     rel = submodule.relative_to(root)
     print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
@@ -297,13 +309,15 @@ def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
     if at is not None:
         run(["git", "checkout", "-B", branch, at], cwd=repo)
         return
-    current = capture(["git", "branch", "--show-current"], cwd=repo)
+    current = run(
+        ["git", "branch", "--show-current"], cwd=repo, capture=True,
+    ).stdout.strip()
     if current == branch:
         return
     exists = run(
         ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
         cwd=repo, check=False,
-    ) == 0
+    ).returncode == 0
     cmd = ["git", "checkout", branch] if exists else ["git", "checkout", "-b", branch]
     run(cmd, cwd=repo)
 
@@ -314,7 +328,9 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
     `git add -A` is safe because `main` enforces a clean tree up front.
     """
     run(["git", "add", "-A"], cwd=root)
-    if run(["git", "diff", "--cached", "--quiet"], cwd=root, check=False) == 0:
+    if run(
+        ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
+    ).returncode == 0:
         print("No changes to commit.")
         return
     message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"

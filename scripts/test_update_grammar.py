@@ -2,14 +2,16 @@
 
 The script has no `.py` extension, so we load it explicitly with
 `SourceFileLoader`. Pure / filesystem helpers are tested directly;
-git-driven helpers are tested with `unittest.mock` patching of the
-module's `run` and `capture` functions.
+git-driven helpers are exercised against real temporary git repos
+(see `GitRepoTest` / `UpdateSubmoduleTests`) so behavior is verified
+by post-condition state instead of asserting on subprocess invocations.
 
 Run with: `python -m unittest scripts/test_update_grammar.py`
 """
 
 from __future__ import annotations
 
+import subprocess
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from importlib.machinery import SourceFileLoader
@@ -17,7 +19,6 @@ from importlib.util import module_from_spec, spec_from_loader
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 SCRIPT_PATH = Path(__file__).resolve().parent / "update-grammar"
 
@@ -360,145 +361,203 @@ class ParseArgsTests(TestBase):
         self.assertEqual(cm.exception.code, 2)
 
 
-# ----- Git-driven helpers (mock-based) -------------------------------------
+# ----- Git-driven helpers (real-repo fixtures) -----------------------------
 
 
-class GitMockTest(TestBase):
-    """Base class that patches the script's `run` and `capture` symbols."""
+def _git(*args: str | Path, cwd: Path, check: bool = True) -> subprocess.CompletedProcess:
+    """Run `git` in `cwd`, capturing stdout. Used only by test fixtures."""
+    return subprocess.run(
+        ["git", *[str(a) for a in args]],
+        cwd=cwd, check=check, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+
+
+def init_git_repo(path: Path) -> str:
+    """Initialize a repo at `path`, make one commit, return the commit SHA."""
+    path.mkdir(parents=True, exist_ok=True)
+    _git("init", "-q", "-b", "main", cwd=path)
+    _git("config", "user.email", "test@example.com", cwd=path)
+    _git("config", "user.name", "Test", cwd=path)
+    _git("config", "commit.gpgsign", "false", cwd=path)
+    # Permit file:// submodule URLs used by UpdateSubmoduleTests below.
+    _git("config", "protocol.file.allow", "always", cwd=path)
+    (path / "README").write_text("init\n")
+    _git("add", "README", cwd=path)
+    _git("commit", "-q", "-m", "init", cwd=path)
+    return _git("rev-parse", "HEAD", cwd=path).stdout.strip()
+
+
+class GitRepoTest(FilesystemTest):
+    """Base class providing a real git repo at `self.repo` with one commit."""
 
     def setUp(self) -> None:
         super().setUp()
-        run_patcher = patch.object(ug, "run")
-        capture_patcher = patch.object(ug, "capture")
-        self.run = run_patcher.start()
-        self.capture = capture_patcher.start()
-        self.addCleanup(run_patcher.stop)
-        self.addCleanup(capture_patcher.stop)
-        self.run.return_value = 0
-        self.capture.return_value = ""
+        self.repo = self.root / "repo"
+        self.initial_sha = init_git_repo(self.repo)
+
+    def current_branch(self, cwd: Path | None = None) -> str:
+        return _git("branch", "--show-current", cwd=cwd or self.repo).stdout.strip()
+
+    def head_sha(self, cwd: Path | None = None) -> str:
+        return _git("rev-parse", "HEAD", cwd=cwd or self.repo).stdout.strip()
+
+    def porcelain_status(self, cwd: Path | None = None) -> str:
+        return _git("status", "--porcelain", cwd=cwd or self.repo).stdout.strip()
 
 
-class EnsureOnBranchTests(GitMockTest):
-    REPO = Path("/repo")
-
+class EnsureOnBranchTests(GitRepoTest):
     def test_with_at_force_aligns_branch(self):
-        ug.ensure_on_branch(self.REPO, "my-branch", at="abc123")
-        self.run.assert_called_once_with(
-            ["git", "checkout", "-B", "my-branch", "abc123"], cwd=self.REPO,
-        )
-        self.capture.assert_not_called()
+        ug.ensure_on_branch(self.repo, "my-branch", at=self.initial_sha)
+        self.assertEqual(self.current_branch(), "my-branch")
+        self.assertEqual(self.head_sha(), self.initial_sha)
 
     def test_no_op_when_already_on_branch(self):
-        self.capture.return_value = "my-branch"
-        ug.ensure_on_branch(self.REPO, "my-branch")
-        self.run.assert_not_called()
+        # init_git_repo leaves us on "main".
+        ug.ensure_on_branch(self.repo, "main")
+        self.assertEqual(self.current_branch(), "main")
 
     def test_creates_branch_when_missing(self):
-        self.capture.return_value = "main"
-        # show-ref returns 1 (not found), then checkout -b returns 0.
-        self.run.side_effect = [1, 0]
-        ug.ensure_on_branch(self.REPO, "new-branch")
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertEqual(len(commands), 2)
-        self.assertEqual(commands[0][:2], ["git", "show-ref"])
-        self.assertEqual(commands[1], ["git", "checkout", "-b", "new-branch"])
+        ug.ensure_on_branch(self.repo, "new-branch")
+        self.assertEqual(self.current_branch(), "new-branch")
+        self.assertEqual(self.head_sha(), self.initial_sha)
 
     def test_switches_to_existing_branch(self):
-        self.capture.return_value = "main"
-        self.run.side_effect = [0, 0]  # show-ref says exists; checkout succeeds.
-        ug.ensure_on_branch(self.REPO, "existing-branch")
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertEqual(commands[1], ["git", "checkout", "existing-branch"])
+        _git("branch", "existing-branch", cwd=self.repo)
+        ug.ensure_on_branch(self.repo, "existing-branch")
+        self.assertEqual(self.current_branch(), "existing-branch")
 
 
-class CommitChangesTests(GitMockTest):
-    ROOT = Path("/repo")
-
-    def test_commits_when_diff_reports_changes(self):
-        # `git diff --cached --quiet` returns 1 when staged changes exist.
-        self.run.side_effect = [0, 1, 0]  # add, diff, commit
-        ug.commit_changes(self.ROOT, "python", "old12345", "new12345")
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertEqual(commands[0], ["git", "add", "-A"])
-        self.assertEqual(commands[1][:2], ["git", "diff"])
+class CommitChangesTests(GitRepoTest):
+    def test_commits_when_changes_exist(self):
+        (self.repo / "new.txt").write_text("hello\n")
+        ug.commit_changes(self.repo, "python", "old12345", "new12345")
+        self.assertNotEqual(self.head_sha(), self.initial_sha)
+        message = _git("log", "-1", "--format=%s", cwd=self.repo).stdout.strip()
         self.assertEqual(
-            commands[2],
-            ["git", "commit", "-m",
-             "Update tree-sitter-python grammar from old12345 to new12345"],
+            message,
+            "Update tree-sitter-python grammar from old12345 to new12345",
         )
 
-    def test_skips_commit_when_diff_reports_clean(self):
-        self.run.side_effect = [0, 0]  # add succeeds, diff reports no changes
-        ug.commit_changes(self.ROOT, "python", "old12345", "new12345")
-        # Only `git add` and `git diff` should have been invoked; a third
-        # call would be the commit we're asserting did not happen.
-        self.assertEqual(self.run.call_count, 2)
+    def test_skips_commit_when_clean(self):
+        ug.commit_changes(self.repo, "python", "old12345", "new12345")
+        self.assertEqual(self.head_sha(), self.initial_sha)
 
 
-class RequireCleanWorktreeTests(GitMockTest):
-    REPO = Path("/repo")
+class RequireCleanWorktreeTests(GitRepoTest):
+    def test_returns_when_clean(self):
+        ug.require_clean_worktree(self.repo)  # should not raise
 
-    def test_returns_when_status_empty(self):
-        self.capture.return_value = ""
-        # Should not raise.
-        ug.require_clean_worktree(self.REPO)
-        self.capture.assert_called_once_with(
-            ["git", "status", "--porcelain"], cwd=self.REPO,
-        )
-
-    def test_dies_when_status_nonempty(self):
-        self.capture.return_value = " M scripts/update-grammar"
+    def test_dies_when_dirty(self):
+        (self.repo / "dirty.txt").write_text("oops\n")
         with self.assertRaises(SystemExit) as cm:
-            ug.require_clean_worktree(self.REPO)
+            ug.require_clean_worktree(self.repo)
         self.assertEqual(cm.exception.code, 1)
 
 
-class UpdateSubmoduleTests(GitMockTest):
+class UpdateSubmoduleTests(FilesystemTest):
+    """Verify update_submodule against a real git submodule fixture.
+
+    A separate "remote" repo with two commits acts as the submodule source.
+    The outer repo adds it as a submodule pinned to the older commit so
+    update_submodule has a real bump to perform.
+    """
+
+    SUBMODULE_REL = Path("lang") / "semgrep-grammars" / "src" / "tree-sitter-python"
+
     def setUp(self) -> None:
         super().setUp()
-        self.root = Path("/repo")
-        self.submodule = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-python"
+        self.outer = self.root / "outer"
+        init_git_repo(self.outer)
+
+        # Build the submodule source with two commits.
+        self.remote = self.root / "remote"
+        self.remote_old = init_git_repo(self.remote)
+        (self.remote / "v2").write_text("v2\n")
+        _git("add", "v2", cwd=self.remote)
+        _git("commit", "-q", "-m", "v2", cwd=self.remote)
+        self.remote_new = _git("rev-parse", "HEAD", cwd=self.remote).stdout.strip()
+
+        # Attach as a submodule at the expected path, pinned to remote_old.
+        # The `-c protocol.file.allow=always` must be on the command line:
+        # the submodule clone uses git's startup-time config, not the parent
+        # repo's config, so this can't be done via _git("config", ...).
+        subprocess.run(
+            ["git", "-c", "protocol.file.allow=always",
+             "submodule", "add", "-f", str(self.remote), str(self.SUBMODULE_REL)],
+            cwd=self.outer, check=True, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        self.submodule = self.outer / self.SUBMODULE_REL
+        _git("checkout", "-q", self.remote_old, cwd=self.submodule)
+        _git("config", "protocol.file.allow", "always", cwd=self.submodule)
+        _git("add", str(self.SUBMODULE_REL), cwd=self.outer)
+        _git("commit", "-q", "-m", "pin submodule", cwd=self.outer)
 
     def test_returns_old_and_new_sha(self):
-        self.capture.side_effect = ["old" * 14, "new" * 14]  # HEAD, then ref
         old, new = ug.update_submodule(
-            self.submodule, self.root, ref="v1.0", fetch=False,
+            self.submodule, self.outer, ref=self.remote_new, fetch=False,
         )
-        self.assertEqual(old, "old" * 14)
-        self.assertEqual(new, "new" * 14)
+        self.assertEqual(old, self.remote_old)
+        self.assertEqual(new, self.remote_new)
 
-    def test_checkout_and_stage_when_sha_changes(self):
-        self.capture.side_effect = ["old_sha", "new_sha"]
+    def test_checks_out_new_sha_and_stages_gitlink(self):
         ug.update_submodule(
-            self.submodule, self.root, ref="v1.0", fetch=False,
+            self.submodule, self.outer, ref=self.remote_new, fetch=False,
         )
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertIn(["git", "checkout", "new_sha"], commands)
-        # The gitlink is staged with `--` to disambiguate the path.
-        self.assertTrue(any(
-            c[:3] == ["git", "add", "--"] for c in commands
-        ))
+        new_head = _git("rev-parse", "HEAD", cwd=self.submodule).stdout.strip()
+        self.assertEqual(new_head, self.remote_new)
+        # Outer repo should have the gitlink update staged.
+        staged = _git(
+            "diff", "--cached", "--name-only", cwd=self.outer,
+        ).stdout.strip().splitlines()
+        self.assertIn(str(self.SUBMODULE_REL), staged)
 
     def test_no_checkout_when_sha_unchanged(self):
-        # With fetch=False and the same SHA on both sides, the early-return
-        # path should fire and neither checkout nor add should run.
-        self.capture.side_effect = ["same_sha", "same_sha"]
-        ug.update_submodule(
-            self.submodule, self.root, ref="v1.0", fetch=False,
+        old, new = ug.update_submodule(
+            self.submodule, self.outer, ref=self.remote_old, fetch=False,
         )
-        self.run.assert_not_called()
+        self.assertEqual(old, self.remote_old)
+        self.assertEqual(new, self.remote_old)
+        self.assertEqual(
+            _git("rev-parse", "HEAD", cwd=self.submodule).stdout.strip(),
+            self.remote_old,
+        )
+        # Nothing should be staged.
+        self.assertEqual(
+            _git("diff", "--cached", "--name-only", cwd=self.outer).stdout, "",
+        )
 
-    def test_fetch_runs_when_requested(self):
-        self.capture.side_effect = ["s", "s"]
-        ug.update_submodule(self.submodule, self.root, ref="v1.0", fetch=True)
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertIn(["git", "fetch", "--tags", "origin"], commands)
+    def test_fetch_picks_up_new_remote_commit(self):
+        # Add a third commit to the remote that the submodule hasn't seen.
+        (self.remote / "v3").write_text("v3\n")
+        _git("add", "v3", cwd=self.remote)
+        _git("commit", "-q", "-m", "v3", cwd=self.remote)
+        remote_newer = _git("rev-parse", "HEAD", cwd=self.remote).stdout.strip()
+
+        # With fetch=True, update_submodule resolves the new ref and checks it out.
+        old, new = ug.update_submodule(
+            self.submodule, self.outer, ref=remote_newer, fetch=True,
+        )
+        self.assertEqual(old, self.remote_old)
+        self.assertEqual(new, remote_newer)
+        self.assertEqual(
+            _git("rev-parse", "HEAD", cwd=self.submodule).stdout.strip(),
+            remote_newer,
+        )
 
     def test_fetch_skipped_when_disabled(self):
-        self.capture.side_effect = ["s", "s"]
-        ug.update_submodule(self.submodule, self.root, ref="v1.0", fetch=False)
-        commands = [call.args[0] for call in self.run.call_args_list]
-        self.assertNotIn(["git", "fetch", "--tags", "origin"], commands)
+        # Add a new commit to remote, but with fetch=False the submodule
+        # can't resolve it and update_submodule should fail at rev-parse.
+        (self.remote / "v3").write_text("v3\n")
+        _git("add", "v3", cwd=self.remote)
+        _git("commit", "-q", "-m", "v3", cwd=self.remote)
+        remote_newer = _git("rev-parse", "HEAD", cwd=self.remote).stdout.strip()
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            ug.update_submodule(
+                self.submodule, self.outer, ref=remote_newer, fetch=False,
+            )
 
 
 # ----- Misc ----------------------------------------------------------------
