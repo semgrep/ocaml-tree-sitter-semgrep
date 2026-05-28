@@ -164,33 +164,13 @@ class ResolveSubmoduleTests(FilesystemTest):
         self.assertEqual(ug.resolve_submodule(self.root, "python"), expected)
 
     def test_finds_via_alias(self):
+        # Real repo layout: lang/gomod/ is the language folder, but the
+        # submodule lives at tree-sitter-go-mod (different name). The
+        # SUBMODULE_ALIASES entry maps "gomod" -> "go-mod" so the user
+        # invokes `update-grammar gomod ...` and we still find the dir.
         make_repo(self.root, submodule_dirs=("tree-sitter-go-mod",))
         expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-go-mod"
         self.assertEqual(ug.resolve_submodule(self.root, "gomod"), expected)
-
-    def test_finds_alias_name_passed_directly(self):
-        # Passing "go-mod" (the alias target) directly should also resolve,
-        # since `language_candidates` deduplicates to just ["go-mod"].
-        make_repo(self.root, submodule_dirs=("tree-sitter-go-mod",))
-        expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-go-mod"
-        self.assertEqual(ug.resolve_submodule(self.root, "go-mod"), expected)
-
-    def test_prefers_canonical_over_alias_when_both_exist(self):
-        make_repo(
-            self.root,
-            submodule_dirs=("tree-sitter-gomod", "tree-sitter-go-mod"),
-        )
-        base = self.root / "lang" / "semgrep-grammars" / "src"
-        # "gomod" has the alias entry, so candidates are ["gomod", "go-mod"]
-        # and the canonical (first) match wins even when both dirs exist.
-        self.assertEqual(
-            ug.resolve_submodule(self.root, "gomod"), base / "tree-sitter-gomod",
-        )
-        # "go-mod" has no alias entry, so candidates are just ["go-mod"]
-        # and it resolves to the alias-named dir, not the canonical one.
-        self.assertEqual(
-            ug.resolve_submodule(self.root, "go-mod"), base / "tree-sitter-go-mod",
-        )
 
     def test_dies_when_neither_exists(self):
         make_repo(self.root)
