@@ -302,24 +302,24 @@ class RemoveStaleParsersTests(FilesystemTest):
             "lang", "semgrep-grammars", "src", "semgrep-python", "src",
             "parser.c",
         )
-        ug.remove_stale_parsers(self.root, "python")
+        ug.remove_stale_parsers(self.root, "python", "python")
         self.assertFalse(outer.exists())
         self.assertFalse(inner.exists())
 
     def test_silent_when_targets_missing(self):
         # No parser files exist; function should not raise.
-        ug.remove_stale_parsers(self.root, "python")
+        ug.remove_stale_parsers(self.root, "python", "python")
 
-    def test_handles_aliased_language(self):
-        # gomod's submodule lives under semgrep-go-mod (alias path).
-        outer = self._make_parser("lang", "gomod", "src", "parser.c")
-        alias_inner = self._make_parser(
-            "lang", "semgrep-grammars", "src", "semgrep-go-mod", "src",
+    def test_lang_and_list_name_can_differ(self):
+        # apex case: lang="apex" (lang/apex/), list_name="sfapex" (semgrep-sfapex/).
+        outer = self._make_parser("lang", "apex", "src", "parser.c")
+        inner = self._make_parser(
+            "lang", "semgrep-grammars", "src", "semgrep-sfapex", "src",
             "parser.c",
         )
-        ug.remove_stale_parsers(self.root, "gomod")
+        ug.remove_stale_parsers(self.root, "apex", "sfapex")
         self.assertFalse(outer.exists())
-        self.assertFalse(alias_inner.exists())
+        self.assertFalse(inner.exists())
 
 
 # ----- argparse ------------------------------------------------------------

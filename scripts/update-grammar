@@ -203,7 +203,7 @@ def sync_languages_membership(root: Path, list_name: str, version: str,
     sync_membership(variants, version, variant_version_files, root)
 
 
-def remove_stale_parsers(root: Path, lang: str) -> None:
+def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
     """Delete generated parser.c files so the build regenerates them.
 
     Why: the per-grammar Makefiles only regenerate src/parser.c when
@@ -211,12 +211,15 @@ def remove_stale_parsers(root: Path, lang: str) -> None:
     changes tree-sitter-<lang>/grammar.js (a transitive require) without
     touching our grammar.js mtime, leaving a stale parser.c that produces
     wrong parse trees in tests.
+
+    `lang` is the input language (matching `lang/<lang>/`); `list_name`
+    is the resolved `semgrep-<list_name>/` wrapper. They differ when an
+    alias is involved (e.g. lang=apex, list_name=sfapex).
     """
-    sg_src = root / "lang" / "semgrep-grammars" / "src"
     targets = [
         root / "lang" / lang / "src" / "parser.c",
-        *(sg_src / f"semgrep-{name}" / "src" / "parser.c"
-          for name in language_candidates(lang)),
+        root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{list_name}"
+            / "src" / "parser.c",
     ]
     for path in filter(Path.exists, targets):
         print(f"Removing stale parser: {path.relative_to(root)}", file=sys.stderr)
@@ -377,7 +380,7 @@ def main() -> int:
         require_clean_worktree(submodule)
 
     old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
-    remove_stale_parsers(root, args.language)
+    remove_stale_parsers(root, args.language, list_name)
 
     sync_languages_membership(root, list_name,
                               args.tree_sitter_version,
