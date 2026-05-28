@@ -2,7 +2,7 @@
 
 The script has no `.py` extension, so we load it explicitly with
 `SourceFileLoader` (see `_load_script_module`). Tests are organized
-in three layers:
+in four layers:
 
 * Pure / filesystem helpers (e.g. `read_languages_entries`,
   `discover_version_files`, `discover_valid_languages`) run directly
@@ -14,6 +14,11 @@ in three layers:
   by post-condition state (current branch, HEAD SHA, staged paths,
   porcelain status) rather than by asserting on which subprocess
   commands were invoked.
+* External-script-driven helpers (`ensure_tree_sitter_version`) are
+  exercised against stub bash scripts that log their invocations to
+  a file. We assert on the recorded call sequence rather than on the
+  side effects of the real `core/scripts/*` (which would touch the
+  network and the user's installed tree-sitter).
 
 Run with: `python -m unittest scripts/test_update_grammar.py`
 """
@@ -369,9 +374,8 @@ class EnsureTreeSitterVersionTests(FilesystemTest):
         self.core = self.root / "core"
         scripts = self.core / "scripts"
         scripts.mkdir(parents=True)
-        # Record each invocation by appending the script name + args to
-        # `calls.log`. Each stub also touches its name so test_idempotent
-        # can detect whether it ran.
+        # Each stub appends "<name> <args>" to calls.log when invoked, so
+        # tests can assert on which scripts ran and in what order.
         for name in (
             "switch-tree-sitter-version",
             "install-tree-sitter-cli",

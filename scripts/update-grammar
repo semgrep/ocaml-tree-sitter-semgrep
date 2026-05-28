@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 """Update the upstream tree-sitter grammar submodule for a given language.
 
-Steps performed (in order):
-1. Verify the outer repo and the target submodule have clean working trees.
-2. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<lang>,
-   fetch from origin, and check out the ref passed via --ref.
-3. Delete the cached parser.c files so the build regenerates them.
-4. Sync lang/languages-<version> and lang/language-variants-<version> so
-   the language is listed exactly once across version files.
-5. Run `lang/test-lang <lang>` to verify the bump.
-6. Create a matching branch `$USER/update-<lang>-<short-sha>` in both the
-   outer repo and the submodule (so `git push --recurse-submodules` finds
-   a matching ref instead of failing). Commit the staged changes.
-7. Run `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+Steps performed by `main()` in order:
 
-Pass `--skip-release` to run steps 1-5 only (no branch/commit/release).
+1. Discover the set of valid `<language>` arguments from the on-disk
+   wrapper / submodule directories and validate the user's input
+   against that set (fails fast on typos and path-traversal attempts).
+2. Switch the local tree-sitter CLI to the version pinned for this
+   language (`core/scripts/switch-tree-sitter-version` + install
+   scripts). No-op when already aligned.
+3. Verify the outer repo and the target submodule have clean working
+   trees (skipped under `--skip-release`).
+4. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<sub>,
+   fetch from origin, and check out the ref passed via --ref.
+5. Delete the cached parser.c files so the build regenerates them.
+6. Sync lang/languages-<version> and lang/language-variants-<version>
+   so the language is listed exactly once across version files.
+7. Run `lang/test-lang <lang>` to verify the bump.
+8. Create a matching branch `$USER/update-<lang>-<short-sha>` in both
+   the outer repo and the submodule (so `git push --recurse-submodules`
+   finds a matching ref instead of failing). Commit the staged changes.
+9. Run `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+
+Pass `--skip-release` to run steps 1-7 only (no branch/commit/release).
 """
 
 from __future__ import annotations
@@ -34,8 +42,15 @@ from typing import NoReturn
 # local `core.abbrev` config.
 ABBREV_LEN = 8
 
-# Map from a language's lang/ folder name to its tree-sitter-<name> submodule
-# directory when the two differ.
+# Maps a user-facing language name to the canonical name used downstream
+# when the two differ. The canonical name is always the submodule directory
+# name (tree-sitter-<canonical>); for some entries it's also the wrapper
+# directory name (semgrep-<canonical>):
+#
+#   "gomod" -> "go-mod":  wrapper stays semgrep-gomod (direct match), but
+#                         the submodule is tree-sitter-go-mod.
+#   "apex"  -> "sfapex":  both wrapper and submodule use sfapex
+#                         (semgrep-sfapex, tree-sitter-sfapex).
 SUBMODULE_ALIASES = {
     "gomod": "go-mod",
     "apex": "sfapex",
@@ -85,15 +100,16 @@ def repo_root() -> Path:
 def discover_valid_languages(root: Path) -> dict[str, str]:
     """Map each valid `<language>` CLI argument to its wrapper name.
 
-    A language is considered valid iff both:
-    * `lang/semgrep-grammars/src/semgrep-<wrapper>/` exists, and
-    * `lang/semgrep-grammars/src/tree-sitter-<submodule>/` exists,
-    where `submodule = SUBMODULE_ALIASES.get(input, input)`.
+    A language is valid iff both `semgrep-<wrapper>/` and
+    `tree-sitter-<submodule>/` exist under `lang/semgrep-grammars/src/`,
+    where the submodule name is `SUBMODULE_ALIASES.get(wrapper, wrapper)`.
 
-    Each `semgrep-<wrapper>/` directory contributes the wrapper name as
-    a valid input mapping to itself. Each `SUBMODULE_ALIASES` key whose
-    target has both wrapper and submodule directories also maps to that
-    target (e.g. 'apex' -> 'sfapex').
+    Two contribution paths:
+    * Each `semgrep-<wrapper>/` directory whose paired submodule exists
+      adds `wrapper -> wrapper`.
+    * Each `SUBMODULE_ALIASES` entry `key -> target` whose paired
+      `semgrep-<target>/` and `tree-sitter-<target>/` both exist adds
+      `key -> target` (e.g. 'apex' -> 'sfapex').
     """
     sg_src = root / "lang" / "semgrep-grammars" / "src"
 
@@ -311,7 +327,10 @@ def parse_args(version_choices: Collection[str],
     )
     parser.add_argument(
         "language",
-        help="Language name (matches lang/semgrep-grammars/src/tree-sitter-<lang>).",
+        help="Language name. Must be either a semgrep-<name>/ wrapper "
+             "directory or a SUBMODULE_ALIASES key (e.g. 'apex' for the "
+             "'sfapex' wrapper). Run with an unknown name to see the "
+             "full list.",
     )
     parser.add_argument(
         "tree_sitter_version",
@@ -398,7 +417,9 @@ def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
     """Stage and commit the update; no-op if nothing changed.
 
-    `git add -A` is safe because `main` enforces a clean tree up front.
+    `git add -A` is safe because this function only runs in the release
+    path (no `--skip-release`), and `main()` enforces a clean tree
+    up front in that path via `require_clean_worktree`.
     """
     run(["git", "add", "-A"], cwd=root)
     if run(
