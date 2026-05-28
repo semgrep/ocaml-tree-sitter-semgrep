@@ -5,8 +5,8 @@ The script has no `.py` extension, so we load it explicitly with
 in three layers:
 
 * Pure / filesystem helpers (e.g. `read_languages_entries`,
-  `discover_version_files`, `resolve_submodule`) run directly against
-  temporary directories.
+  `discover_version_files`, `discover_valid_languages`) run directly
+  against temporary directories.
 * Argparse plumbing is exercised by calling `parse_args` directly.
 * Git-driven helpers (`ensure_on_branch`, `commit_changes`,
   `require_clean_worktree`, `update_submodule`) are run against real
@@ -88,19 +88,6 @@ class FilesystemTest(TestBase):
 # ----- Pure / filesystem helpers -------------------------------------------
 
 
-class LanguageCandidatesTests(TestBase):
-    def test_no_alias_returns_singleton(self):
-        self.assertEqual(ug.language_candidates("python"), ["python"])
-
-    def test_alias_appended_in_order(self):
-        # SUBMODULE_ALIASES: gomod -> go-mod
-        self.assertEqual(ug.language_candidates("gomod"), ["gomod", "go-mod"])
-
-    def test_alias_target_passed_directly_is_singleton(self):
-        # "go-mod" has no alias entry; result deduplicates to one element.
-        self.assertEqual(ug.language_candidates("go-mod"), ["go-mod"])
-
-
 class LanguagesEntriesTests(FilesystemTest):
     def test_write_then_read_roundtrip(self):
         path = self.root / "languages-0.22.6"
@@ -123,6 +110,29 @@ class LanguagesEntriesTests(FilesystemTest):
         self.assertEqual(
             ug.read_languages_entries(path), {"python", "ruby", "go"}
         )
+
+    def test_write_leaves_no_tempfile_behind(self):
+        path = self.root / "languages-0.22.6"
+        ug.write_sorted_languages_entries(path, {"python", "ruby"})
+        # Tempfiles are hidden (start with '.') and end in '.tmp'.
+        leftovers = list(self.root.glob(".languages-0.22.6.*"))
+        self.assertEqual(leftovers, [])
+
+    def test_write_failure_preserves_existing_file(self):
+        # If the rename step fails, the destination must be unchanged and
+        # the tempfile cleaned up. Simulate by making the destination a
+        # directory so `Path.replace` raises.
+        path = self.root / "languages-0.22.6"
+        path.write_text("original\n")
+        blocker = self.root / "block"
+        blocker.mkdir()
+        # Replacing a regular file with a directory fails on POSIX/macOS.
+        # We hit the same failure mode by aiming the write at the directory.
+        with self.assertRaises(OSError):
+            ug.write_sorted_languages_entries(blocker, {"python"})
+        self.assertEqual(path.read_text(), "original\n")
+        # No leftover tempfiles in the target directory.
+        self.assertEqual(list(self.root.glob(".block.*")), [])
 
 
 class DiscoverVersionFilesTests(FilesystemTest):
@@ -157,25 +167,78 @@ class DiscoverVersionFilesTests(FilesystemTest):
         )
 
 
-class ResolveSubmoduleTests(FilesystemTest):
-    def test_finds_canonical(self):
-        make_repo(self.root, submodule_dirs=("tree-sitter-python",))
-        expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-python"
-        self.assertEqual(ug.resolve_submodule(self.root, "python"), expected)
+class DiscoverValidLanguagesTests(FilesystemTest):
+    def test_direct_wrapper_with_matching_submodule(self):
+        make_repo(
+            self.root,
+            semgrep_dirs=("semgrep-python",),
+            submodule_dirs=("tree-sitter-python",),
+        )
+        self.assertEqual(
+            ug.discover_valid_languages(self.root), {"python": "python"},
+        )
 
-    def test_finds_via_alias(self):
-        # Real repo layout: lang/gomod/ is the language folder, but the
-        # submodule lives at tree-sitter-go-mod (different name). The
-        # SUBMODULE_ALIASES entry maps "gomod" -> "go-mod" so the user
-        # invokes `update-grammar gomod ...` and we still find the dir.
-        make_repo(self.root, submodule_dirs=("tree-sitter-go-mod",))
-        expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-go-mod"
-        self.assertEqual(ug.resolve_submodule(self.root, "gomod"), expected)
+    def test_alias_key_added_when_target_has_wrapper_and_submodule(self):
+        # apex -> sfapex: only semgrep-sfapex and tree-sitter-sfapex exist.
+        make_repo(
+            self.root,
+            semgrep_dirs=("semgrep-sfapex",),
+            submodule_dirs=("tree-sitter-sfapex",),
+        )
+        self.assertEqual(
+            ug.discover_valid_languages(self.root),
+            {"sfapex": "sfapex", "apex": "sfapex"},
+        )
 
-    def test_dies_when_neither_exists(self):
-        make_repo(self.root)
-        with self.assertRaises(SystemExit) as cm:
-            ug.resolve_submodule(self.root, "nonexistent")
+    def test_wrapper_with_aliased_submodule(self):
+        # gomod -> go-mod: wrapper at semgrep-gomod, submodule at tree-sitter-go-mod.
+        make_repo(
+            self.root,
+            semgrep_dirs=("semgrep-gomod",),
+            submodule_dirs=("tree-sitter-go-mod",),
+        )
+        # "gomod" is valid (resolves wrapper directly; submodule via alias).
+        # "go-mod" is NOT valid (no semgrep-go-mod wrapper).
+        self.assertEqual(
+            ug.discover_valid_languages(self.root), {"gomod": "gomod"},
+        )
+
+    def test_wrapper_without_matching_submodule_excluded(self):
+        # Defensive: a stray semgrep-foo without tree-sitter-foo is not valid.
+        make_repo(self.root, semgrep_dirs=("semgrep-foo",))
+        self.assertEqual(ug.discover_valid_languages(self.root), {})
+
+
+class ValidateLanguageTests(FilesystemTest):
+    VALID = {"python": "python", "gomod": "gomod", "apex": "sfapex", "sfapex": "sfapex"}
+
+    def test_returns_wrapper_for_direct_input(self):
+        self.assertEqual(ug.validate_language("python", self.VALID), "python")
+
+    def test_returns_wrapper_for_alias_input(self):
+        # User passes "apex"; wrapper is "sfapex".
+        self.assertEqual(ug.validate_language("apex", self.VALID), "sfapex")
+
+    def test_dies_with_alias_hint_when_alias_target_passed(self):
+        # "go-mod" is the SUBMODULE_ALIASES value for "gomod"; hint should fire.
+        captured = StringIO()
+        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+            ug.validate_language("go-mod", self.VALID)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("did you mean 'gomod'", captured.getvalue())
+
+    def test_dies_without_hint_for_unknown_language(self):
+        captured = StringIO()
+        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+            ug.validate_language("xyz", self.VALID)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertNotIn("did you mean", captured.getvalue())
+
+    def test_dies_on_path_traversal_attempt(self):
+        # Defensive: "..", "/", etc. must never resolve as valid languages.
+        captured = StringIO()
+        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+            ug.validate_language("..", self.VALID)
         self.assertEqual(cm.exception.code, 1)
 
 
@@ -219,34 +282,6 @@ class SyncMembershipTests(FilesystemTest):
         self.assertEqual(ug.read_languages_entries(v1), {"python", "ruby"})
 
 
-class ResolveListNameTests(FilesystemTest):
-    def test_returns_lang_when_wrapper_matches(self):
-        make_repo(self.root, semgrep_dirs=("semgrep-python",))
-        self.assertEqual(ug.resolve_list_name(self.root, "python"), "python")
-
-    def test_returns_alias_target_when_only_aliased_wrapper_exists(self):
-        # "apex" aliases to "sfapex"; only semgrep-sfapex exists.
-        make_repo(self.root, semgrep_dirs=("semgrep-sfapex",))
-        self.assertEqual(ug.resolve_list_name(self.root, "apex"), "sfapex")
-
-    def test_dies_with_alias_hint_when_alias_target_passed(self):
-        # User passes "go-mod" (alias target); the error must suggest 'gomod'.
-        make_repo(self.root, semgrep_dirs=("semgrep-gomod",))
-        captured = StringIO()
-        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
-            ug.resolve_list_name(self.root, "go-mod")
-        self.assertEqual(cm.exception.code, 1)
-        self.assertIn("did you mean 'gomod'", captured.getvalue())
-
-    def test_dies_without_hint_for_unknown_language(self):
-        make_repo(self.root)
-        captured = StringIO()
-        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
-            ug.resolve_list_name(self.root, "xyz")
-        self.assertEqual(cm.exception.code, 1)
-        self.assertNotIn("did you mean", captured.getvalue())
-
-
 class SyncLanguagesMembershipTests(FilesystemTest):
     def _setup_files(self) -> tuple[Path, Path]:
         """Create empty `languages-0.22.6` and `language-variants-0.22.6`."""
@@ -277,8 +312,8 @@ class SyncLanguagesMembershipTests(FilesystemTest):
         self.assertEqual(ug.read_languages_entries(variants), {"python"})
 
     def test_alias_target_expands_to_variants(self):
-        # "sfapex" (the alias target chosen by resolve_list_name when the
-        # user passes "apex") expands to ["apex"] in LANGUAGE_VARIANTS.
+        # "sfapex" (the wrapper name returned by validate_language when
+        # the user passes "apex") expands to ["apex"] in LANGUAGE_VARIANTS.
         langs, variants = self._setup_files()
         ug.sync_languages_membership(
             self.root, "sfapex", "0.22.6",

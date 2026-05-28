@@ -24,6 +24,7 @@ import getpass
 import shlex
 import subprocess
 import sys
+import tempfile
 from collections.abc import Collection
 from pathlib import Path
 from typing import NoReturn
@@ -81,27 +82,70 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def resolve_submodule(root: Path, lang: str) -> Path:
-    """Return the submodule path for `lang` (or its `SUBMODULE_ALIASES` entry).
+def discover_valid_languages(root: Path) -> dict[str, str]:
+    """Map each valid `<language>` CLI argument to its wrapper name.
 
-    Dies with the list of available submodules if neither exists.
+    A language is considered valid iff both:
+    * `lang/semgrep-grammars/src/semgrep-<wrapper>/` exists, and
+    * `lang/semgrep-grammars/src/tree-sitter-<submodule>/` exists,
+    where `submodule = SUBMODULE_ALIASES.get(input, input)`.
+
+    Each `semgrep-<wrapper>/` directory contributes the wrapper name as
+    a valid input mapping to itself. Each `SUBMODULE_ALIASES` key whose
+    target has both wrapper and submodule directories also maps to that
+    target (e.g. 'apex' -> 'sfapex').
     """
-    base = root / "lang" / "semgrep-grammars" / "src"
-    candidates = language_candidates(lang)
-    for name in candidates:
-        path = base / f"tree-sitter-{name}"
-        if path.is_dir():
-            return path
-    available = sorted(
-        p.name.removeprefix("tree-sitter-")
-        for p in base.glob("tree-sitter-*")
+    sg_src = root / "lang" / "semgrep-grammars" / "src"
+
+    def has(prefix: str, name: str) -> bool:
+        return (sg_src / f"{prefix}-{name}").is_dir()
+
+    wrappers = {
+        p.name.removeprefix("semgrep-")
+        for p in sg_src.glob("semgrep-*")
         if p.is_dir()
+    }
+    result: dict[str, str] = {}
+    for name in wrappers:
+        submodule = SUBMODULE_ALIASES.get(name, name)
+        if has("tree-sitter", submodule):
+            result[name] = name
+    for key, target in SUBMODULE_ALIASES.items():
+        if has("semgrep", target) and has("tree-sitter", target):
+            result[key] = target
+    return result
+
+
+def validate_language(lang: str, valid: dict[str, str]) -> str:
+    """Return the wrapper name for `lang`, or die with a helpful error.
+
+    Emits a 'did you mean ...?' hint when `lang` matches a value in
+    `SUBMODULE_ALIASES` (the user likely passed an alias target instead
+    of the alias key, e.g. 'go-mod' instead of 'gomod'). This is the
+    single source of truth for language validity — also blocks path
+    traversal attempts like '..' since they won't appear in `valid`.
+    """
+    if lang in valid:
+        return valid[lang]
+    suggestion = next(
+        (key for key, value in SUBMODULE_ALIASES.items() if value == lang),
+        None,
     )
+    hint = f"\n  did you mean '{suggestion}'?" if suggestion else ""
     die(
-        f"no submodule found for language '{lang}'.\n"
-        f"  tried: {', '.join(candidates)}\n"
-        f"  available: {', '.join(available)}"
+        f"unknown language '{lang}'. "
+        f"Available: {', '.join(sorted(valid))}.{hint}"
     )
+
+
+def submodule_path(root: Path, lang: str) -> Path:
+    """Return the tree-sitter submodule path for `lang`.
+
+    Caller must have validated `lang` via `validate_language` so the
+    directory is known to exist.
+    """
+    name = SUBMODULE_ALIASES.get(lang, lang)
+    return root / "lang" / "semgrep-grammars" / "src" / f"tree-sitter-{name}"
 
 
 def short_sha(submodule: Path, sha: str) -> str:
@@ -131,13 +175,25 @@ def read_languages_entries(path: Path) -> set[str]:
 
 
 def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
-    """Write `entries` to `path`, one per line, sorted, with a trailing newline."""
-    path.write_text("\n".join(sorted(entries)) + "\n")
+    """Atomically write `entries` to `path` (sorted, newline-terminated).
 
-
-def language_candidates(lang: str) -> list[str]:
-    """Return `[lang, alias]` deduplicated; callers try the canonical name first."""
-    return list(dict.fromkeys([lang, SUBMODULE_ALIASES.get(lang, lang)]))
+    Writes to a sibling tempfile in the same directory and renames it
+    into place, so an interrupted run cannot leave `path` half-written.
+    The tempfile is removed if the rename fails or the process is
+    interrupted (Ctrl-C) before the rename completes.
+    """
+    data = "\n".join(sorted(entries)) + "\n"
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent,
+        prefix=f".{path.name}.", suffix=".tmp", delete=False,
+    )
+    try:
+        with tmp:
+            tmp.write(data)
+        Path(tmp.name).replace(path)
+    except BaseException:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
 
 
 def sync_membership(names: list[str], version: str,
@@ -166,32 +222,6 @@ def sync_membership(names: list[str], version: str,
 
     if expected_changed:
         write_sorted_languages_entries(expected, expected_entries)
-
-
-def resolve_list_name(root: Path, lang: str) -> str:
-    """Return the name to record in `languages-*` files for `lang`.
-
-    The list name is whichever of `lang` or its `SUBMODULE_ALIASES` entry
-    has a matching `semgrep-<name>/` wrapper directory. Dies if none
-    exists, with a 'did you mean ...?' hint when the input is an alias
-    target (e.g. 'go-mod') instead of the alias key ('gomod').
-
-    Call this before any mutating step (`update_submodule`, etc.) so a
-    bad language name fails fast — otherwise the submodule would be
-    checked out to the new ref before we discover the wrapper is missing.
-    """
-    sg_src = root / "lang" / "semgrep-grammars" / "src"
-    candidates = language_candidates(lang)
-    for name in candidates:
-        if (sg_src / f"semgrep-{name}").is_dir():
-            return name
-    tried = ", ".join(f"semgrep-{n}" for n in candidates)
-    suggestion = next(
-        (key for key, value in SUBMODULE_ALIASES.items() if value == lang),
-        None,
-    )
-    hint = f"\n  did you mean '{suggestion}'?" if suggestion else ""
-    die(f"no semgrep grammar wrapper found for '{lang}'. Tried: {tried}{hint}")
 
 
 def sync_languages_membership(root: Path, list_name: str, version: str,
@@ -367,13 +397,14 @@ def main() -> int:
             f"{', '.join(sorted(missing_variants))}."
         )
     args = parse_args(version_files.keys())
-    if "/" in args.language:
-        die("language name must not contain '/'.")
 
-    submodule = resolve_submodule(root, args.language)
-    # Resolve up front so a missing wrapper aborts before any mutation
-    # (update_submodule would otherwise leave the submodule on a new ref).
-    list_name = resolve_list_name(root, args.language)
+    # Single source of truth for valid language inputs. Validating here —
+    # before any mutating step — also blocks path-traversal inputs like
+    # '..' since they can't appear in the discovered set, and ensures
+    # update_submodule never runs against a bad language name.
+    valid_languages = discover_valid_languages(root)
+    list_name = validate_language(args.language, valid_languages)
+    submodule = submodule_path(root, args.language)
 
     if not args.skip_release:
         require_clean_worktree(root)
