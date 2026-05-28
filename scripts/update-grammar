@@ -504,6 +504,17 @@ def main() -> int:
 
     if args.skip_release:
         print("Skipping release: would have run " + shlex.join(release_args))
+        dirty = run(
+            ["git", "status", "--porcelain"], cwd=root, capture=True,
+        ).stdout.strip()
+        if dirty:
+            print(
+                "\nThe outer repo now has uncommitted changes (submodule "
+                "bump + languages-* edits). Commit them, or run "
+                "`git checkout -- lang/` and reset the submodule to undo:\n"
+                f"{dirty}",
+                file=sys.stderr,
+            )
         return 0
 
     # `release` requires a clean git status, so commit first.
