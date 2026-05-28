@@ -13,16 +13,18 @@ Steps performed by `main()` in order:
    trees (skipped under `--skip-release`).
 4. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<sub>,
    fetch from origin, and check out the ref passed via --ref.
-5. Delete the cached parser.c files so the build regenerates them.
-6. Sync lang/languages-<version> and lang/language-variants-<version>
-   so the language is listed exactly once across version files.
-7. Run `lang/test-lang <lang>` to verify the bump.
-8. Create a matching branch `$USER/update-<lang>-<short-sha>` in both
+5. Create a matching branch `$USER/update-<lang>-<short-sha>` in both
    the outer repo and the submodule (so `git push --recurse-submodules`
-   finds a matching ref instead of failing). Commit the staged changes.
-9. Run `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+   finds a matching ref, and so the file edits below land on the branch
+   rather than blocking a later checkout). Skipped under --skip-release.
+6. Delete the cached parser.c files so the build regenerates them.
+7. Sync lang/languages-<version> and lang/language-variants-<version>
+   so the language is listed exactly once across version files.
+8. Run `lang/test-lang <lang>` to verify the bump.
+9. Commit the staged changes and run
+   `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
 
-Pass `--skip-release` to run steps 1-7 only (no branch/commit/release).
+Pass `--skip-release` to run steps 1-4, 6-8 only (no branch/commit/release).
 """
 
 from __future__ import annotations
@@ -479,8 +481,20 @@ def main() -> int:
         require_clean_worktree(submodule)
 
     old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
-    remove_stale_parsers(root, args.language, list_name)
 
+    old_short = short_sha(submodule, old_sha)
+    new_short = short_sha(submodule, new_sha)
+    branch = f"{sanitize_for_branch(getpass.getuser())}/update-{args.language}-{new_short}"
+    release_args = ["./release", args.language, "--branch", branch]
+
+    # Switch to the release branch before mutating any files: otherwise the
+    # later checkout would refuse to overwrite the uncommitted languages-*
+    # edits. Submodule first so the outer commit records it on the branch.
+    if not args.skip_release:
+        ensure_on_branch(submodule, branch, at=new_sha)
+        ensure_on_branch(root, branch)
+
+    remove_stale_parsers(root, args.language, list_name)
     sync_languages_membership(root, list_name,
                               args.tree_sitter_version,
                               version_files, variant_version_files)
@@ -488,19 +502,9 @@ def main() -> int:
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
 
-    old_short = short_sha(submodule, old_sha)
-    new_short = short_sha(submodule, new_sha)
-    branch = f"{sanitize_for_branch(getpass.getuser())}/update-{args.language}-{new_short}"
-
-    release_args = ["./release", args.language, "--branch", branch]
-
     if args.skip_release:
         print("Skipping release: would have run " + shlex.join(release_args))
         return 0
-
-    # Submodule first so the outer commit records it already on the branch.
-    ensure_on_branch(submodule, branch, at=new_sha)
-    ensure_on_branch(root, branch)
 
     # `release` requires a clean git status, so commit first.
     commit_changes(root, args.language, old_short, new_short)
