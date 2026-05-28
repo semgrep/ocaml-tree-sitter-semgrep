@@ -219,15 +219,37 @@ class SyncMembershipTests(FilesystemTest):
         self.assertEqual(ug.read_languages_entries(v1), {"python", "ruby"})
 
 
-class CheckLanguagesMembershipTests(FilesystemTest):
-    def _setup_files(
-        self, semgrep_dirs: tuple[str, ...] = (),
-    ) -> tuple[Path, Path]:
-        """Build the repo skeleton and empty `languages-` / `language-variants-` files.
+class ResolveListNameTests(FilesystemTest):
+    def test_returns_lang_when_wrapper_matches(self):
+        make_repo(self.root, semgrep_dirs=("semgrep-python",))
+        self.assertEqual(ug.resolve_list_name(self.root, "python"), "python")
 
-        Returns `(languages_path, language_variants_path)`.
-        """
-        make_repo(self.root, semgrep_dirs=semgrep_dirs)
+    def test_returns_alias_target_when_only_aliased_wrapper_exists(self):
+        # "apex" aliases to "sfapex"; only semgrep-sfapex exists.
+        make_repo(self.root, semgrep_dirs=("semgrep-sfapex",))
+        self.assertEqual(ug.resolve_list_name(self.root, "apex"), "sfapex")
+
+    def test_dies_with_alias_hint_when_alias_target_passed(self):
+        # User passes "go-mod" (alias target); the error must suggest 'gomod'.
+        make_repo(self.root, semgrep_dirs=("semgrep-gomod",))
+        captured = StringIO()
+        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+            ug.resolve_list_name(self.root, "go-mod")
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("did you mean 'gomod'", captured.getvalue())
+
+    def test_dies_without_hint_for_unknown_language(self):
+        make_repo(self.root)
+        captured = StringIO()
+        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+            ug.resolve_list_name(self.root, "xyz")
+        self.assertEqual(cm.exception.code, 1)
+        self.assertNotIn("did you mean", captured.getvalue())
+
+
+class SyncLanguagesMembershipTests(FilesystemTest):
+    def _setup_files(self) -> tuple[Path, Path]:
+        """Create empty `languages-0.22.6` and `language-variants-0.22.6`."""
         langs = self.root / "languages-0.22.6"
         variants = self.root / "language-variants-0.22.6"
         langs.write_text("")
@@ -235,48 +257,35 @@ class CheckLanguagesMembershipTests(FilesystemTest):
         return langs, variants
 
     def test_typescript_expands_to_variants(self):
-        langs, variants = self._setup_files(semgrep_dirs=("semgrep-typescript",))
-        ug.check_languages_membership(
+        langs, variants = self._setup_files()
+        ug.sync_languages_membership(
             self.root, "typescript", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        langs_entries = ug.read_languages_entries(langs)
-        variants_entries = ug.read_languages_entries(variants)
-        self.assertEqual(langs_entries, {"typescript"})
-        self.assertEqual(variants_entries, {"typescript", "tsx"})
+        self.assertEqual(ug.read_languages_entries(langs), {"typescript"})
+        self.assertEqual(
+            ug.read_languages_entries(variants), {"typescript", "tsx"},
+        )
 
     def test_default_lang_appears_in_both_unchanged(self):
-        langs, variants = self._setup_files(semgrep_dirs=("semgrep-python",))
-        ug.check_languages_membership(
+        langs, variants = self._setup_files()
+        ug.sync_languages_membership(
             self.root, "python", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        langs_entries = ug.read_languages_entries(langs)
-        variants_entries = ug.read_languages_entries(variants)
-        self.assertEqual(langs_entries, {"python"})
-        self.assertEqual(variants_entries, {"python"})
+        self.assertEqual(ug.read_languages_entries(langs), {"python"})
+        self.assertEqual(ug.read_languages_entries(variants), {"python"})
 
-    def test_alias_resolution_when_semgrep_dir_exists(self):
-        # With a semgrep-sfapex dir present, the alias is selected as the
-        # name to record, which expands to ["apex"] in LANGUAGE_VARIANTS.
-        langs, variants = self._setup_files(semgrep_dirs=("semgrep-sfapex",))
-        ug.check_languages_membership(
-            self.root, "apex", "0.22.6",
+    def test_alias_target_expands_to_variants(self):
+        # "sfapex" (the alias target chosen by resolve_list_name when the
+        # user passes "apex") expands to ["apex"] in LANGUAGE_VARIANTS.
+        langs, variants = self._setup_files()
+        ug.sync_languages_membership(
+            self.root, "sfapex", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        langs_entries = ug.read_languages_entries(langs)
-        variants_entries = ug.read_languages_entries(variants)
-        self.assertEqual(langs_entries, {"sfapex"})
-        self.assertEqual(variants_entries, {"apex"})
-
-    def test_dies_when_no_semgrep_dir_exists(self):
-        langs, variants = self._setup_files()
-        with self.assertRaises(SystemExit) as cm:
-            ug.check_languages_membership(
-                self.root, "python", "0.22.6",
-                {"0.22.6": langs}, {"0.22.6": variants},
-            )
-        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(ug.read_languages_entries(langs), {"sfapex"})
+        self.assertEqual(ug.read_languages_entries(variants), {"apex"})
 
 
 class RemoveStaleParsersTests(FilesystemTest):

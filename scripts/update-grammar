@@ -168,23 +168,36 @@ def sync_membership(names: list[str], version: str,
         write_sorted_languages_entries(expected, expected_entries)
 
 
-def check_languages_membership(root: Path, lang: str, version: str,
-                               version_files: dict[str, Path],
-                               variant_version_files: dict[str, Path]) -> None:
-    """Ensure lang and its variants are listed in the right files.
+def resolve_list_name(root: Path, lang: str) -> str:
+    """Return the name to record in `languages-*` files for `lang`.
 
-    The name recorded in `languages-*` is whichever of `lang` or its
-    `SUBMODULE_ALIASES` entry has a matching `semgrep-<name>/` directory.
+    The list name is whichever of `lang` or its `SUBMODULE_ALIASES` entry
+    has a matching `semgrep-<name>/` wrapper directory. Dies if none
+    exists, with a 'did you mean ...?' hint when the input is an alias
+    target (e.g. 'go-mod') instead of the alias key ('gomod').
+
+    Call this before any mutating step (`update_submodule`, etc.) so a
+    bad language name fails fast — otherwise the submodule would be
+    checked out to the new ref before we discover the wrapper is missing.
     """
     sg_src = root / "lang" / "semgrep-grammars" / "src"
     candidates = language_candidates(lang)
-    list_name = next(
-        (name for name in candidates if (sg_src / f"semgrep-{name}").is_dir()),
+    for name in candidates:
+        if (sg_src / f"semgrep-{name}").is_dir():
+            return name
+    tried = ", ".join(f"semgrep-{n}" for n in candidates)
+    suggestion = next(
+        (key for key, value in SUBMODULE_ALIASES.items() if value == lang),
         None,
     )
-    if list_name is None:
-        tried = ", ".join(f"semgrep-{n}" for n in candidates)
-        die(f"no semgrep grammar wrapper found for '{lang}'. Tried: {tried}")
+    hint = f"\n  did you mean '{suggestion}'?" if suggestion else ""
+    die(f"no semgrep grammar wrapper found for '{lang}'. Tried: {tried}{hint}")
+
+
+def sync_languages_membership(root: Path, list_name: str, version: str,
+                              version_files: dict[str, Path],
+                              variant_version_files: dict[str, Path]) -> None:
+    """Ensure `list_name` and its variants are listed in the right files."""
     sync_membership([list_name], version, version_files, root)
     variants = LANGUAGE_VARIANTS.get(list_name, [list_name])
     sync_membership(variants, version, variant_version_files, root)
@@ -355,6 +368,9 @@ def main() -> int:
         die("language name must not contain '/'.")
 
     submodule = resolve_submodule(root, args.language)
+    # Resolve up front so a missing wrapper aborts before any mutation
+    # (update_submodule would otherwise leave the submodule on a new ref).
+    list_name = resolve_list_name(root, args.language)
 
     if not args.skip_release:
         require_clean_worktree(root)
@@ -363,9 +379,9 @@ def main() -> int:
     old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
     remove_stale_parsers(root, args.language)
 
-    check_languages_membership(root, args.language,
-                               args.tree_sitter_version,
-                               version_files, variant_version_files)
+    sync_languages_membership(root, list_name,
+                              args.tree_sitter_version,
+                              version_files, variant_version_files)
 
     lang_dir = root / "lang"
     run(["./test-lang", args.language], cwd=lang_dir)
