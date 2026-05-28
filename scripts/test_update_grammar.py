@@ -89,12 +89,16 @@ class FilesystemTest(TestBase):
 
 
 class LanguagesEntriesTests(FilesystemTest):
-    def test_write_then_read_roundtrip(self):
+    def test_write_produces_sorted_newline_terminated_lines(self):
         path = self.root / "languages-0.22.6"
         ug.write_sorted_languages_entries(path, {"python", "ruby", "go"})
         self.assertEqual(path.read_text(), "go\npython\nruby\n")
+
+    def test_write_then_read_roundtrip(self):
+        path = self.root / "languages-0.22.6"
+        ug.write_sorted_languages_entries(path, {"python", "ruby", "go"})
         self.assertEqual(
-            ug.read_languages_entries(path), {"python", "ruby", "go"}
+            ug.read_languages_entries(path), {"python", "ruby", "go"},
         )
 
     def test_read_skips_blank_and_whitespace_only_lines(self):
