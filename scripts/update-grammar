@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -233,6 +234,49 @@ def sync_languages_membership(root: Path, list_name: str, version: str,
     sync_membership(variants, version, variant_version_files, root)
 
 
+def vendor_runtime_headers(submodule: Path, root: Path, list_name: str) -> None:
+    """Mirror non-parser tree-sitter runtime headers from upstream to wrapper.
+
+    Why: `scanner.c` is symlinked from upstream into the wrapper's `src/`,
+    but the wrapper's `tree-sitter generate` only emits `tree_sitter/parser.h`.
+    If upstream's `scanner.c` includes other runtime headers (`array.h`,
+    `alloc.h`, ...) that upstream has vendored in *its* `src/tree_sitter/`,
+    the wrapper build can't find them and fails with
+    `fatal error: 'tree_sitter/array.h' file not found`. Copy those over.
+
+    `parser.h` is always skipped because it's wrapper-specific (the
+    wrapper has its own grammar.js and therefore its own parser.h).
+
+    Supports nested grammar layouts (e.g. typescript's typescript/ + tsx/
+    subdirs) by mirroring along each wrapper grammar.js's path relative
+    to the wrapper root.
+    """
+    wrapper_root = (
+        root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{list_name}"
+    )
+    if not wrapper_root.is_dir():
+        return
+    for grammar in wrapper_root.rglob("grammar.js"):
+        rel = grammar.parent.relative_to(wrapper_root)
+        upstream_inc = submodule / rel / "src" / "tree_sitter"
+        if not upstream_inc.is_dir():
+            continue
+        wrapper_inc = grammar.parent / "src" / "tree_sitter"
+        wrapper_inc.mkdir(parents=True, exist_ok=True)
+        for src in upstream_inc.glob("*.h"):
+            if src.name == "parser.h":
+                continue
+            dst = wrapper_inc / src.name
+            if dst.exists() and dst.read_bytes() == src.read_bytes():
+                continue
+            shutil.copy2(src, dst)
+            print(
+                f"Vendored {dst.relative_to(root)} "
+                f"from {src.relative_to(root)}",
+                file=sys.stderr,
+            )
+
+
 def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
     """Delete generated parser.c files so the build regenerates them.
 
@@ -412,6 +456,7 @@ def main() -> int:
 
     old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
     remove_stale_parsers(root, args.language, list_name)
+    vendor_runtime_headers(submodule, root, list_name)
 
     sync_languages_membership(root, list_name,
                               args.tree_sitter_version,
