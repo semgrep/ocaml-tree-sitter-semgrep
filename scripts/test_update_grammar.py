@@ -1,10 +1,19 @@
 """Unit tests for scripts/update-grammar.
 
 The script has no `.py` extension, so we load it explicitly with
-`SourceFileLoader`. Pure / filesystem helpers are tested directly;
-git-driven helpers are exercised against real temporary git repos
-(see `GitRepoTest` / `UpdateSubmoduleTests`) so behavior is verified
-by post-condition state instead of asserting on subprocess invocations.
+`SourceFileLoader` (see `_load_script_module`). Tests are organized
+in three layers:
+
+* Pure / filesystem helpers (e.g. `read_languages_entries`,
+  `discover_version_files`, `resolve_submodule`) run directly against
+  temporary directories.
+* Argparse plumbing is exercised by calling `parse_args` directly.
+* Git-driven helpers (`ensure_on_branch`, `commit_changes`,
+  `require_clean_worktree`, `update_submodule`) are run against real
+  temporary git repos built by `init_git_repo`. Behavior is verified
+  by post-condition state (current branch, HEAD SHA, staged paths,
+  porcelain status) rather than by asserting on which subprocess
+  commands were invoked.
 
 Run with: `python -m unittest scripts/test_update_grammar.py`
 """
@@ -171,8 +180,17 @@ class ResolveSubmoduleTests(FilesystemTest):
             self.root,
             submodule_dirs=("tree-sitter-gomod", "tree-sitter-go-mod"),
         )
-        expected = self.root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-gomod"
-        self.assertEqual(ug.resolve_submodule(self.root, "gomod"), expected)
+        base = self.root / "lang" / "semgrep-grammars" / "src"
+        # "gomod" has the alias entry, so candidates are ["gomod", "go-mod"]
+        # and the canonical (first) match wins even when both dirs exist.
+        self.assertEqual(
+            ug.resolve_submodule(self.root, "gomod"), base / "tree-sitter-gomod",
+        )
+        # "go-mod" has no alias entry, so candidates are just ["go-mod"]
+        # and it resolves to the alias-named dir, not the canonical one.
+        self.assertEqual(
+            ug.resolve_submodule(self.root, "go-mod"), base / "tree-sitter-go-mod",
+        )
 
     def test_dies_when_neither_exists(self):
         make_repo(self.root)
