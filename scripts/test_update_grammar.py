@@ -229,7 +229,7 @@ class ValidateLanguageTests(FilesystemTest):
         self.assertEqual(ug.validate_language("apex", self.VALID), "sfapex")
 
     def test_dies_with_alias_hint_when_alias_target_passed(self):
-        # "go-mod" is the SUBMODULE_ALIASES value for "gomod"; hint should fire.
+        # "go-mod" is the LANGUAGE_ALIASES value for "gomod"; hint should fire.
         captured = StringIO()
         with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
             ug.validate_language("go-mod", self.VALID)
@@ -372,38 +372,42 @@ class EnsureTreeSitterVersionTests(FilesystemTest):
     def setUp(self) -> None:
         super().setUp()
         self.core = self.root / "core"
-        scripts = self.core / "scripts"
-        scripts.mkdir(parents=True)
-        # Each stub appends "<name> <args>" to calls.log when invoked, so
-        # tests can assert on which scripts ran and in what order.
-        for name in (
-            "switch-tree-sitter-version",
-            "install-tree-sitter-cli",
-            "install-tree-sitter-lib",
-        ):
-            script = scripts / name
+        self.scripts_dir = self.core / "scripts"
+        self.scripts_dir.mkdir(parents=True)
+        # Each stub appends '<name> <args>' to calls.log; tests assert on the
+        # recorded call sequence rather than on any real side effect.
+        for name in ug.CORE_SCRIPTS:
+            script = self.scripts_dir / name
             script.write_text(
                 "#!/usr/bin/env bash\n"
                 f'printf "%s\\n" "{name} $*" >> "$(dirname "$0")/../calls.log"\n'
             )
             script.chmod(0o755)
         self.calls_log = self.core / "calls.log"
-        self.version_file = self.core / "tree-sitter-version"
+        self.tree_sitter_bin = self.core / "tree-sitter" / "bin" / "tree-sitter"
+
+    def _install_stub_binary(self, version: str) -> None:
+        """Install a fake tree-sitter binary that prints `version` on --version."""
+        self.tree_sitter_bin.parent.mkdir(parents=True, exist_ok=True)
+        self.tree_sitter_bin.write_text(
+            "#!/usr/bin/env bash\n"
+            f'echo "tree-sitter {version} (stub)"\n'
+        )
+        self.tree_sitter_bin.chmod(0o755)
 
     def _calls(self) -> list[str]:
         if not self.calls_log.exists():
             return []
-        # Strip trailing whitespace from each line — shell `$*` expands to
-        # an empty string with a stray leading space when no args.
+        # Trailing space from `$*` with no args; rstrip for stable assertions.
         return [line.rstrip() for line in self.calls_log.read_text().splitlines()]
 
-    def test_no_op_when_version_matches(self):
-        self.version_file.write_text("0.22.6\n")
-        ug.ensure_tree_sitter_version(self.root, "0.22.6")
+    def test_no_op_when_binary_already_at_version(self):
+        self._install_stub_binary("0.26.3")
+        ug.ensure_tree_sitter_version(self.root, "0.26.3")
         self.assertEqual(self._calls(), [])
 
-    def test_switches_and_installs_when_version_differs(self):
-        self.version_file.write_text("0.20.6\n")
+    def test_runs_scripts_when_binary_reports_other_version(self):
+        self._install_stub_binary("0.20.6")
         ug.ensure_tree_sitter_version(self.root, "0.26.3")
         self.assertEqual(
             self._calls(),
@@ -414,18 +418,75 @@ class EnsureTreeSitterVersionTests(FilesystemTest):
             ],
         )
 
-    def test_switches_when_version_file_missing(self):
-        # No tree-sitter-version file => treat as a switch is needed.
-        self.assertFalse(self.version_file.exists())
+    def test_runs_scripts_when_binary_missing(self):
+        # No installed binary => treat as "not aligned" and re-run everything.
+        self.assertFalse(self.tree_sitter_bin.exists())
         ug.ensure_tree_sitter_version(self.root, "0.22.6")
         self.assertEqual(
-            [call.split()[0] for call in self._calls()],
+            self._calls(),
             [
-                "switch-tree-sitter-version",
+                "switch-tree-sitter-version 0.22.6",
                 "install-tree-sitter-cli",
                 "install-tree-sitter-lib",
             ],
         )
+
+    def test_dies_when_core_scripts_missing(self):
+        for name in ug.CORE_SCRIPTS:
+            (self.scripts_dir / name).unlink()
+        with self.assertRaises(SystemExit) as cm:
+            ug.ensure_tree_sitter_version(self.root, "0.22.6")
+        self.assertEqual(cm.exception.code, 1)
+
+
+class InstalledTreeSitterVersionTests(FilesystemTest):
+    def setUp(self) -> None:
+        super().setUp()
+        self.core = self.root / "core"
+        self.bin = self.core / "tree-sitter" / "bin" / "tree-sitter"
+
+    def _install(self, body: str) -> None:
+        self.bin.parent.mkdir(parents=True, exist_ok=True)
+        self.bin.write_text(f"#!/usr/bin/env bash\n{body}\n")
+        self.bin.chmod(0o755)
+
+    def test_returns_none_when_binary_missing(self):
+        self.assertIsNone(ug.installed_tree_sitter_version(self.core))
+
+    def test_parses_version_from_standard_output(self):
+        self._install('echo "tree-sitter 0.26.3 (abc1234)"')
+        self.assertEqual(
+            ug.installed_tree_sitter_version(self.core), "0.26.3",
+        )
+
+    def test_parses_version_without_sha_suffix(self):
+        self._install('echo "tree-sitter 0.22.6"')
+        self.assertEqual(
+            ug.installed_tree_sitter_version(self.core), "0.22.6",
+        )
+
+    def test_returns_none_when_binary_exits_nonzero(self):
+        self._install("exit 1")
+        self.assertIsNone(ug.installed_tree_sitter_version(self.core))
+
+
+class SanitizeForBranchTests(TestBase):
+    def test_passes_through_clean_name(self):
+        self.assertEqual(ug.sanitize_for_branch("marc-andre"), "marc-andre")
+
+    def test_replaces_dots(self):
+        self.assertEqual(ug.sanitize_for_branch("marc.andre"), "marc-andre")
+
+    def test_replaces_windows_domain_backslash(self):
+        self.assertEqual(ug.sanitize_for_branch("DOMAIN\\user"), "DOMAIN-user")
+
+    def test_collapses_runs_and_trims(self):
+        self.assertEqual(ug.sanitize_for_branch("...foo:::bar..."), "foo-bar")
+
+    def test_dies_when_no_valid_chars(self):
+        with self.assertRaises(SystemExit) as cm:
+            ug.sanitize_for_branch("...")
+        self.assertEqual(cm.exception.code, 1)
 
 
 # ----- argparse ------------------------------------------------------------
