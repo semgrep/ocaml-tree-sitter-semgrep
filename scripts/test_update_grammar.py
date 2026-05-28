@@ -361,6 +361,69 @@ class RemoveStaleParsersTests(FilesystemTest):
         self.assertFalse(inner.exists())
 
 
+class EnsureTreeSitterVersionTests(FilesystemTest):
+    """Drive ensure_tree_sitter_version against stub `core/scripts/*` shells."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.core = self.root / "core"
+        scripts = self.core / "scripts"
+        scripts.mkdir(parents=True)
+        # Record each invocation by appending the script name + args to
+        # `calls.log`. Each stub also touches its name so test_idempotent
+        # can detect whether it ran.
+        for name in (
+            "switch-tree-sitter-version",
+            "install-tree-sitter-cli",
+            "install-tree-sitter-lib",
+        ):
+            script = scripts / name
+            script.write_text(
+                "#!/usr/bin/env bash\n"
+                f'printf "%s\\n" "{name} $*" >> "$(dirname "$0")/../calls.log"\n'
+            )
+            script.chmod(0o755)
+        self.calls_log = self.core / "calls.log"
+        self.version_file = self.core / "tree-sitter-version"
+
+    def _calls(self) -> list[str]:
+        if not self.calls_log.exists():
+            return []
+        # Strip trailing whitespace from each line — shell `$*` expands to
+        # an empty string with a stray leading space when no args.
+        return [line.rstrip() for line in self.calls_log.read_text().splitlines()]
+
+    def test_no_op_when_version_matches(self):
+        self.version_file.write_text("0.22.6\n")
+        ug.ensure_tree_sitter_version(self.root, "0.22.6")
+        self.assertEqual(self._calls(), [])
+
+    def test_switches_and_installs_when_version_differs(self):
+        self.version_file.write_text("0.20.6\n")
+        ug.ensure_tree_sitter_version(self.root, "0.26.3")
+        self.assertEqual(
+            self._calls(),
+            [
+                "switch-tree-sitter-version 0.26.3",
+                "install-tree-sitter-cli",
+                "install-tree-sitter-lib",
+            ],
+        )
+
+    def test_switches_when_version_file_missing(self):
+        # No tree-sitter-version file => treat as a switch is needed.
+        self.assertFalse(self.version_file.exists())
+        ug.ensure_tree_sitter_version(self.root, "0.22.6")
+        self.assertEqual(
+            [call.split()[0] for call in self._calls()],
+            [
+                "switch-tree-sitter-version",
+                "install-tree-sitter-cli",
+                "install-tree-sitter-lib",
+            ],
+        )
+
+
 # ----- argparse ------------------------------------------------------------
 
 

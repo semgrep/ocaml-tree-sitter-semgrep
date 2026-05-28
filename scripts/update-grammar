@@ -138,6 +138,33 @@ def validate_language(lang: str, valid: dict[str, str]) -> str:
     )
 
 
+def ensure_tree_sitter_version(root: Path, version: str) -> None:
+    """Switch the local tree-sitter install to `version` if not already.
+
+    Drives `core/scripts/switch-tree-sitter-version` + the install scripts
+    so the build step uses a CLI matching the version pinned for this
+    language. Without this, an older local CLI (e.g. 0.20.8) skips the
+    auto-vendoring of runtime headers like `tree_sitter/array.h` that
+    newer upstream scanner.c needs, and the wrapper build fails with
+    `fatal error: 'tree_sitter/array.h' file not found`.
+
+    No-op if `core/tree-sitter-version` already matches.
+    """
+    core = root / "core"
+    version_file = core / "tree-sitter-version"
+    current = version_file.read_text().strip() if version_file.exists() else ""
+    if current == version:
+        print(f"tree-sitter {version} is already active.", file=sys.stderr)
+        return
+    print(
+        f"Switching tree-sitter: {current or '(unset)'} -> {version}",
+        file=sys.stderr,
+    )
+    run(["./scripts/switch-tree-sitter-version", version], cwd=core)
+    run(["./scripts/install-tree-sitter-cli"], cwd=core)
+    run(["./scripts/install-tree-sitter-lib"], cwd=core)
+
+
 def submodule_path(root: Path, lang: str) -> Path:
     """Return the tree-sitter submodule path for `lang`.
 
@@ -405,6 +432,12 @@ def main() -> int:
     valid_languages = discover_valid_languages(root)
     list_name = validate_language(args.language, valid_languages)
     submodule = submodule_path(root, args.language)
+
+    # Align the local tree-sitter CLI with the version the language is
+    # pinned to. Required because the wrapper build invokes whichever
+    # `tree-sitter` is on PATH; an older CLI may not auto-vendor the
+    # runtime headers that newer scanner.c expects.
+    ensure_tree_sitter_version(root, args.tree_sitter_version)
 
     if not args.skip_release:
         require_clean_worktree(root)
