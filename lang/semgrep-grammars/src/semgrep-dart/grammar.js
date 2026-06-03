@@ -89,5 +89,21 @@ module.exports = grammar(base_grammar, {
       previous,
       $.semgrep_ellipsis,
     ),
+
+    // Allow `. ...` in a method/property-access chain so the polyglot
+    // `dots_method_chaining` pattern
+    //   $X = $O.foo(). ... .bar(). ...
+    // parses. The base grammar's `selector` rule only accepts
+    // `_assignable_selector | argument_part | type_arguments | !`, none
+    // of which can match a bare `...` between chain segments. We add a
+    // new `semgrep_dot_ellipsis_selector` that fills the same slot —
+    // `seq('.', $.semgrep_ellipsis)` — and graft it into `selector` so
+    // it interleaves naturally between real `.foo()` / `.bar()` calls.
+    semgrep_dot_ellipsis_selector: $ => seq('.', $.semgrep_ellipsis),
+
+    selector: ($, previous) => choice(
+      previous,
+      $.semgrep_dot_ellipsis_selector,
+    ),
 }
 });
