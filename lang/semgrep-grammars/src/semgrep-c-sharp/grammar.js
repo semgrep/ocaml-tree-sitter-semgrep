@@ -141,6 +141,17 @@ module.exports = grammar(standard_grammar, {
       ')',
     ))),
 
+    // Real-world C# code occasionally contains technically-invalid
+    // escape sequences inside string literals (`"\\share\images"` where
+    // `\i` is not one of the spec's recognized escapes). Roslyn rejects
+    // these, but the upstream tree-sitter grammar follows Roslyn and
+    // produces an ERROR node, which then fails semgrep's parse-error
+    // gate. Semgrep is a static analyzer that wants to scan as much
+    // code as it can, so we broaden `escape_sequence` here to accept
+    // any `\<single-char>` after the spec-recognized escapes have had a
+    // chance to match.
+    escape_sequence: ($, previous) => choice(previous, token(/\\./)),
+
     deep_ellipsis: $ => seq(
       '<...', $.expression, '...>'
     ),
