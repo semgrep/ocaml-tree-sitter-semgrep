@@ -59,11 +59,24 @@ module.exports = grammar(base_grammar, {
 
     // Hidden (leading underscore): the choice node is inlined into
     // `semgrep_expression`, so the parse tree exposes the inner
-    // expression/statement directly.
+    // expression/statement/statement-list directly.
     _semgrep_pattern: $ => choice(
       $._expression,
       $._statement,
+      $.semgrep_statement_list,
     ),
+
+    // Multi-statement pattern body. Lets a polyglot like
+    //   $V = get();
+    //   ...
+    //   eval($V);
+    // parse cleanly via the `__SEMGREP_EXPRESSION` entry point as a
+    // sequence of statements, sidestepping the top-level
+    // function-declaration ambiguity that would otherwise greedily eat
+    // `$V = get();` as a function signature. Requires at least two
+    // statements so the single-statement case keeps using `$._statement`
+    // above (avoiding a parse-tree ambiguity between the two arms).
+    semgrep_statement_list: $ => seq($._statement, repeat1($._statement)),
 
     _expression: ($, previous) => choice(
       previous,
