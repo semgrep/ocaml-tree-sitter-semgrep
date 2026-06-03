@@ -66,11 +66,49 @@ $ ./test-lang kotlin
 For details, see [How to upgrade the grammar for a
 language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
+### tree-sitter versions (per language)
+
+Each grammar is built against a specific tree-sitter version, pinned by
+listing the language in one of:
+
+| File | Used by |
+|--|--|
+| `lang/languages-<version>` | the `test-lang` build/test loop |
+| `lang/language-variants-<version>` | the `release` loop (includes dialects like `tsx`, `php-only`) |
+
+At build time, `lang/Makefile.common` and
+`lang/semgrep-grammars/src/Makefile.common` resolve the version for each
+language (via `lang/scripts/ts-version-for-lang`) and point
+`TREESITTER_BINDIR/INCDIR/LIBDIR` directly at
+`core/tree-sitter-<version>/{bin,include,lib}`. A language listed in no
+`languages-*` / `language-variants-*` file is a build error.
+
+**This is independent of `core/scripts/switch-tree-sitter-version` and
+the `core/tree-sitter` symlink.** That script and symlink only select
+which tree-sitter version *core itself* builds its OCaml runtime against
+(see core's README). They do **not** influence which version any grammar
+here is generated and linked with — that is determined solely by the
+`lang/languages-*` lists. Switching core's version does not require
+rebuilding the grammars, and grammars on different versions coexist.
+
+The one requirement is that every pinned version is *installed* under
+`core/`. `make setup` installs the default version; to add another,
+install it once (this leaves the grammars' pinning untouched):
+
+```
+cd core
+./scripts/switch-tree-sitter-version <version>   # e.g. 0.22.6
+./scripts/install-tree-sitter-cli
+./scripts/install-tree-sitter-lib
+```
+
+Each version installs into its own `core/tree-sitter-<version>/`, so
+installing one never overwrites another.
+
 ### tree-sitter ABI 15
 
-Each grammar is generated with the tree-sitter version pinned for it in
-`lang/languages-<version>` / `lang/language-variants-<version>`, and the
-generated parser's ABI is chosen automatically:
+The generated parser's ABI is chosen automatically per grammar, using the
+version resolved above:
 
 | Condition | ABI |
 |--|--|
