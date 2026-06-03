@@ -30,7 +30,8 @@ build:
 	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
 	  if [ ! -x "$$ts_bindir/tree-sitter" ]; then \
 	    echo "Error: tree-sitter $$ts_version is not installed at $$ts_bindir." >&2; \
-	    echo "Install it with: cd $(PROJECT_ROOT)/core && ./scripts/install-tree-sitter-cli $$ts_version" >&2; \
+	    echo "Install it with:" >&2; \
+	    echo "  cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version $$ts_version && ./scripts/install-tree-sitter-cli && ./scripts/install-tree-sitter-lib" >&2; \
 	    exit 1; \
 	  fi; \
 	  echo "Generate parser in $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
@@ -69,6 +70,8 @@ test:
 	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
 	  if [ ! -x "$$ts_bindir/tree-sitter" ]; then \
 	    echo "Error: tree-sitter $$ts_version is not installed at $$ts_bindir." >&2; \
+	    echo "Install it with:" >&2; \
+	    echo "  cd $(PROJECT_ROOT)/core && ./scripts/switch-tree-sitter-version $$ts_version && ./scripts/install-tree-sitter-cli && ./scripts/install-tree-sitter-lib" >&2; \
 	    exit 1; \
 	  fi; \
 	  echo "Test $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
