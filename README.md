@@ -66,6 +66,32 @@ $ ./test-lang kotlin
 For details, see [How to upgrade the grammar for a
 language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
+### tree-sitter ABI 15
+
+Each grammar is generated with the tree-sitter version pinned for it in
+`lang/languages-<version>` / `lang/language-variants-<version>`, and the
+generated parser's ABI is chosen automatically:
+
+| Condition | ABI |
+|--|--|
+| Grammar ships a `tree-sitter.json` **and** `SEMGREP_ENABLE_ABI15` is set | 15 |
+| tree-sitter >= 0.24.0 (otherwise) | 14 |
+| older tree-sitter | `--no-bindings` (no ABI flag) |
+
+ABI 15 is **off by default**: the tooling can already produce it, but we
+are not yet ready to ship ABI 15 parsers. To opt in for a build, set the
+environment variable:
+
+```
+SEMGREP_ENABLE_ABI15=1 make -C lang/semgrep-grammars/src build
+# or for a single language:
+SEMGREP_ENABLE_ABI15=1 ./lang/test-lang php
+```
+
+Accepted truthy values: `1`, `true`, `yes`, `on` (case-insensitive).
+When enabled, the grammar must be pinned to a tree-sitter >= 0.25.0; the
+build fails with a clear error otherwise.
+
 ### Adding a new language
 
 See [How to add support for a new language](https://semgrep.dev/docs/contributing/adding-a-language/).

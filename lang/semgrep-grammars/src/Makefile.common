@@ -12,13 +12,19 @@ LANG_SCRIPTS = $(PROJECT_ROOT)/lang/scripts
 NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH) make
 export NODE_PATH
 
-# Per-grammar build: ABI is selected from the presence of tree-sitter.json
-# (ABI 15) vs absence (ABI 14). The tree-sitter binary itself comes from the
-# version directory that owns this grammar.
+# Per-grammar build. The tree-sitter binary comes from the version directory
+# that owns the grammar. ABI selection:
+#   - ABI 15 only when the grammar ships a tree-sitter.json AND ABI 15 is
+#     enabled via the SEMGREP_ENABLE_ABI15 environment variable (see the
+#     "tree-sitter ABI 15" section of the repository-root README). This is
+#     off by default: we are not yet ready to ship ABI 15 parsers.
+#   - ABI 14 otherwise, for tree-sitter >= 0.24.0 (which introduced --abi).
+#   - --no-bindings for older tree-sitter.
 .PHONY: build
 build:
 	$(MAKE) prep
 	set -eu; \
+	case "$${SEMGREP_ENABLE_ABI15:-}" in 1|true|TRUE|yes|YES|on|ON) abi15=1 ;; *) abi15="" ;; esac; \
 	for dir in $$(find . -name grammar.js | xargs -I{} dirname {}); do \
 	  ts_version=$$($(LANG_SCRIPTS)/ts-version-for-grammar-dir "$$dir"); \
 	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
@@ -30,7 +36,7 @@ build:
 	  echo "Generate parser in $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
-	    if [ -f "$$dir/tree-sitter.json" ]; then \
+	    if [ -f "$$dir/tree-sitter.json" ] && [ -n "$$abi15" ]; then \
 	      gen_args="--abi=15"; \
 	    elif printf '%s\n%s\n' 0.24.0 "$$ts_version" | sort -V -C 2>/dev/null; then \
 	      gen_args="--abi=14"; \
