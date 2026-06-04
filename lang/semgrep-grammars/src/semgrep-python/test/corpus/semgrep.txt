@@ -6,11 +6,10 @@ a. ... .d
 ---
 
 (module
-  (expression_statement
+  (attribute
     (attribute
-      (attribute
-        (identifier))
-      (identifier))))
+      (identifier))
+    (identifier)))
 
 ====================================
 Metavariable in match
@@ -31,11 +30,10 @@ Metavariable in match
             (dotted_name
               (identifier))))
         (block
-          (expression_statement
-            (call
-              (identifier)
-              (argument_list
-                (string
-                  (string_start)
-                  (string_content)
-                  (string_end))))))))))
+          (call
+            (identifier)
+            (argument_list
+              (string
+                (string_start)
+                (string_content)
+                (string_end)))))))))
