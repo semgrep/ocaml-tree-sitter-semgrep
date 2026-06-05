@@ -1,0 +1,7 @@
+{
+    "scripts": {
+        "setup": "make agent-setup",
+        "run": "make test",
+	"archive" : "make clean"
+    }
+}

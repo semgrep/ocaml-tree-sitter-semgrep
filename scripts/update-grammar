@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+"""Update the upstream tree-sitter grammar submodule for a given language.
+
+Steps performed by `main()` in order:
+
+1. Discover the set of valid `<language>` arguments from the on-disk
+   wrapper / submodule directories and validate the user's input
+   against that set (fails fast on typos and path-traversal attempts).
+2. Switch the local tree-sitter CLI to the version pinned for this
+   language (`core/scripts/switch-tree-sitter-version` + install
+   scripts). No-op when already aligned.
+3. Verify the outer repo and the target submodule have clean working
+   trees (skipped under `--skip-release`).
+4. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<sub>,
+   fetch from origin, and check out the ref passed via --ref.
+5. Create a matching branch `$USER/update-<lang>-<short-sha>` in both
+   the outer repo and the submodule (so `git push --recurse-submodules`
+   finds a matching ref, and so the file edits below land on the branch
+   rather than blocking a later checkout). Skipped under --skip-release.
+6. Delete the cached parser.c files so the build regenerates them.
+7. Sync lang/languages-<version> and lang/language-variants-<version>
+   so the language is listed exactly once across version files.
+8. Run `lang/test-lang <lang>` to verify the bump.
+9. Commit the staged changes and run
+   `lang/release <lang> --branch $USER/update-<lang>-<short-sha>`.
+
+Pass `--skip-release` to run steps 1-4, 6-8 only (no branch/commit/release).
+"""
+
+from __future__ import annotations
+
+import argparse
+import getpass
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+from collections.abc import Collection
+from pathlib import Path
+from typing import NoReturn
+
+# Length used when abbreviating SHAs in branch names and commit messages.
+# Pinned so the script produces the same output regardless of the user's
+# local `core.abbrev` config.
+ABBREV_LEN = 8
+
+# User-facing language name -> canonical downstream name. The canonical name
+# is always the submodule directory (tree-sitter-<canonical>); sometimes also
+# the wrapper (semgrep-<canonical>):
+#   gomod -> go-mod  : wrapper is semgrep-gomod, submodule is tree-sitter-go-mod.
+#   apex  -> sfapex  : both wrapper and submodule are sfapex.
+LANGUAGE_ALIASES = {
+    "gomod": "go-mod",
+    "apex": "sfapex",
+}
+
+# Map from a `languages-*` entry (the name passed to test-lang) to the
+# dialects it expands to in `language-variants-*` (the names passed to
+# release). Kept in sync with the hardcoded cases in lang/test-lang.
+LANGUAGE_VARIANTS = {
+    "typescript": ["typescript", "tsx"],
+    "php": ["php", "php-only"],
+    "sfapex": ["apex"],
+}
+
+
+def die(msg: str) -> NoReturn:
+    """Print `msg` to stderr and exit the process with status 1."""
+    print(f"error: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def sanitize_for_branch(name: str) -> str:
+    """Replace chars that aren't safe in a git branch component with '-'.
+
+    `getpass.getuser()` can return values like 'marc.andre' or
+    'DOMAIN\\user' that git refuses as branch names. Squash anything
+    outside [A-Za-z0-9_-] to '-'; die if nothing usable remains.
+    """
+    sanitized = re.sub(r"[^A-Za-z0-9_-]+", "-", name).strip("-")
+    if not sanitized:
+        die(f"cannot derive a branch-safe name from '{name}'.")
+    return sanitized
+
+
+def run(
+    cmd: list[str | Path], cwd: Path,
+    *, check: bool = True, capture: bool = False,
+) -> subprocess.CompletedProcess:
+    """Run a subprocess in `cwd`.
+
+    `capture=True` pipes stdout (read via `.stdout`); otherwise stdout
+    is inherited so the user sees output live. `check=False` returns
+    on non-zero — inspect `.returncode`.
+    """
+    print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
+    return subprocess.run(
+        cmd, cwd=cwd, check=check, text=True,
+        stdout=subprocess.PIPE if capture else None,
+    )
+
+
+def repo_root() -> Path:
+    """Return the repo root."""
+    return Path(__file__).resolve().parent.parent
+
+
+def discover_valid_languages(root: Path) -> dict[str, str]:
+    """Map each valid `<language>` CLI argument to its wrapper name.
+
+    A language is valid iff both `semgrep-<wrapper>/` and
+    `tree-sitter-<submodule>/` exist under `lang/semgrep-grammars/src/`,
+    where the submodule name is `LANGUAGE_ALIASES.get(wrapper, wrapper)`.
+
+    Two contribution paths:
+    * Each `semgrep-<wrapper>/` directory whose paired submodule exists
+      adds `wrapper -> wrapper`.
+    * Each `LANGUAGE_ALIASES` entry `key -> target` whose paired
+      `semgrep-<target>/` and `tree-sitter-<target>/` both exist adds
+      `key -> target` (e.g. 'apex' -> 'sfapex').
+    """
+    sg_src = root / "lang" / "semgrep-grammars" / "src"
+
+    def has(prefix: str, name: str) -> bool:
+        return (sg_src / f"{prefix}-{name}").is_dir()
+
+    wrappers = {
+        p.name.removeprefix("semgrep-")
+        for p in sg_src.glob("semgrep-*")
+        if p.is_dir()
+    }
+    result: dict[str, str] = {}
+    for name in wrappers:
+        submodule = LANGUAGE_ALIASES.get(name, name)
+        if has("tree-sitter", submodule):
+            result[name] = name
+    for key, target in LANGUAGE_ALIASES.items():
+        if has("semgrep", target) and has("tree-sitter", target):
+            result[key] = target
+    return result
+
+
+def validate_language(lang: str, valid: dict[str, str]) -> str:
+    """Return the wrapper name for `lang`, or die with a helpful error.
+
+    Suggests the alias key when `lang` matches a `LANGUAGE_ALIASES` value
+    (e.g. 'go-mod' -> 'gomod'). Since `valid` comes from the filesystem,
+    path-traversal inputs like '..' are also rejected here.
+    """
+    if lang in valid:
+        return valid[lang]
+    suggestion = next(
+        (key for key, value in LANGUAGE_ALIASES.items() if value == lang),
+        None,
+    )
+    hint = f"\n  did you mean '{suggestion}'?" if suggestion else ""
+    die(
+        f"unknown language '{lang}'. "
+        f"Available: {', '.join(sorted(valid))}.{hint}"
+    )
+
+
+CORE_SCRIPTS = (
+    "switch-tree-sitter-version",
+    "install-tree-sitter-cli",
+    "install-tree-sitter-lib",
+)
+
+
+def installed_tree_sitter_version(core: Path) -> str | None:
+    """Return the version reported by `core/tree-sitter/bin/tree-sitter`, or None."""
+    binary = core / "tree-sitter" / "bin" / "tree-sitter"
+    if not binary.exists():
+        return None
+    result = run([str(binary), "--version"], cwd=core, check=False, capture=True)
+    if result.returncode != 0:
+        return None
+    parts = result.stdout.split()
+    return parts[1] if len(parts) >= 2 and parts[0] == "tree-sitter" else None
+
+
+def ensure_tree_sitter_version(root: Path, version: str) -> None:
+    """Switch the local tree-sitter install to `version` if not already.
+
+    Idempotency comes from probing the actual installed binary
+    (`installed_tree_sitter_version`) rather than the `tree-sitter-version`
+    file. A previous run interrupted between the file write and the CLI
+    install would leave the file looking aligned while the binary was
+    stale; this approach re-runs the install in that case.
+    """
+    core = root / "core"
+    missing = [s for s in CORE_SCRIPTS if not (core / "scripts" / s).exists()]
+    if missing:
+        die(
+            f"missing required core scripts: {', '.join(missing)}. "
+            f"Was core/ restructured?"
+        )
+    current = installed_tree_sitter_version(core)
+    if current == version:
+        print(f"tree-sitter {version} already installed.", file=sys.stderr)
+        return
+    print(
+        f"Aligning tree-sitter: {current or '(none)'} -> {version}",
+        file=sys.stderr,
+    )
+    run(["./scripts/switch-tree-sitter-version", version], cwd=core)
+    run(["./scripts/install-tree-sitter-cli"], cwd=core)
+    run(["./scripts/install-tree-sitter-lib"], cwd=core)
+
+
+def submodule_path(root: Path, lang: str) -> Path:
+    """Return the tree-sitter submodule path for `lang`.
+
+    Caller must have validated `lang` via `validate_language` so the
+    directory is known to exist.
+    """
+    name = LANGUAGE_ALIASES.get(lang, lang)
+    return root / "lang" / "semgrep-grammars" / "src" / f"tree-sitter-{name}"
+
+
+def short_sha(submodule: Path, sha: str) -> str:
+    """Return `sha` abbreviated to `ABBREV_LEN` chars via `git rev-parse`."""
+    return run(
+        ["git", "rev-parse", f"--short={ABBREV_LEN}", sha],
+        cwd=submodule, capture=True,
+    ).stdout.strip()
+
+
+def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
+    """Map tree-sitter version (e.g., '0.22.6') to its `<prefix>-<version>` file."""
+    return {
+        path.name.removeprefix(f"{prefix}-"): path
+        for path in sorted((root / "lang").glob(f"{prefix}-*"))
+        if not path.name.endswith(".readme")
+    }
+
+
+def read_languages_entries(path: Path) -> set[str]:
+    """Return the set of non-blank, stripped lines in a `languages-*` file."""
+    return {
+        stripped
+        for line in path.read_text().splitlines()
+        if (stripped := line.strip())
+    }
+
+
+def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
+    """Atomically write `entries` to `path` (sorted, newline-terminated).
+
+    Uses a sibling tempfile + rename so an interrupt can't leave `path`
+    half-written. Tempfile is removed on any failure or signal.
+    """
+    data = "\n".join(sorted(entries)) + "\n"
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent,
+        prefix=f".{path.name}.", suffix=".tmp", delete=False,
+    )
+    try:
+        with tmp:
+            tmp.write(data)
+        Path(tmp.name).replace(path)
+    except BaseException:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
+
+
+def sync_membership(names: list[str], version: str,
+                    version_files: dict[str, Path], root: Path) -> None:
+    """Ensure each name appears in version_files[version] and nowhere else."""
+    expected = version_files[version]
+    expected_entries = read_languages_entries(expected)
+    other_files = [p for p in version_files.values() if p != expected]
+    expected_changed = False
+
+    for name in names:
+        if name in expected_entries:
+            print(f"'{name}' already listed in {expected.relative_to(root)}")
+        else:
+            expected_entries.add(name)
+            expected_changed = True
+            print(f"Added '{name}' to {expected.relative_to(root)}")
+
+        # Defensively remove from other version files.
+        for path in other_files:
+            entries = read_languages_entries(path)
+            if name in entries:
+                entries.remove(name)
+                write_sorted_languages_entries(path, entries)
+                print(f"Removed '{name}' from {path.relative_to(root)}")
+
+    if expected_changed:
+        write_sorted_languages_entries(expected, expected_entries)
+
+
+def sync_languages_membership(root: Path, list_name: str, version: str,
+                              version_files: dict[str, Path],
+                              variant_version_files: dict[str, Path]) -> None:
+    """Ensure `list_name` and its variants are listed in the right files."""
+    sync_membership([list_name], version, version_files, root)
+    variants = LANGUAGE_VARIANTS.get(list_name, [list_name])
+    sync_membership(variants, version, variant_version_files, root)
+
+
+def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
+    """Delete generated parser.c files so the build regenerates them.
+
+    Bumping the submodule doesn't touch our `grammar.js` mtime, so the
+    per-grammar Makefile would otherwise keep a stale parser.c.
+
+    `lang` is the user input (matches `lang/<lang>/`); `list_name` is
+    the wrapper (matches `semgrep-<list_name>/`). They differ for
+    aliased inputs (e.g. apex / sfapex).
+    """
+    targets = [
+        root / "lang" / lang / "src" / "parser.c",
+        root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{list_name}"
+            / "src" / "parser.c",
+    ]
+    for path in filter(Path.exists, targets):
+        print(f"Removing stale parser: {path.relative_to(root)}", file=sys.stderr)
+        path.unlink()
+
+
+def require_clean_worktree(repo: Path) -> None:
+    """Abort if `repo` has pre-existing changes.
+
+    `commit_changes` later does `git add -A`; a dirty tree would sweep
+    in unrelated WIP. `lang/release` enforces this too — failing here
+    is just earlier and clearer.
+    """
+    status = run(
+        ["git", "status", "--porcelain"], cwd=repo, capture=True,
+    ).stdout.strip()
+    if status:
+        die(
+            f"working tree at {repo} is not clean. Commit or stash changes "
+            f"before running update-grammar, or pass --skip-release.\n"
+            f"{status}"
+        )
+
+
+def parse_args(version_choices: Collection[str],
+               argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI args; `version_choices` constrains the `tree-sitter-version` positional."""
+    parser = argparse.ArgumentParser(
+        description="Update a tree-sitter grammar submodule and run the "
+                    "downstream test-lang / release scripts.",
+    )
+    parser.add_argument(
+        "language",
+        help="Language name. Must be either a semgrep-<name>/ wrapper "
+             "directory or a LANGUAGE_ALIASES key (e.g. 'apex' for the "
+             "'sfapex' wrapper). Run with an unknown name to see the "
+             "full list.",
+    )
+    parser.add_argument(
+        "tree_sitter_version",
+        choices=version_choices,
+        metavar="tree-sitter-version",
+        help="Tree-sitter version the language targets. Must match one of the "
+             "lang/languages-<version> files. "
+             f"Choices: {', '.join(version_choices)}.",
+    )
+    parser.add_argument(
+        "--ref",
+        required=True,
+        help="Branch, tag, or commit in the submodule to check out.",
+    )
+    parser.add_argument(
+        "--fetch",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Run 'git fetch' in the submodule before resolving the ref.",
+    )
+    parser.add_argument(
+        "--skip-release",
+        action="store_true",
+        help="Run steps 1-5 only: bump the submodule, update languages-*, "
+             "remove stale parsers, and run test-lang. Skip the branch "
+             "creation, commit, and lang/release steps.",
+    )
+    return parser.parse_args(argv)
+
+
+def update_submodule(submodule: Path, root: Path, ref: str,
+                     fetch: bool) -> tuple[str, str]:
+    """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
+    old_sha = run(
+        ["git", "rev-parse", "HEAD"], cwd=submodule, capture=True,
+    ).stdout.strip()
+
+    if fetch:
+        run(["git", "fetch", "--tags", "origin"], cwd=submodule)
+
+    new_sha = run(
+        ["git", "rev-parse", ref], cwd=submodule, capture=True,
+    ).stdout.strip()
+
+    rel = submodule.relative_to(root)
+    print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
+
+    if old_sha == new_sha:
+        print("Already up to date.")
+        return old_sha, new_sha
+
+    run(["git", "checkout", new_sha], cwd=submodule)
+    run(["git", "add", "--", rel], cwd=root)
+    return old_sha, new_sha
+
+
+def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
+    """Switch `repo` to `branch`, creating it from HEAD if missing.
+
+    With `at`, force-align via `checkout -B` so a stale branch from a
+    prior run can't move HEAD off the intended commit.
+
+    Needed because `git push --recurse-submodules` requires the same
+    branch name in the outer repo and each submodule, else it fails with
+    `src refspec ... must name a ref`.
+    """
+    if at is not None:
+        run(["git", "checkout", "-B", branch, at], cwd=repo)
+        return
+    current = run(
+        ["git", "branch", "--show-current"], cwd=repo, capture=True,
+    ).stdout.strip()
+    if current == branch:
+        return
+    exists = run(
+        ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+        cwd=repo, check=False,
+    ).returncode == 0
+    cmd = ["git", "checkout", branch] if exists else ["git", "checkout", "-b", branch]
+    run(cmd, cwd=repo)
+
+
+def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
+    """Stage and commit the update; no-op if nothing changed.
+
+    `git add -A` is safe because this function only runs in the release
+    path (no `--skip-release`), and `main()` enforces a clean tree
+    up front in that path via `require_clean_worktree`.
+    """
+    run(["git", "add", "-A"], cwd=root)
+    if run(
+        ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
+    ).returncode == 0:
+        print("No changes to commit.")
+        return
+    message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
+    run(["git", "commit", "-m", message], cwd=root)
+
+
+def main() -> int:
+    """Drive the full update flow; see module docstring for the step list."""
+    root = repo_root()
+    version_files = discover_version_files(root, "languages")
+    if not version_files:
+        die("no lang/languages-* files found.")
+    variant_version_files = discover_version_files(root, "language-variants")
+    missing_variants = set(version_files) - set(variant_version_files)
+    if missing_variants:
+        die(
+            "no lang/language-variants-* file for versions: "
+            f"{', '.join(sorted(missing_variants))}."
+        )
+    args = parse_args(version_files.keys())
+
+    # Validate before any mutating step; also rejects path-traversal inputs.
+    valid_languages = discover_valid_languages(root)
+    list_name = validate_language(args.language, valid_languages)
+    submodule = submodule_path(root, args.language)
+
+    # Align the local CLI: older tree-sitter doesn't auto-vendor headers
+    # newer scanner.c expects.
+    ensure_tree_sitter_version(root, args.tree_sitter_version)
+
+    if not args.skip_release:
+        require_clean_worktree(root)
+        require_clean_worktree(submodule)
+
+    old_sha, new_sha = update_submodule(submodule, root, args.ref, args.fetch)
+
+    old_short = short_sha(submodule, old_sha)
+    new_short = short_sha(submodule, new_sha)
+    branch = f"{sanitize_for_branch(getpass.getuser())}/update-{args.language}-{new_short}"
+    release_args = ["./release", args.language, "--branch", branch]
+
+    # Switch to the release branch before mutating any files: otherwise the
+    # later checkout would refuse to overwrite the uncommitted languages-*
+    # edits. Submodule first so the outer commit records it on the branch.
+    if not args.skip_release:
+        ensure_on_branch(submodule, branch, at=new_sha)
+        ensure_on_branch(root, branch)
+
+    remove_stale_parsers(root, args.language, list_name)
+    sync_languages_membership(root, list_name,
+                              args.tree_sitter_version,
+                              version_files, variant_version_files)
+
+    lang_dir = root / "lang"
+    run(["./test-lang", args.language], cwd=lang_dir)
+
+    if args.skip_release:
+        print("Skipping release: would have run " + shlex.join(release_args))
+        dirty = run(
+            ["git", "status", "--porcelain"], cwd=root, capture=True,
+        ).stdout.strip()
+        if dirty:
+            print(
+                "\nThe outer repo now has uncommitted changes (submodule "
+                "bump + languages-* edits). Commit them, or run "
+                "`git checkout -- lang/` and reset the submodule to undo:\n"
+                f"{dirty}",
+                file=sys.stderr,
+            )
+        return 0
+
+    # `release` requires a clean git status, so commit first.
+    commit_changes(root, args.language, old_short, new_short)
+
+    run(release_args, cwd=lang_dir)
+    return 0
+
+
+def _entrypoint() -> None:
+    """Top-level guard so `__main__` doesn't define anything at module scope."""
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except subprocess.CalledProcessError as exc:
+        die(f"command failed (exit {exc.returncode}): {shlex.join(str(c) for c in exc.cmd)}")
+
+
+if __name__ == "__main__":
+    _entrypoint()

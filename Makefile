@@ -63,3 +63,8 @@ stat2:
 .PHONY: install
 install:
 	$(MAKE) -C core install
+
+# Used by Conductor at setup time
+.PHONY: agent-setup
+agent-setup: update setup build install
+	pre-commit install

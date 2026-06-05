@@ -29,3 +29,6 @@ bindings/
 
 # vim swap files
 *.swp
+
+# Python temps
+__pycache__
