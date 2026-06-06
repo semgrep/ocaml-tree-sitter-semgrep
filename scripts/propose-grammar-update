@@ -1,0 +1,584 @@
+#!/usr/bin/env python3
+"""Propose an upstream grammar update for a single language.
+
+This is the per-language driver behind the scheduled "propose grammar
+updates" GitHub Actions workflow. It wraps `scripts/update-grammar`,
+adding the orchestration that workflow needs:
+
+  * resolve each grammar's latest *stable* release tag (never an in-flux
+    upstream `master` commit),
+  * bump to it via `update-grammar --skip-release` (so nothing is ever
+    pushed to the downstream `semgrep-<lang>` repos),
+  * regenerate the corpus snapshots a grammar bump invariably churns and
+    re-run `test-lang` for an authoritative pass/fail,
+  * open exactly one PR in *this* repo when there's a real, green update,
+  * and clean up after itself so a failure never leaks into the next run.
+
+It deliberately reuses `update-grammar`'s language-discovery and
+version-file logic by importing it (see `_load_update_grammar`) rather
+than duplicating it.
+
+Modes:
+  propose-grammar-update --list-languages [--json]
+      Print the set of proposable languages (one per line, or a JSON
+      array for the workflow matrix).
+  propose-grammar-update <language> --resolve-tag-only
+      Print the latest stable tag for <language> and exit (no mutation).
+  propose-grammar-update <language> [--open-pr] [--dry-run]
+      Bump <language> to its latest tag, regenerate snapshots, test, and
+      emit a JSON result. With --open-pr, also create the PR; --dry-run
+      prints the would-be PR instead of pushing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+from pathlib import Path
+from typing import Any
+
+###############################################################################
+# update-grammar import #
+###############################################################################
+
+# `update-grammar` has no extension, so it can't be imported normally. Load it
+# the same way scripts/test_update_grammar.py does and reuse its helpers
+# instead of duplicating language-discovery / version-file logic.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_UPDATE_GRAMMAR_PATH = _SCRIPT_DIR / "update-grammar"
+
+
+def _load_update_grammar() -> Any:
+    """Load `scripts/update-grammar` as an importable module."""
+    loader = SourceFileLoader("update_grammar", str(_UPDATE_GRAMMAR_PATH))
+    spec = spec_from_loader("update_grammar", loader)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ug = _load_update_grammar()
+
+###############################################################################
+# Types #
+###############################################################################
+
+# Result statuses, in the JSON contract emitted on stdout:
+#   updated  - submodule moved to a newer tag and test-lang passed
+#   no-op    - already at the latest tag
+#   no-tags  - upstream has no parseable stable release tag
+#   exists   - a branch/PR already exists for this lang+tag
+#   failed   - the bump or test-lang failed (human attention needed)
+STATUS_UPDATED = "updated"
+STATUS_NO_OP = "no-op"
+STATUS_NO_TAGS = "no-tags"
+STATUS_EXISTS = "exists"
+STATUS_FAILED = "failed"
+
+# A tag counts as a stable release iff it is `X.Y[.Z...]`, optionally with a
+# single leading `v`. This deliberately excludes prereleases (`-rc1`, `-beta`),
+# date tags, and scheme-specific names (`parser-*`) so we never propose an
+# upstream version its own authors consider unstable.
+_STABLE_TAG_RE = re.compile(r"^v?\d+(?:\.\d+)+$")
+
+###############################################################################
+# Helpers #
+###############################################################################
+
+
+def log(msg: str) -> None:
+    """Print a human-facing progress line to stderr (stdout is for JSON)."""
+    print(msg, file=sys.stderr)
+
+
+def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    """Run a read-only git query quietly (no command echo, never raises).
+
+    `update-grammar`'s `run` echoes every command to stderr, which is
+    noise for the many read-only probes here. Use this for queries;
+    reserve `ug.run` for mutating steps where live output is wanted.
+    """
+    return subprocess.run(
+        cmd, cwd=cwd, text=True, capture_output=True, check=False,
+    )
+
+
+def version_key(tag: str) -> tuple[int, ...]:
+    """Sort key for a stable tag: the numeric components as an int tuple.
+
+    `v0.25.0` -> (0, 25, 0). Used to pick the highest tag. Assumes the
+    caller already filtered to `_STABLE_TAG_RE`-matching tags.
+    """
+    return tuple(int(part) for part in tag.lstrip("vV").split("."))
+
+
+def gitmodules_url(root: Path, submodule: Path) -> str | None:
+    """Return the upstream URL for `submodule`, rewritten to HTTPS.
+
+    `.gitmodules` sections are keyed inconsistently (e.g. java's section is
+    `submodule.lang/tree-sitter-java` while its path is the standard
+    `lang/semgrep-grammars/src/tree-sitter-java`), so we match on the
+    `path` value rather than the section name. SSH URLs (gosu,
+    requirements) are rewritten to HTTPS so `git ls-remote` works without
+    keys in CI.
+    """
+    rel = submodule.relative_to(root).as_posix()
+    result = git_query(
+        ["git", "config", "-f", ".gitmodules", "--get-regexp", r"\.path$"],
+        cwd=root,
+    )
+    section = None
+    for line in result.stdout.splitlines():
+        key, _, path = line.partition(" ")
+        if path == rel:
+            section = key[: -len(".path")]
+            break
+    if section is None:
+        return None
+    url = git_query(
+        ["git", "config", "-f", ".gitmodules", "--get", f"{section}.url"],
+        cwd=root,
+    ).stdout.strip()
+    if not url:
+        return None
+    return url.replace("git@github.com:", "https://github.com/")
+
+
+def latest_stable_tag(url: str) -> str | None:
+    """Return the highest stable release tag at `url`, or None.
+
+    Lists remote tags, keeps only `_STABLE_TAG_RE` matches (so prereleases
+    and non-version tag schemes are ignored), and returns the highest by
+    numeric version.
+    """
+    result = git_query(["git", "ls-remote", "--tags", "--refs", url], cwd=Path.cwd())
+    if result.returncode != 0:
+        return None
+    tags = [
+        line.split("refs/tags/", 1)[1]
+        for line in result.stdout.splitlines()
+        if "refs/tags/" in line
+    ]
+    stable = [t for t in tags if _STABLE_TAG_RE.match(t)]
+    if not stable:
+        return None
+    return max(stable, key=version_key)
+
+
+def language_ts_version(root: Path, wrapper: str) -> str | None:
+    """Return the tree-sitter version `wrapper` is listed under, or None.
+
+    Scans each `lang/languages-<version>` file for the wrapper name. A
+    language appears in exactly one; returns that version string.
+    """
+    version_files = ug.discover_version_files(root, "languages")
+    for version, path in version_files.items():
+        if wrapper in ug.read_languages_entries(path):
+            return version
+    return None
+
+
+def resolve_target(root: Path, language: str) -> dict[str, Any]:
+    """Resolve everything needed to act on `language` without mutating.
+
+    Returns a dict with the wrapper name, tree-sitter version, submodule
+    path, upstream url, and latest stable tag (tag may be None). Dies via
+    update-grammar's `validate_language` on an unknown language.
+    """
+    valid = ug.discover_valid_languages(root)
+    wrapper = ug.validate_language(language, valid)
+    submodule = ug.submodule_path(root, language)
+    url = gitmodules_url(root, submodule)
+    # Languages absent from every languages-* file (e.g. gomod, a "pro"
+    # package handled outside the standard version scheme) aren't
+    # proposable via this flow; surface that as skip_reason rather than
+    # dying, so callers can record it and move on.
+    ts_version = language_ts_version(root, wrapper)
+    skip_reason = None
+    if ts_version is None:
+        skip_reason = f"'{wrapper}' is not in any lang/languages-* file"
+    tag = latest_stable_tag(url) if url else None
+    return {
+        "language": language,
+        "wrapper": wrapper,
+        "ts_version": ts_version,
+        "submodule": submodule,
+        "url": url,
+        "tag": tag,
+        "skip_reason": skip_reason,
+    }
+
+
+def submodule_head(submodule: Path) -> str:
+    """Return the submodule's current HEAD SHA."""
+    return git_query(["git", "rev-parse", "HEAD"], cwd=submodule).stdout.strip()
+
+
+def wrapper_dir(root: Path, wrapper: str) -> Path:
+    """Return the semgrep-<wrapper> directory under semgrep-grammars/src."""
+    return root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{wrapper}"
+
+
+def run_update_grammar(language: str, ts_version: str, tag: str,
+                       root: Path) -> subprocess.CompletedProcess:
+    """Bump `language` to `tag` via `update-grammar --skip-release`.
+
+    Subprocessed (not imported) so a failure is isolated from this
+    process and so we capture its combined output for the PR body / log.
+    --skip-release guarantees nothing is pushed to semgrep-<lang>.
+    """
+    return subprocess.run(
+        [str(_UPDATE_GRAMMAR_PATH), language, ts_version,
+         "--ref", tag, "--skip-release"],
+        cwd=root, text=True, capture_output=True, check=False,
+    )
+
+
+def regenerate_snapshots(root: Path, wrapper: str) -> None:
+    """Regenerate corpus snapshots for every grammar in the wrapper.
+
+    A grammar bump almost always churns parse trees, so the committed
+    corpus snapshots go stale. `tree-sitter test --update` rewrites them
+    from the new parser. Runs in each dir containing a grammar.js (the
+    base grammar plus any sub-grammars). Requires core/tree-sitter/bin on
+    PATH (the workflow guarantees this). `:error` tests are left untouched
+    by --update; if any still fail, the later test-lang re-run catches it.
+    """
+    wrapper_path = wrapper_dir(root, wrapper)
+    grammar_dirs = {p.parent for p in wrapper_path.rglob("grammar.js")}
+    for gdir in sorted(grammar_dirs):
+        # check=False: --update exits non-zero on :error tests it can't
+        # update; that's expected and handled by the authoritative
+        # test-lang re-run.
+        git_query(["tree-sitter", "test", "--update"], cwd=gdir)
+
+
+def corpus_diff(root: Path, wrapper: str) -> str:
+    """Return the working-tree diff of the wrapper's corpus snapshots."""
+    return git_query(
+        ["git", "diff", "--", str(wrapper_dir(root, wrapper) / "test" / "corpus")],
+        cwd=root,
+    ).stdout
+
+
+def run_test_lang(language: str, root: Path) -> subprocess.CompletedProcess:
+    """Run `./test-lang <language>` for the authoritative pass/fail."""
+    return subprocess.run(
+        ["./test-lang", language], cwd=root / "lang",
+        text=True, capture_output=True, check=False,
+    )
+
+
+def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
+    """Undo every mutation, so a failure never leaks into the next run.
+
+    Mirrors what `update-grammar` leaves behind on a failed run: a
+    detached/bumped submodule, edited languages-* files, deleted/regenerated
+    parser.c, and regenerated snapshots. Restores the submodule to
+    `old_sha` and the outer tree to HEAD.
+    """
+    git_query(["git", "restore", "--staged", "."], cwd=root)
+    git_query(["git", "checkout", "--", "lang"], cwd=root)
+    git_query(["git", "checkout", old_sha], cwd=submodule)
+    git_query(["git", "checkout", "--", "."], cwd=submodule)
+    git_query(["git", "clean", "-fdq"], cwd=submodule)
+
+
+def tail(text: str, lines: int = 40) -> str:
+    """Return the last `lines` lines of `text`."""
+    return "\n".join(text.splitlines()[-lines:])
+
+
+def branch_name(language: str, tag: str) -> str:
+    """Branch for a lang+tag proposal.
+
+    Keyed on the exact tag (not the CI user) so re-runs on the same
+    schedule are idempotent and a new upstream tag yields a new branch.
+    """
+    return f"grammar-update/{language}/{tag}"
+
+
+def proposal_exists(root: Path, branch: str) -> bool:
+    """True if a branch (local or on origin) already exists for this proposal.
+
+    Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
+    Checks origin (the durable signal) and any local branch.
+    """
+    remote = git_query(
+        ["git", "ls-remote", "--heads", "origin", branch], cwd=root,
+    ).stdout.strip()
+    if remote:
+        return True
+    local = git_query(
+        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
+        cwd=root,
+    )
+    return local.returncode == 0
+
+
+def compare_url(url: str, old_sha: str, new_tag: str) -> str:
+    """GitHub compare link old_sha...new_tag for the upstream repo."""
+    base = url.removesuffix(".git")
+    return f"{base}/compare/{old_sha}...{new_tag}"
+
+
+def pr_body(result: dict[str, Any], url: str) -> str:
+    """Build the PR description from a propose() result."""
+    old, new, tag = result["old_sha"], result["new_sha"], result["new_tag"]
+    diff = result.get("corpus_diff", "").strip()
+    diff_section = (
+        f"<details><summary>Corpus snapshot diff</summary>\n\n"
+        f"```diff\n{diff}\n```\n</details>"
+        if diff else "_No corpus snapshot changes._"
+    )
+    log_tail = result.get("test_log_tail", "").strip()
+    log_section = (
+        f"<details><summary>test-lang output (tail)</summary>\n\n"
+        f"```\n{log_tail}\n```\n</details>"
+        if log_tail else ""
+    )
+    return (
+        f"Automated grammar update for **{result['language']}**.\n\n"
+        f"- Upstream: {url}\n"
+        f"- `{old}` → `{new}` (**{tag}**)\n"
+        f"- tree-sitter version: `{result['ts_version']}`\n"
+        f"- Compare: {compare_url(url, old, tag)}\n\n"
+        f"Corpus snapshots were auto-regenerated. **Please review** the parse-tree "
+        f"changes below — especially any `:error` (error-recovery) cases, which "
+        f"`tree-sitter test --update` does not touch automatically.\n\n"
+        f"{diff_section}\n\n{log_section}\n\n"
+        f"🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+    )
+
+
+def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
+            dry_run: bool) -> dict[str, Any]:
+    """Re-apply the update on a branch and open a PR (or print it for --dry-run).
+
+    propose() reset the tree, so we re-run the bump + snapshot regen on a
+    fresh branch, then commit/push/PR. Idempotent: skips if a branch
+    already exists for this lang+tag.
+    """
+    language, tag = target["language"], result["new_tag"]
+    branch = branch_name(language, tag)
+    if proposal_exists(root, branch):
+        return {**result, "status": STATUS_EXISTS,
+                "detail": f"branch {branch} already exists"}
+
+    title = f"Update tree-sitter-{language} grammar to {tag}"
+    body = pr_body(result, target["url"])
+
+    if dry_run:
+        log(f"\n=== would create branch: {branch}")
+        log(f"=== would create PR: {title}\n")
+        print(body)
+        return {**result, "status": "dry-run", "branch": branch}
+
+    # Re-apply on a branch (propose() reset the tree).
+    ug.run(["git", "checkout", "-b", branch], cwd=root)
+    run_update_grammar(language, target["ts_version"], tag, root)
+    regenerate_snapshots(root, target["wrapper"])
+    ug.run(["git", "add", "-A"], cwd=root)
+    ug.run(
+        ["git", "commit", "-m",
+         f"Update tree-sitter-{language} grammar to {tag}"],
+        cwd=root,
+    )
+    ug.run(["git", "push", "origin", branch], cwd=root)
+    ug.run(
+        ["gh", "pr", "create", "--title", title, "--body", body,
+         "--head", branch],
+        cwd=root,
+    )
+    return {**result, "branch": branch}
+
+
+def propose(root: Path, target: dict[str, Any]) -> dict[str, Any]:
+    """Run the full single-language propose flow; return a JSON-able result.
+
+    Bumps to the latest tag, regenerates snapshots, re-runs test-lang, and
+    classifies the outcome. Always resets the working tree before
+    returning (the PR path re-applies changes from the result). Does NOT
+    create a PR — that's the caller's job under --open-pr.
+    """
+    language = target["language"]
+    result: dict[str, Any] = {
+        "language": language,
+        "ts_version": target["ts_version"],
+        "old_sha": None,
+        "new_sha": None,
+        "new_tag": target["tag"],
+        "status": None,
+        "test_log_tail": "",
+        "corpus_diff": "",
+    }
+
+    if target["skip_reason"]:
+        return {**result, "status": STATUS_NO_TAGS, "detail": target["skip_reason"]}
+    if target["tag"] is None:
+        return {**result, "status": STATUS_NO_TAGS,
+                "detail": "no stable release tag upstream"}
+
+    submodule = target["submodule"]
+    old_sha = submodule_head(submodule)
+    result["old_sha"] = old_sha
+
+    try:
+        bump = run_update_grammar(
+            language, target["ts_version"], target["tag"], root,
+        )
+        new_sha = submodule_head(submodule)
+        result["new_sha"] = new_sha
+
+        if new_sha == old_sha:
+            return {**result, "status": STATUS_NO_OP}
+
+        # Snapshots are expected to churn; regenerate then re-test for the
+        # authoritative result. update-grammar already ran test-lang once
+        # (it may have failed on snapshot drift) — the regen + re-run is
+        # what decides updated-vs-failed.
+        regenerate_snapshots(root, target["wrapper"])
+        result["corpus_diff"] = corpus_diff(root, target["wrapper"])
+        test = run_test_lang(language, root)
+        result["test_log_tail"] = tail(test.stdout + test.stderr)
+
+        if test.returncode == 0:
+            result["status"] = STATUS_UPDATED
+        else:
+            result["status"] = STATUS_FAILED
+            result["detail"] = "test-lang failed after snapshot regen"
+            # Fall back to update-grammar's own log if test-lang was terse.
+            if not result["test_log_tail"]:
+                result["test_log_tail"] = tail(bump.stdout + bump.stderr)
+        return result
+    finally:
+        reset_language_state(root, submodule, old_sha)
+
+
+###############################################################################
+# Entry point #
+###############################################################################
+
+
+def list_languages(root: Path, as_json: bool) -> None:
+    """Print all proposable languages (sorted)."""
+    names = sorted(ug.discover_valid_languages(root))
+    if as_json:
+        print(json.dumps(names))
+    else:
+        print("\n".join(names))
+
+
+def summarize(results_dir: Path) -> None:
+    """Render a markdown table from per-language result JSON files.
+
+    Reads every `*.json` under `results_dir` (the workflow's downloaded
+    artifacts) and emits a GitHub-flavored summary grouped by status, so
+    failures and no-tags languages are visible on the run without opening
+    each job.
+    """
+    rows = []
+    for path in sorted(results_dir.rglob("*.json")):
+        try:
+            r = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        rows.append(r)
+
+    by_status: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        by_status.setdefault(r.get("status", "unknown"), []).append(r)
+
+    order = [STATUS_UPDATED, STATUS_EXISTS, STATUS_NO_OP, STATUS_NO_TAGS, STATUS_FAILED]
+    icon = {STATUS_UPDATED: "✅", STATUS_EXISTS: "↩️", STATUS_NO_OP: "➖",
+            STATUS_NO_TAGS: "🏷️", STATUS_FAILED: "❌"}
+
+    print("## Grammar update proposals\n")
+    print("| Language | Status | Detail |")
+    print("|---|---|---|")
+    for status in order + [s for s in by_status if s not in order]:
+        for r in sorted(by_status.get(status, []), key=lambda x: x["language"]):
+            detail = r.get("detail") or (
+                f"{(r.get('old_sha') or '')[:8]} → {r.get('new_tag') or ''}"
+                if status == STATUS_UPDATED else ""
+            )
+            print(f"| {r['language']} | {icon.get(status, '')} {status} | {detail} |")
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI args."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("language", nargs="?", help="Language to propose an update for.")
+    parser.add_argument(
+        "--list-languages", action="store_true",
+        help="Print the set of proposable languages and exit.",
+    )
+    parser.add_argument(
+        "--summarize", metavar="DIR",
+        help="Render a markdown summary from result JSON files under DIR.",
+    )
+    parser.add_argument(
+        "--json", action="store_true",
+        help="With --list-languages, emit a JSON array.",
+    )
+    parser.add_argument(
+        "--resolve-tag-only", action="store_true",
+        help="Print the latest stable tag for the language and exit.",
+    )
+    parser.add_argument(
+        "--open-pr", action="store_true",
+        help="Create the PR (default: dry run, emit JSON result only).",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="With --open-pr, print the would-be PR instead of pushing.",
+    )
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    """Drive a single-language proposal; see module docstring."""
+    root = ug.repo_root()
+    args = parse_args()
+
+    if args.list_languages:
+        list_languages(root, args.json)
+        return 0
+
+    if args.summarize:
+        summarize(Path(args.summarize))
+        return 0
+
+    if not args.language:
+        ug.die("a language is required (or use --list-languages).")
+
+    target = resolve_target(root, args.language)
+
+    if args.resolve_tag_only:
+        if target["tag"] is None:
+            log(f"{args.language}: no stable release tag found.")
+            return 1
+        print(target["tag"])
+        return 0
+
+    result = propose(root, target)
+
+    # Only a green, real update is worth a PR. Everything else (no-op,
+    # no-tags, failed) is reported as-is for the workflow summary.
+    if (args.open_pr or args.dry_run) and result["status"] == STATUS_UPDATED:
+        result = open_pr(root, target, result, dry_run=args.dry_run)
+
+    print(json.dumps(result))
+    return 0 if result["status"] != STATUS_FAILED else 1
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
