@@ -10,6 +10,7 @@ by the integration run in the workflow.
 from __future__ import annotations
 
 import unittest
+import unittest.mock
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
@@ -182,6 +183,47 @@ class TestPrShaping(unittest.TestCase):
         }
         body = pg.pr_body(result, "https://github.com/tree-sitter/tree-sitter-php.git")
         self.assertIn("_No corpus snapshot changes._", body)
+
+
+###############################################################################
+# Downstream: release dialects + agent prompt #
+###############################################################################
+
+
+class TestReleaseDialects(unittest.TestCase):
+    def test_filters_to_existing_repos(self):
+        # php fans out to [php, php-only] but only semgrep-php exists.
+        with unittest.mock.patch.object(
+            pg, "downstream_repo_exists", lambda d: d != "php-only"
+        ):
+            self.assertEqual(pg.release_dialects("php", "php"), ["php"])
+
+    def test_keeps_all_when_all_exist(self):
+        with unittest.mock.patch.object(pg, "downstream_repo_exists", lambda _d: True):
+            self.assertEqual(
+                pg.release_dialects("typescript", "typescript"),
+                ["typescript", "tsx"],
+            )
+
+    def test_falls_back_to_language_when_none_exist(self):
+        with unittest.mock.patch.object(pg, "downstream_repo_exists", lambda _d: False):
+            self.assertEqual(pg.release_dialects("php", "php"), ["php"])
+
+
+class TestAgentPrompt(unittest.TestCase):
+    def test_references_correct_proprietary_paths(self):
+        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2")
+        self.assertIn("OSS/languages/php/tree-sitter/semgrep-php", p)
+        self.assertIn("Parse_php_tree_sitter.ml", p)
+        self.assertIn("grammar-update/php/v0.24.2", p)
+        self.assertIn("v0.24.2", p)
+        self.assertIn("draft PR", p)
+
+    def test_aliased_language_uses_wrapper_for_submodule(self):
+        # apex's submodule wrapper is sfapex; the parse file stays apex.
+        p = pg.agent_prompt("apex", "sfapex", "grammar-update/apex/v2.3", "v2.3")
+        self.assertIn("semgrep-sfapex", p)
+        self.assertIn("Parse_apex_tree_sitter.ml", p)
 
 
 ###############################################################################

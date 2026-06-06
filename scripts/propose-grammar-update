@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -461,6 +462,114 @@ def propose(root: Path, target: dict[str, Any]) -> dict[str, Any]:
 
 
 ###############################################################################
+# Downstream: release + agent hand-off #
+###############################################################################
+
+
+def downstream_repo_exists(dialect: str) -> bool:
+    """True if a semgrep-<dialect> repo exists to release into.
+
+    Not every test-lang dialect has its own downstream repo: php fans out
+    to [php, php-only] for testing, but only semgrep-php exists (no
+    semgrep-php-only); likewise sfapex has no repo (only semgrep-apex).
+    Releasing a dialect with no repo would fail, so we filter to the ones
+    that exist.
+    """
+    org = os.environ.get("GITHUB_ORG", "semgrep")
+    return git_query(
+        ["gh", "repo", "view", f"{org}/semgrep-{dialect}", "--json", "name"],
+        cwd=Path.cwd(),
+    ).returncode == 0
+
+
+def release_dialects(language: str, wrapper: str) -> list[str]:
+    """Dialects to release for a language, filtered to existing repos.
+
+    `lang/release` operates per dialect (typescript -> [typescript, tsx],
+    php -> [php, php-only]), but only dialects with a real
+    semgrep-<dialect> repo can be released. Falls back to the language
+    itself.
+    """
+    dialects = ug.LANGUAGE_VARIANTS.get(wrapper, [language])
+    existing = [d for d in dialects if downstream_repo_exists(d)]
+    return existing or [language]
+
+
+def release_downstream(root: Path, language: str, wrapper: str, branch: str,
+                       *, dry_run: bool) -> subprocess.CompletedProcess:
+    """Push the generated parser to `branch` on each semgrep-<dialect> repo.
+
+    Runs `lang/release <dialect> --branch <branch>` for every dialect.
+    This is the only step that pushes to the downstream semgrep-<lang>
+    repos, so it is gated behind --release (the this-repo PR job never
+    calls it) and supports --dry-run for safe testing.
+    """
+    lang_dir = root / "lang"
+    last = None
+    for dialect in release_dialects(language, wrapper):
+        cmd = ["./release", dialect, "--branch", branch]
+        if dry_run:
+            cmd.append("--dry-run")
+        log(f"$ {' '.join(cmd)}  (in {lang_dir})")
+        # Capture (don't inherit) so release's verbose output goes to our
+        # log/stderr and never pollutes the JSON we print to stdout.
+        last = subprocess.run(
+            cmd, cwd=lang_dir, text=True, capture_output=True, check=False,
+        )
+        sys.stderr.write(last.stdout)
+        sys.stderr.write(last.stderr)
+        if last.returncode != 0:
+            return last
+    return last  # type: ignore[return-value]
+
+
+def agent_prompt(language: str, wrapper: str, branch: str, tag: str) -> str:
+    """The instruction handed to the Cursor agent for the proprietary PR.
+
+    Models the existing `cursor/...` grammar-integration PRs: bump the
+    semgrep-<lang> submodule to the released branch and adapt the OCaml
+    CST consumer to the new grammar.
+    """
+    sub = f"OSS/languages/{language}/tree-sitter/semgrep-{wrapper}"
+    parse_ml = f"OSS/languages/{language}/tree-sitter/Parse_{language}_tree_sitter.ml"
+    return (
+        f"In the semgrep-proprietary repo, integrate the updated "
+        f"tree-sitter-{language} grammar ({tag}).\n\n"
+        f"1. Update the `{sub}` submodule to the tip of its "
+        f"`{branch}` branch (the freshly generated parser).\n"
+        f"2. Build the {language} parser and adapt `{parse_ml}` to the new "
+        f"CST: fix any constructor/type mismatches the grammar bump "
+        f"introduced (renamed or restructured CST nodes, new node kinds). "
+        f"Verify it compiles.\n"
+        f"3. Open a draft PR against `develop` titled "
+        f"`feat({language}): integrate tree-sitter-{language} {tag}`, "
+        f"summarizing the CST changes you adapted to.\n\n"
+        f"Do not modify unrelated files. If the CST changes are too large "
+        f"to adapt confidently, open the draft PR with the submodule bump "
+        f"only and describe what remains."
+    )
+
+
+def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
+                  *, dry_run: bool) -> dict[str, Any]:
+    """Kick off a Cursor agent to open the semgrep-proprietary PR.
+
+    Uses the `cursor-agent` CLI (auth: CURSOR_API_KEY). With --dry-run,
+    prints the prompt instead of launching, so the hand-off is testable
+    without spending an agent run.
+    """
+    prompt = agent_prompt(language, wrapper, branch, tag)
+    if dry_run:
+        log(f"\n=== would launch cursor-agent for {language}:\n{prompt}\n")
+        return {"agent": "dry-run", "agent_prompt": prompt}
+    ug.run(
+        ["cursor-agent", "--model", "claude-opus-4-8", "-p", prompt],
+        cwd=Path.cwd(), check=False,
+    )
+    return {"agent": "launched"}
+
+
+###############################################################################
 # Entry point #
 ###############################################################################
 
@@ -536,9 +645,47 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--dry-run", action="store_true",
-        help="With --open-pr, print the would-be PR instead of pushing.",
+        help="Print would-be PR / release / agent actions instead of running them.",
+    )
+    parser.add_argument(
+        "--release-and-trigger", action="store_true",
+        help="Downstream step: push the generated parser to the "
+             "grammar-update/<lang>/<tag> branch on semgrep-<lang>, then "
+             "launch a Cursor agent to open the semgrep-proprietary PR. Run "
+             "this AFTER the this-repo PR branch exists. Needs downstream "
+             "push creds + CURSOR_API_KEY.",
     )
     return parser.parse_args(argv)
+
+
+def run_release_and_trigger(root: Path, target: dict[str, Any],
+                            dry_run: bool) -> int:
+    """Downstream hand-off: release to semgrep-<lang>, then launch the agent.
+
+    Assumes the grammar-update/<lang>/<tag> branch already exists in this
+    repo (pushed by the propose job) and is checked out. Re-applies the
+    bump locally so `lang/release` has the generated sources, releases to
+    the downstream branch, and triggers the proprietary-PR agent.
+    """
+    language, wrapper, tag = target["language"], target["wrapper"], target["tag"]
+    if tag is None:
+        ug.die(f"{language}: no stable tag; nothing to release.")
+    branch = branch_name(language, tag)
+
+    # Regenerate the parser sources on the existing branch so release has
+    # something to publish. (The propose job committed the submodule bump +
+    # snapshots; this re-runs the bump to repopulate generated files.)
+    run_update_grammar(language, target["ts_version"], tag, root)
+    regenerate_snapshots(root, wrapper)
+
+    rel = release_downstream(root, language, wrapper, branch, dry_run=dry_run)
+    if rel is not None and rel.returncode != 0:
+        ug.die(f"{language}: lang/release failed; skipping agent.")
+
+    result = trigger_agent(language, wrapper, branch, tag, dry_run=dry_run)
+    print(json.dumps({"language": language, "new_tag": tag,
+                      "branch": branch, **result}))
+    return 0
 
 
 def main() -> int:
@@ -565,6 +712,9 @@ def main() -> int:
             return 1
         print(target["tag"])
         return 0
+
+    if args.release_and_trigger:
+        return run_release_and_trigger(root, target, args.dry_run)
 
     result = propose(root, target)
 

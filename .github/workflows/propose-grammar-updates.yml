@@ -107,9 +107,72 @@ jobs:
           path: result-${{ matrix.language }}.json
           if-no-files-found: ignore
 
+  # Downstream hand-off, deliberately SEPARATE from `propose`: it carries
+  # broader credentials (push to semgrep-<lang>, launch a Cursor agent),
+  # which the auth-minimal this-repo PR job above must not have. Runs the
+  # same matrix but acts only on languages that came back `updated`, and
+  # fires automatically on every green bump.
+  integrate:
+    name: Integrate ${{ matrix.language }}
+    needs: [enumerate, propose]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    container: returntocorp/ocaml:ubuntu
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: result-${{ matrix.language }}
+          path: result
+        continue-on-error: true   # no artifact => this language wasn't proposed
+      - name: Skip unless this language was updated
+        id: gate
+        run: |
+          f="result/result-${{ matrix.language }}.json"
+          if [ -f "$f" ] && [ "$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status'))" "$f")" = "updated" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - if: steps.gate.outputs.go == 'true'
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - if: steps.gate.outputs.go == 'true'
+        run: git submodule update --init --recursive
+      - if: steps.gate.outputs.go == 'true'
+        run: ./core/scripts/setup-node
+      - if: steps.gate.outputs.go == 'true'
+        run: opam exec -- make setup && opam exec -- make && opam exec -- make install
+      - if: steps.gate.outputs.go == 'true'
+        name: Put pinned tree-sitter CLI on PATH
+        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
+      - if: steps.gate.outputs.go == 'true'
+        name: Release to semgrep-${{ matrix.language }} and trigger Cursor agent
+        env:
+          # Pushing to the downstream semgrep-<lang> repos needs broader
+          # creds than GITHUB_TOKEN; the Cursor agent needs its own key.
+          GH_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
+          GITHUB_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.cursor/bin:$PATH"
+          python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger
+
   summary:
     name: Summary
-    needs: propose
+    needs: [propose, integrate]
     if: always()
     runs-on: ubuntu-latest
     steps:
