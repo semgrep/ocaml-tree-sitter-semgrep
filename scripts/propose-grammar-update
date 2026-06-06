@@ -482,6 +482,39 @@ def downstream_repo_exists(dialect: str) -> bool:
     ).returncode == 0
 
 
+def origin_repo() -> str:
+    """Return this repo as owner/name (for gh cross-repo references)."""
+    return git_query(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+        cwd=Path.cwd(),
+    ).stdout.strip()
+
+
+def originating_pr_number(branch: str) -> str | None:
+    """Return the open this-repo PR number for `branch`, or None.
+
+    The propose job opened this PR from the same grammar-update/<lang>/<tag>
+    branch; the agent needs its number to report back.
+    """
+    out = git_query(
+        ["gh", "pr", "list", "--head", branch, "--state", "open",
+         "--json", "number", "-q", ".[0].number"],
+        cwd=Path.cwd(),
+    ).stdout.strip()
+    return out or None
+
+
+def ensure_label(repo: str, label: str) -> None:
+    """Create `label` in `repo` if missing (idempotent; ignores 'exists')."""
+    git_query(
+        ["gh", "label", "create", label, "--repo", repo,
+         "--color", "B60205", "--description",
+         "Grammar update merged here but downstream integration failed",
+         "--force"],
+        cwd=Path.cwd(),
+    )
+
+
 def release_dialects(language: str, wrapper: str) -> list[str]:
     """Dialects to release for a language, filtered to existing repos.
 
@@ -523,15 +556,24 @@ def release_downstream(root: Path, language: str, wrapper: str, branch: str,
     return last  # type: ignore[return-value]
 
 
-def agent_prompt(language: str, wrapper: str, branch: str, tag: str) -> str:
+DOWNSTREAM_BLOCKED_LABEL = "downstream-blocked"
+
+
+def agent_prompt(language: str, wrapper: str, branch: str, tag: str,
+                 origin: str, pr_number: str | None) -> str:
     """The instruction handed to the Cursor agent for the proprietary PR.
 
-    Models the existing `cursor/...` grammar-integration PRs: bump the
-    semgrep-<lang> submodule to the released branch and adapt the OCaml
-    CST consumer to the new grammar.
+    Models the existing `cursor/...` grammar-integration PRs (bump the
+    semgrep-<lang> submodule + adapt the OCaml CST consumer), and closes
+    the loop: the agent always opens a draft PR and reports its outcome
+    back to the originating this-repo PR (`origin`#`pr_number`).
     """
     sub = f"OSS/languages/{language}/tree-sitter/semgrep-{wrapper}"
     parse_ml = f"OSS/languages/{language}/tree-sitter/Parse_{language}_tree_sitter.ml"
+    pr_ref = (
+        f"PR #{pr_number} in {origin}" if pr_number
+        else f"the open PR for branch `{branch}` in {origin}"
+    )
     return (
         f"In the semgrep-proprietary repo, integrate the updated "
         f"tree-sitter-{language} grammar ({tag}).\n\n"
@@ -540,13 +582,23 @@ def agent_prompt(language: str, wrapper: str, branch: str, tag: str) -> str:
         f"2. Build the {language} parser and adapt `{parse_ml}` to the new "
         f"CST: fix any constructor/type mismatches the grammar bump "
         f"introduced (renamed or restructured CST nodes, new node kinds). "
-        f"Verify it compiles.\n"
-        f"3. Open a draft PR against `develop` titled "
-        f"`feat({language}): integrate tree-sitter-{language} {tag}`, "
-        f"summarizing the CST changes you adapted to.\n\n"
-        f"Do not modify unrelated files. If the CST changes are too large "
-        f"to adapt confidently, open the draft PR with the submodule bump "
-        f"only and describe what remains."
+        f"Verify it compiles. Do not modify unrelated files.\n"
+        f"3. ALWAYS open a draft PR against `develop` titled "
+        f"`feat({language}): integrate tree-sitter-{language} {tag}`. If the "
+        f"CST adaptation is too large to complete confidently, still open the "
+        f"draft with the submodule bump only and describe exactly what "
+        f"remains.\n\n"
+        f"4. Report back to the originating grammar bump, {pr_ref}:\n"
+        f"   - On SUCCESS (it compiles): comment on that PR with a link to "
+        f"the draft proprietary PR you opened.\n"
+        f"   - On FAILURE / partial (it does not compile, or you couldn't "
+        f"finish the CST adaptation): comment on that PR explaining what "
+        f"broke and what remains, link the draft proprietary PR, AND add the "
+        f"`{DOWNSTREAM_BLOCKED_LABEL}` label to that PR "
+        f"(`gh pr edit {pr_number or '<num>'} --repo {origin} "
+        f"--add-label {DOWNSTREAM_BLOCKED_LABEL}`).\n"
+        f"This report-back is required so the grammar bump is never merged "
+        f"as 'done' while its downstream integration is actually broken."
     )
 
 
@@ -554,19 +606,26 @@ def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
                   *, dry_run: bool) -> dict[str, Any]:
     """Kick off a Cursor agent to open the semgrep-proprietary PR.
 
-    Uses the `cursor-agent` CLI (auth: CURSOR_API_KEY). With --dry-run,
-    prints the prompt instead of launching, so the hand-off is testable
-    without spending an agent run.
+    Uses the `cursor-agent` CLI (auth: CURSOR_API_KEY). The agent is told
+    how to report back to the originating this-repo PR; we pre-create the
+    `downstream-blocked` label so it's ready when the agent needs it. With
+    --dry-run, prints the prompt instead of launching.
     """
-    prompt = agent_prompt(language, wrapper, branch, tag)
+    origin = origin_repo()
+    pr_number = originating_pr_number(branch)
+    prompt = agent_prompt(language, wrapper, branch, tag, origin, pr_number)
     if dry_run:
         log(f"\n=== would launch cursor-agent for {language}:\n{prompt}\n")
-        return {"agent": "dry-run", "agent_prompt": prompt}
+        return {"agent": "dry-run", "agent_prompt": prompt,
+                "origin_pr": pr_number}
+    # Ensure the label exists before the agent may need to apply it.
+    if origin:
+        ensure_label(origin, DOWNSTREAM_BLOCKED_LABEL)
     ug.run(
         ["cursor-agent", "--model", "claude-opus-4-8", "-p", prompt],
         cwd=Path.cwd(), check=False,
     )
-    return {"agent": "launched"}
+    return {"agent": "launched", "origin_pr": pr_number}
 
 
 ###############################################################################

@@ -211,8 +211,11 @@ class TestReleaseDialects(unittest.TestCase):
 
 
 class TestAgentPrompt(unittest.TestCase):
+    ORIGIN = "semgrep/ocaml-tree-sitter-semgrep"
+
     def test_references_correct_proprietary_paths(self):
-        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2")
+        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
+                            self.ORIGIN, "42")
         self.assertIn("OSS/languages/php/tree-sitter/semgrep-php", p)
         self.assertIn("Parse_php_tree_sitter.ml", p)
         self.assertIn("grammar-update/php/v0.24.2", p)
@@ -221,9 +224,27 @@ class TestAgentPrompt(unittest.TestCase):
 
     def test_aliased_language_uses_wrapper_for_submodule(self):
         # apex's submodule wrapper is sfapex; the parse file stays apex.
-        p = pg.agent_prompt("apex", "sfapex", "grammar-update/apex/v2.3", "v2.3")
+        p = pg.agent_prompt("apex", "sfapex", "grammar-update/apex/v2.3", "v2.3",
+                            self.ORIGIN, "7")
         self.assertIn("semgrep-sfapex", p)
         self.assertIn("Parse_apex_tree_sitter.ml", p)
+
+    def test_report_back_loop_present(self):
+        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
+                            self.ORIGIN, "42")
+        # Must tell the agent how to reach the originating PR and signal failure.
+        self.assertIn("PR #42", p)
+        self.assertIn(self.ORIGIN, p)
+        self.assertIn(pg.DOWNSTREAM_BLOCKED_LABEL, p)
+        self.assertIn("On SUCCESS", p)
+        self.assertIn("FAILURE", p)
+
+    def test_handles_unknown_pr_number(self):
+        # If the PR lookup failed, the prompt still references the branch.
+        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
+                            self.ORIGIN, None)
+        self.assertIn("grammar-update/php/v0.24.2", p)
+        self.assertIn(self.ORIGIN, p)
 
 
 ###############################################################################
