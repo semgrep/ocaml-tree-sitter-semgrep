@@ -96,6 +96,11 @@ jobs:
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
       - name: Propose update
         env:
+          # NOTE: PRs created with GITHUB_TOKEN do not trigger other GitHub
+          # Actions workflows (documented GitHub behavior) — so python-tests
+          # won't run on the auto-PRs. CircleCI (the heavy grammar CI) still
+          # triggers via its own webhook integration. If Actions CI on these
+          # PRs is wanted later, swap in a PAT / GitHub App token here.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr \
@@ -165,6 +170,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
+          # Make git's HTTPS pushes (lang/release clones + pushes
+          # semgrep-<lang> via the insteadOf rewrite) authenticate with the
+          # PAT. Without this, `git push` has no credential helper and the
+          # downstream release fails.
+          gh auth setup-git
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.cursor/bin:$PATH"

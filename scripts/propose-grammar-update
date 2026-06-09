@@ -606,25 +606,29 @@ def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
                   *, dry_run: bool) -> dict[str, Any]:
     """Kick off a Cursor agent to open the semgrep-proprietary PR.
 
-    Uses the `cursor-agent` CLI (auth: CURSOR_API_KEY). The agent is told
-    how to report back to the originating this-repo PR; we pre-create the
-    `downstream-blocked` label so it's ready when the agent needs it. With
-    --dry-run, prints the prompt instead of launching.
+    Uses Cursor's `agent` CLI in non-interactive mode (`agent -p <prompt>`,
+    auth: CURSOR_API_KEY), per https://cursor.com/docs/cli/github-actions.
+    The model is Cursor's default unless CURSOR_MODEL is set (Cursor has
+    its own model names; a wrong hardcoded one would error). The agent is
+    told how to report back to the originating this-repo PR; we pre-create
+    the `downstream-blocked` label so it's ready when the agent needs it.
+    With --dry-run, prints the prompt instead of launching.
     """
     origin = origin_repo()
     pr_number = originating_pr_number(branch)
     prompt = agent_prompt(language, wrapper, branch, tag, origin, pr_number)
     if dry_run:
-        log(f"\n=== would launch cursor-agent for {language}:\n{prompt}\n")
+        log(f"\n=== would launch cursor agent for {language}:\n{prompt}\n")
         return {"agent": "dry-run", "agent_prompt": prompt,
                 "origin_pr": pr_number}
     # Ensure the label exists before the agent may need to apply it.
     if origin:
         ensure_label(origin, DOWNSTREAM_BLOCKED_LABEL)
-    ug.run(
-        ["cursor-agent", "--model", "claude-opus-4-8", "-p", prompt],
-        cwd=Path.cwd(), check=False,
-    )
+    cmd = ["agent", "-p", prompt]
+    model = os.environ.get("CURSOR_MODEL")
+    if model:
+        cmd += ["--model", model]
+    ug.run(cmd, cwd=Path.cwd(), check=False)
     return {"agent": "launched", "origin_pr": pr_number}
 
 
