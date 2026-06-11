@@ -1,0 +1,16 @@
+The files languages-0.20.8, languages-0.22.6, languages-0.26.3 (and the
+matching language-variants-*) list the languages built against each
+tree-sitter version. The lang/Makefile.common and
+lang/semgrep-grammars/src/Makefile.common consult these lists at build
+time (via lang/scripts/ts-version-for-lang) to pick the tree-sitter
+binary and runtime library for each grammar.
+
+The language names in languages-* are suitable for the `test-lang` script.
+The dialect names in language-variants-* are suitable for the `release`
+script.
+
+Sample bash commands iterating over languages:
+
+$ for x in $(cat languages-0.22.6); do ./test-lang $x || break; done
+
+$ for x in $(cat language-variants-0.22.6); do ./release $x || break; done
