@@ -85,11 +85,9 @@ language (via `lang/scripts/ts-version-for-lang`) and point
 
 **This is independent of `core/scripts/switch-tree-sitter-version` and
 the `core/tree-sitter` symlink.** That script and symlink only select
-which tree-sitter version *core itself* builds its OCaml runtime against
-(see core's README). They do **not** influence which version any grammar
-here is generated and linked with — that is determined solely by the
-`lang/languages-*` lists. Switching core's version does not require
-rebuilding the grammars, and grammars on different versions coexist.
+which tree-sitter version *core itself* builds its OCaml runtime against.
+Switching core's version does not require rebuilding the grammars, and
+grammars on different versions coexist.
 
 The one requirement is that every pinned version is *installed* under
 `core/`. `make setup` installs the default version; to add another,
@@ -107,8 +105,12 @@ installing one never overwrites another.
 
 ### tree-sitter ABI 15
 
-The generated parser's ABI is chosen automatically per grammar, using the
-version resolved above:
+ABI 15 is **off by default**. To opt in for a build, set the
+environment variable `SEMGREP_ENABLE_ABI15`. Accepted truthy values:
+`1`, `true`, `yes`, `on` (case-insensitive).
+
+The following table explains the decision matrix for the tree-sitter bindings/ABI
+parameter.
 
 | Condition | ABI |
 |--|--|
@@ -116,19 +118,8 @@ version resolved above:
 | tree-sitter >= 0.24.0 (otherwise) | 14 |
 | older tree-sitter | `--no-bindings` (no ABI flag) |
 
-ABI 15 is **off by default**: the tooling can already produce it, but we
-are not yet ready to ship ABI 15 parsers. To opt in for a build, set the
-environment variable:
 
-```
-SEMGREP_ENABLE_ABI15=1 make -C lang/semgrep-grammars/src build
-# or for a single language:
-SEMGREP_ENABLE_ABI15=1 ./lang/test-lang php
-```
 
-Accepted truthy values: `1`, `true`, `yes`, `on` (case-insensitive).
-When enabled, the grammar must be pinned to a tree-sitter >= 0.25.0; the
-build fails with a clear error otherwise.
 
 ### Adding a new language
 
