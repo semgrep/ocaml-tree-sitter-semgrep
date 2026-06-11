@@ -17,6 +17,7 @@ SUPPORTED_TS_LANGUAGES = \
   bash \
   c \
   cairo \
+  cfml \
   clojure \
   circom \
   cpp \
@@ -74,6 +75,7 @@ SUPPORTED_DIALECTS = \
   apex \
   bash \
   c \
+  cfml \
   clojure \
   cpp \
   c-sharp \
@@ -140,6 +142,7 @@ STAT_LANGUAGES1 = \
 
 STAT_LANGUAGES2 = \
   apex \
+  cfml \
   gosu \
   lua \
   move-on-sui \

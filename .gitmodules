@@ -139,3 +139,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-scala"]
 	path = lang/semgrep-grammars/src/tree-sitter-scala
 	url = https://github.com/tree-sitter/tree-sitter-scala/
+[submodule "lang/semgrep-grammars/src/tree-sitter-cfml"]
+	path = lang/semgrep-grammars/src/tree-sitter-cfml
+	url = https://github.com/cfmleditor/tree-sitter-cfml.git
