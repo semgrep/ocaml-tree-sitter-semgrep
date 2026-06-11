@@ -1,0 +1,116 @@
+#! /usr/bin/env bash
+#
+# Test that the SEMGREP_ENABLE_ABI15 environment variable controls the
+# tree-sitter ABI used when generating a grammar that ships a tree-sitter.json.
+#
+# Two layers:
+#   1. Decision: ts-generate-abi-args returns the expected flag for each
+#      combination of (tree-sitter.json present?, version, env var).
+#   2. End-to-end: feeding that flag to `tree-sitter generate` actually
+#      produces a parser.c with a different LANGUAGE_VERSION (14 vs 15).
+#
+# Requires a tree-sitter >= 0.25.0 CLI (ABI 15 capable). By default we use the
+# one installed under core/tree-sitter-0.26.3/; override with TREE_SITTER_BIN.
+set -eu
+
+script_dir=$(cd "$(dirname "$0")" && pwd)
+repo_root=$(cd "$script_dir/../.." && pwd)
+abi_args="$script_dir/ts-generate-abi-args"
+
+fail=0
+check() { # check <description> <expected> <actual>
+  if [ "$2" = "$3" ]; then
+    echo "  ok: $1 (= $3)"
+  else
+    echo "  FAIL: $1 -- expected '$2', got '$3'" >&2
+    fail=1
+  fi
+}
+
+echo "== Layer 1: ts-generate-abi-args decision table =="
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+with_json="$tmp/with-json"; without_json="$tmp/without-json"
+mkdir -p "$with_json" "$without_json"
+echo '{}' > "$with_json/tree-sitter.json"
+
+check "tree-sitter.json + ABI15 on (0.26.3)" "--abi=15" \
+  "$(SEMGREP_ENABLE_ABI15=1 "$abi_args" "$with_json" 0.26.3)"
+check "tree-sitter.json + ABI15 unset (0.26.3)" "--abi=14" \
+  "$(unset SEMGREP_ENABLE_ABI15; "$abi_args" "$with_json" 0.26.3)"
+check "tree-sitter.json + ABI15=0 (0.26.3)" "--abi=14" \
+  "$(SEMGREP_ENABLE_ABI15=0 "$abi_args" "$with_json" 0.26.3)"
+check "tree-sitter.json + ABI15=false (0.26.3)" "--abi=14" \
+  "$(SEMGREP_ENABLE_ABI15=false "$abi_args" "$with_json" 0.26.3)"
+check "no tree-sitter.json + ABI15 on (0.26.3)" "--abi=14" \
+  "$(SEMGREP_ENABLE_ABI15=1 "$abi_args" "$without_json" 0.26.3)"
+check "no tree-sitter.json (0.24.0)" "--abi=14" \
+  "$("$abi_args" "$without_json" 0.24.0)"
+check "no tree-sitter.json (0.20.8, pre-abi-flag)" "--no-bindings" \
+  "$("$abi_args" "$without_json" 0.20.8)"
+
+echo "== Layer 2: env var actually flips the generated ABI =="
+ts_bin="${TREE_SITTER_BIN:-$repo_root/core/tree-sitter-0.26.3/bin/tree-sitter}"
+if [ ! -x "$ts_bin" ]; then
+  echo "FAIL: need a tree-sitter >= 0.25.0 CLI for the end-to-end check." >&2
+  echo "      Looked for: $ts_bin" >&2
+  echo "      Install with: (cd $repo_root/core && ./scripts/switch-tree-sitter-version 0.26.3 && ./scripts/install-tree-sitter-cli)" >&2
+  echo "      or set TREE_SITTER_BIN to an ABI-15-capable tree-sitter." >&2
+  exit 1
+fi
+ts_version=$("$ts_bin" --version | sed -E 's/^tree-sitter ([0-9.]+).*/\1/')
+echo "  using tree-sitter $ts_version at $ts_bin"
+
+# A minimal grammar that ships a tree-sitter.json (so the gate can pick ABI 15).
+g="$tmp/grammar"
+mkdir -p "$g"
+cat > "$g/grammar.js" <<'EOF'
+module.exports = grammar({
+  name: 'abitest',
+  rules: {
+    source_file: $ => repeat($.word),
+    word: $ => /[a-z]+/,
+  },
+});
+EOF
+cat > "$g/tree-sitter.json" <<'EOF'
+{
+  "grammars": [{ "name": "abitest", "scope": "source.abitest", "path": "." }],
+  "metadata": { "version": "0.0.0", "license": "MIT", "description": "ABI gating test grammar" },
+  "bindings": { "c": true, "go": false, "node": false, "python": false, "rust": false, "swift": false }
+}
+EOF
+
+generate_and_read_abi() { # generate_and_read_abi <abi15-env-value-or-empty>
+  local env_val="$1"
+  rm -f "$g/src/parser.c"
+  local args
+  if [ -n "$env_val" ]; then
+    args=$(SEMGREP_ENABLE_ABI15="$env_val" "$abi_args" "$g" "$ts_version")
+    (cd "$g" && SEMGREP_ENABLE_ABI15="$env_val" PATH="$(dirname "$ts_bin"):$PATH" \
+       tree-sitter generate $args >/dev/null)
+  else
+    args=$(unset SEMGREP_ENABLE_ABI15; "$abi_args" "$g" "$ts_version")
+    (cd "$g" && PATH="$(dirname "$ts_bin"):$PATH" tree-sitter generate $args >/dev/null)
+  fi
+  sed -n 's/^#define LANGUAGE_VERSION \([0-9]*\)/\1/p' "$g/src/parser.c" | head -1
+}
+
+abi_off=$(generate_and_read_abi "")
+abi_on=$(generate_and_read_abi "1")
+echo "  LANGUAGE_VERSION with SEMGREP_ENABLE_ABI15 unset: $abi_off"
+echo "  LANGUAGE_VERSION with SEMGREP_ENABLE_ABI15=1:     $abi_on"
+check "default generates ABI 14" "14" "$abi_off"
+check "SEMGREP_ENABLE_ABI15=1 generates ABI 15" "15" "$abi_on"
+if [ "$abi_off" = "$abi_on" ]; then
+  echo "  FAIL: the env var did not change the generated ABI ($abi_off)" >&2
+  fail=1
+fi
+
+echo
+if [ "$fail" -eq 0 ]; then
+  echo "All ABI 15 gating checks passed."
+else
+  echo "ABI 15 gating checks FAILED." >&2
+fi
+exit "$fail"

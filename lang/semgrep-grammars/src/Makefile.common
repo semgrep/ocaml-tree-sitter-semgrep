@@ -24,7 +24,6 @@ export NODE_PATH
 build:
 	$(MAKE) prep
 	set -eu; \
-	case "$${SEMGREP_ENABLE_ABI15:-}" in 1|true|TRUE|yes|YES|on|ON) abi15=1 ;; *) abi15="" ;; esac; \
 	for dir in $$(find . -name grammar.js | xargs -I{} dirname {}); do \
 	  ts_version=$$($(LANG_SCRIPTS)/ts-version-for-grammar-dir "$$dir"); \
 	  ts_bindir=$(PROJECT_ROOT)/core/tree-sitter-$$ts_version/bin; \
@@ -37,13 +36,7 @@ build:
 	  echo "Generate parser in $$(pwd)/$$dir (tree-sitter $$ts_version)"; \
 	  if ! [ -e "$$dir/src/parser.c" ] \
 	     || [ "$$dir/grammar.js" -nt "$$dir/src/parser.c" ]; then \
-	    if [ -f "$$dir/tree-sitter.json" ] && [ -n "$$abi15" ]; then \
-	      gen_args="--abi=15"; \
-	    elif printf '%s\n%s\n' 0.24.0 "$$ts_version" | sort -V -C 2>/dev/null; then \
-	      gen_args="--abi=14"; \
-	    else \
-	      gen_args="--no-bindings"; \
-	    fi; \
+	    gen_args=$$($(LANG_SCRIPTS)/ts-generate-abi-args "$$dir" "$$ts_version"); \
 	    echo "  Running in $$dir: tree-sitter generate $$gen_args"; \
 	    (cd "$$dir" \
 	     && PATH="$$ts_bindir:$$PATH" \
