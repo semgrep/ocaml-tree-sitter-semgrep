@@ -1,0 +1,41 @@
+name: Grammar tree-sitter version
+
+# Verifies that each grammar is wired to generate with the tree-sitter version
+# specified for it in lang/languages-<version> / lang/language-variants-<version>:
+# the version resolves uniquely, and the installed core/tree-sitter-<version>
+# binary actually reports that version. See lang/scripts/test-grammar-ts-version.
+#
+# (The per-language CircleCI build matrix additionally generates every grammar
+# with its pinned version on each commit; this job adds explicit resolution and
+# binary-identity checks without needing the grammar submodules.)
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  grammar-ts-version:
+    name: lang/scripts/test-grammar-ts-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Install the prebuilt tree-sitter CLI for each version the grammars pin
+      # to, into the versioned layout the build expects (core/tree-sitter-<v>/bin).
+      - name: Install pinned tree-sitter versions
+        run: |
+          set -euo pipefail
+          for v in 0.20.8 0.22.6 0.26.3; do
+            dir="core/tree-sitter-$v/bin"
+            mkdir -p "$dir"
+            curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/v$v/tree-sitter-linux-x64.gz" \
+              | gunzip > "$dir/tree-sitter"
+            chmod +x "$dir/tree-sitter"
+            "$dir/tree-sitter" --version
+          done
+
+      - name: Run grammar tree-sitter-version test
+        run: ./lang/scripts/test-grammar-ts-version
