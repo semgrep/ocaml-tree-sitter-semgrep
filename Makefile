@@ -46,13 +46,17 @@ test: build
 	@echo '  ./lang/scripts/test-abi15-gating  # ABI 15 gating test'
 	@echo '=================================================================='
 
-# Run the Python test suites (not run by 'make test'). Requires pytest and, for
-# full coverage, the pinned tree-sitter versions ('make setup-tree-sitter-versions').
+# Run the Python test suites (not run by 'make test'). For full coverage, the
+# pinned tree-sitter versions must be installed ('make setup-tree-sitter-versions').
+# Uses the 'pytest' on PATH if present, otherwise falls back to 'python3 -m pytest'.
+PYTHON_TESTS = lang/test_grammar_ts_version.py scripts/test_update_grammar.py
 .PHONY: test-python
 test-python:
-	@python3 -c 'import pytest' 2>/dev/null \
-	  || { echo "pytest is not installed: pip install pytest"; exit 1; }
-	python3 -m pytest lang/test_grammar_ts_version.py scripts/test_update_grammar.py
+	@if command -v pytest >/dev/null 2>&1; then \
+	  pytest $(PYTHON_TESTS); \
+	else \
+	  python3 -m pytest $(PYTHON_TESTS); \
+	fi
 
 # Install every tree-sitter version the grammars are pinned to (derived from the
 # lang/languages-* files), each into its own core/tree-sitter-<version>/. Needed
