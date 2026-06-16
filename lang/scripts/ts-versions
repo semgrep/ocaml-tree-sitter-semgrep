@@ -1,0 +1,14 @@
+#! /usr/bin/env bash
+#
+# Print, one per line, the distinct tree-sitter versions the grammars are
+# pinned to. The set is derived from the lang/languages-<version> and
+# lang/language-variants-<version> filenames -- the single source of truth for
+# which tree-sitter versions this repo uses. Nothing is hardcoded.
+#
+set -eu
+
+lang_dir=$(cd "$(dirname "$0")/.." && pwd)
+
+ls "$lang_dir"/languages-* "$lang_dir"/language-variants-* 2>/dev/null \
+  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
+  | sort -u -V

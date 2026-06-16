@@ -3,7 +3,7 @@ name: Grammar tree-sitter version
 # Verifies that each grammar is wired to generate with the tree-sitter version
 # specified for it in lang/languages-<version> / lang/language-variants-<version>:
 # the version resolves uniquely, and the installed core/tree-sitter-<version>
-# binary actually reports that version. See lang/scripts/test-grammar-ts-version.
+# binary actually reports that version. See lang/test_grammar_ts_version.py.
 #
 # (The per-language CircleCI build matrix additionally generates every grammar
 # with its pinned version on each commit; this job adds explicit resolution and
@@ -18,17 +18,22 @@ on:
 
 jobs:
   grammar-ts-version:
-    name: lang/scripts/test-grammar-ts-version
+    name: lang/test_grammar_ts_version.py
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
       # Install the prebuilt tree-sitter CLI for each version the grammars pin
       # to, into the versioned layout the build expects (core/tree-sitter-<v>/bin).
+      # The version set is derived from the lang/languages-* files, not hardcoded.
       - name: Install pinned tree-sitter versions
         run: |
           set -euo pipefail
-          for v in 0.20.8 0.22.6 0.26.3; do
+          for v in $(./lang/scripts/ts-versions); do
             dir="core/tree-sitter-$v/bin"
             mkdir -p "$dir"
             curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/v$v/tree-sitter-linux-x64.gz" \
@@ -38,4 +43,7 @@ jobs:
           done
 
       - name: Run grammar tree-sitter-version test
-        run: ./lang/scripts/test-grammar-ts-version
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'pytest>=8,<9'
+          python -m pytest -v lang/test_grammar_ts_version.py
