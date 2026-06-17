@@ -1,14 +1,18 @@
-#! /usr/bin/env bash
+#!/usr/bin/env python3
 #
 # Print, one per line, the distinct tree-sitter versions the grammars are
 # pinned to. The set is derived from the lang/languages-<version> and
 # lang/language-variants-<version> filenames -- the single source of truth for
 # which tree-sitter versions this repo uses. Nothing is hardcoded.
 #
-set -eu
+from __future__ import annotations
 
-lang_dir=$(cd "$(dirname "$0")/.." && pwd)
+import sys
+from pathlib import Path
 
-ls "$lang_dir"/languages-* "$lang_dir"/language-variants-* 2>/dev/null \
-  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
-  | sort -u -V
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from ts_versions import main_ts_versions  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main_ts_versions())

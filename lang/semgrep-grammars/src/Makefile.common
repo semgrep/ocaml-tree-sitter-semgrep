@@ -9,7 +9,7 @@
 PROJECT_ROOT = $(shell git rev-parse --show-toplevel)
 LANG_SCRIPTS = $(PROJECT_ROOT)/lang/scripts
 
-NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH) make
+NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH)
 export NODE_PATH
 
 # Per-grammar build. The tree-sitter binary comes from the version directory

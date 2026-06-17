@@ -1,39 +1,18 @@
-#! /usr/bin/env bash
+#!/usr/bin/env python3
 #
 # Print the 'tree-sitter generate' ABI argument(s) for a grammar, honoring the
-# SEMGREP_ENABLE_ABI15 environment variable. This is the single source of truth
-# for ABI selection, used by lang/semgrep-grammars/src/Makefile.common and
-# exercised by lang/test_abi15_gating.py.
-#
-# Rules:
-#   - "--abi=15" only when the grammar dir has a tree-sitter.json AND
-#     SEMGREP_ENABLE_ABI15 is truthy. ABI 15 requires tree-sitter >= 0.25.0.
-#     Off by default: we are not yet ready to ship ABI 15 parsers.
-#   - "--abi=14" for tree-sitter >= 0.24.0 (the release that introduced --abi).
-#   - "--no-bindings" for older tree-sitter.
+# SEMGREP_ENABLE_ABI15 environment variable. See lang/generate_abi_args.py.
 #
 # Usage: ts-generate-abi-args <grammar-dir> <tree-sitter-version>
-set -eu
+#
+from __future__ import annotations
 
-if [ $# -ne 2 ]; then
-  echo "Usage: $(basename "$0") <grammar-dir> <tree-sitter-version>" >&2
-  exit 2
-fi
-dir="$1"
-ts_version="$2"
+import sys
+from pathlib import Path
 
-# Returns 0 iff ABI 15 generation is enabled via the environment.
-abi15_enabled() {
-  case "${SEMGREP_ENABLE_ABI15:-}" in
-    1|true|TRUE|yes|YES|on|ON) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-if [ -f "$dir/tree-sitter.json" ] && abi15_enabled; then
-  echo "--abi=15"
-elif printf '%s\n%s\n' 0.24.0 "$ts_version" | sort -V -C 2>/dev/null; then
-  echo "--abi=14"
-else
-  echo "--no-bindings"
-fi
+from generate_abi_args import main_ts_generate_abi_args  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main_ts_generate_abi_args())

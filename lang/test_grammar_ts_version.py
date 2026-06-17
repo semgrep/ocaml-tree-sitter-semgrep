@@ -6,7 +6,7 @@ Makefile is not consulted:
 
 * the set of tree-sitter versions      = the versions in the list filenames
 * the per-language pin                  = the contents of those files, as
-                                          resolved by lang/scripts/ts-version-for-lang
+                                          resolved by lang/ts_versions.py
 * the set of generated grammars         = the semgrep-* packages under
                                           lang/semgrep-grammars/src (what the
                                           build's ``for pkg in semgrep-*`` iterates)
@@ -21,9 +21,10 @@ from pathlib import Path
 
 import pytest
 
+from ts_versions import TsVersionError, list_pinned_versions, version_for_grammar_dir, version_for_lang
+
 LANG_DIR = Path(__file__).resolve().parent
 REPO_ROOT = LANG_DIR.parent
-SCRIPTS = LANG_DIR / "scripts"
 SRC = LANG_DIR / "semgrep-grammars" / "src"
 
 VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
@@ -31,33 +32,20 @@ REPORTED_RE = re.compile(r"\(tree-sitter (\d+\.\d+\.\d+)\)")
 
 
 def _list_files():
+    """Return sorted languages-* and language-variants-* paths under lang/."""
     return sorted(LANG_DIR.glob("languages-*")) + sorted(LANG_DIR.glob("language-variants-*"))
 
 
-def _versions():
-    versions = set()
-    for f in _list_files():
-        m = VERSION_RE.search(f.name)
-        if m:
-            versions.add(m.group(0))
-    return sorted(versions)
-
-
-def _pins():
-    """Map each listed language/dialect name to the set of versions it appears under."""
-    pins = {}
-    for f in _list_files():
-        if f.name.endswith(".readme"):
+def _all_listed_names():
+    """Return every language/dialect name listed in the pin files."""
+    names: set[str] = set()
+    for path in _list_files():
+        if path.name.endswith(".readme"):
             continue
-        m = VERSION_RE.search(f.name)
-        if not m:
-            continue
-        version = m.group(0)
-        for line in f.read_text().splitlines():
-            name = line.strip()
-            if name:
-                pins.setdefault(name, set()).add(version)
-    return pins
+        for line in path.read_text().splitlines():
+            if line.strip():
+                names.add(line.strip())
+    return sorted(names)
 
 
 def _grammar_dirs():
@@ -70,35 +58,39 @@ def _grammar_dirs():
 
 
 def _resolve_lang(name):
-    p = subprocess.run([SCRIPTS / "ts-version-for-lang", name], capture_output=True, text=True)
-    return p.stdout.strip() if p.returncode == 0 else None
+    """Return the pinned version for *name*, or None if unlisted or ambiguous."""
+    try:
+        return version_for_lang(name, LANG_DIR)
+    except TsVersionError:
+        return None
 
 
 def _resolve_dir(path):
-    p = subprocess.run([SCRIPTS / "ts-version-for-grammar-dir", str(path)], capture_output=True, text=True)
-    return p.stdout.strip() if p.returncode == 0 else None
+    """Return the pinned version for a grammar directory, or None on TsVersionError."""
+    try:
+        return version_for_grammar_dir(path, LANG_DIR)
+    except TsVersionError:
+        return None
 
 
 def _binary(version):
+    """Return the path to core/tree-sitter-<version>/bin/tree-sitter."""
     return REPO_ROOT / "core" / f"tree-sitter-{version}" / "bin" / "tree-sitter"
 
 
-VERSIONS = _versions()
-PINS = _pins()
+VERSIONS = list_pinned_versions(LANG_DIR)
 GRAMMAR_DIRS = _grammar_dirs()
 
 
 def test_versions_are_discovered():
+    """At least one tree-sitter version is discovered from list filenames."""
     assert VERSIONS, "no tree-sitter versions found in lang/languages-* filenames"
 
 
-@pytest.mark.parametrize("name", sorted(PINS))
+@pytest.mark.parametrize("name", _all_listed_names())
 def test_pin_is_unique_and_resolves(name):
-    """Each language is pinned to exactly one version, and ts-version-for-lang agrees."""
-    versions = PINS[name]
-    assert len(versions) == 1, f"{name} is listed under multiple versions: {sorted(versions)}"
-    expected = next(iter(versions))
-    assert _resolve_lang(name) == expected
+    """Each language is pinned to exactly one version, and version_for_lang agrees."""
+    version_for_lang(name, LANG_DIR)
 
 
 @pytest.mark.parametrize("grammar_dir", GRAMMAR_DIRS, ids=lambda d: str(d.relative_to(SRC)))

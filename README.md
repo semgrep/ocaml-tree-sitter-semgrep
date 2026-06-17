@@ -66,6 +66,19 @@ $ ./test-lang kotlin
 For details, see [How to upgrade the grammar for a
 language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
+### Python / ABI tests
+
+Core OCaml tests run via `make test`. Additional Python suites (version
+resolution, grammar version pins, ABI 15 gating, update-grammar helpers)
+run separately:
+
+```
+make setup-tree-sitter-versions   # install every pinned tree-sitter version
+make test-python                  # pytest
+```
+
+These are also run in CI by `.github/workflows/python-tests.yml`.
+
 ### tree-sitter versions (per language)
 
 Each grammar is built against a specific tree-sitter version, pinned by
@@ -78,7 +91,8 @@ listing the language in one of:
 
 At build time, `lang/Makefile.common` and
 `lang/semgrep-grammars/src/Makefile.common` resolve the version for each
-language (via `lang/scripts/ts-version-for-lang`) and point
+language (via `lang/ts_versions.py`, exposed as `lang/scripts/ts-version-for-lang`,
+`ts-version-for-grammar-dir`, and `ts-versions`) and point
 `TREESITTER_BINDIR/INCDIR/LIBDIR` directly at
 `core/tree-sitter-<version>/{bin,include,lib}`. A language listed in no
 `languages-*` / `language-variants-*` file is a build error.
@@ -101,20 +115,25 @@ cd core
 ```
 
 Each version installs into its own `core/tree-sitter-<version>/`, so
-installing one never overwrites another.
+installing one never overwrites another. To install every pinned version at
+once, run `make setup-tree-sitter-versions` from the repository root.
 
 ### tree-sitter ABI 15
 
 ABI 15 is **off by default**. To opt in for a build, set the
 environment variable `SEMGREP_ENABLE_ABI15`. Accepted truthy values:
-`1`, `true`, `yes`, `on` (case-insensitive).
+`1`, `true`, `yes`, `on` (and their uppercase forms).
+
+Selection is implemented in `lang/generate_abi_args.py` (CLI:
+`lang/scripts/ts-generate-abi-args`). End-to-end ABI 15 generation
+requires tree-sitter >= 0.25.0.
 
 The following table explains the decision matrix for the tree-sitter bindings/ABI
 parameter.
 
 | Condition | ABI |
 |--|--|
-| Grammar ships a `tree-sitter.json` **and** `SEMGREP_ENABLE_ABI15` is set | 15 |
+| Grammar ships a `tree-sitter.json` **and** `SEMGREP_ENABLE_ABI15` is set **and** pinned tree-sitter >= 0.25.0 | 15 |
 | tree-sitter >= 0.24.0 (otherwise) | 14 |
 | older tree-sitter | `--no-bindings` (no ABI flag) |
 

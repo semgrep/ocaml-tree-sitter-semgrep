@@ -1,8 +1,11 @@
 name: Python tests
 
 # Runs the Python test suites wired to `make test-python` (Python 3.11):
+# - lang/ts_versions.py (+ lang/scripts/ts-* CLIs): version resolution
+# - lang/test_ts_versions.py: unit tests for version resolution
 # - lang/test_grammar_ts_version.py: per-language tree-sitter version pins
-# - lang/test_abi15_gating.py: SEMGREP_ENABLE_ABI15 / ts-generate-abi-args
+# - lang/generate_abi_args.py (+ lang/scripts/ts-generate-abi-args): ABI selection
+# - lang/test_abi15_gating.py: SEMGREP_ENABLE_ABI15 gating tests
 # - scripts/test_update_grammar.py: update-grammar script helpers
 #
 # (The per-language CircleCI build matrix additionally generates every grammar
@@ -42,7 +45,7 @@ jobs:
             "$dir/tree-sitter" --version
           done
 
-      - name: Run Python lang tests
+      - name: Run Python tests (make test-python)
         run: |
           python -m pip install --upgrade pip
           python -m pip install 'pytest>=8,<9'

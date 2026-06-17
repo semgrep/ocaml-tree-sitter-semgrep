@@ -1,6 +1,6 @@
 """Test ABI selection for tree-sitter generate (SEMGREP_ENABLE_ABI15 gating).
 
-Layer 1 exercises ``lang/scripts/ts-generate-abi-args`` (decision table).
+Layer 1 exercises ``lang/generate_abi_args.py`` (decision table).
 Layer 2 verifies the env var actually changes ``LANGUAGE_VERSION`` in
 ``parser.c`` when running ``tree-sitter generate`` (requires tree-sitter
 >= 0.25.0 and node).
@@ -15,6 +15,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
+from generate_abi_args import GenerateAbiError, generate_abi_args, main_ts_generate_abi_args
+from ts_versions import version_at_least, version_sort_key
 
 LANG_DIR = Path(__file__).resolve().parent
 REPO_ROOT = LANG_DIR.parent
@@ -42,34 +45,35 @@ TREE_SITTER_JSON = """\
 """
 
 
-def _run_abi_args(grammar_dir: Path, ts_version: str, *, abi15: str | None = None) -> str:
-    """Run ts-generate-abi-args; abi15=None means leave env unset."""
+def _abi_args_env(*, abi15: str | None = None) -> dict[str, str]:
+    """Build an environment mapping for ABI 15 gating tests."""
     env = os.environ.copy()
     if abi15 is None:
         env.pop("SEMGREP_ENABLE_ABI15", None)
     else:
         env["SEMGREP_ENABLE_ABI15"] = abi15
+    return env
+
+
+def _run_abi_args(grammar_dir: Path, ts_version: str, *, abi15: str | None = None) -> str:
+    """Return ABI args from the Python API with a controlled env."""
+    return generate_abi_args(grammar_dir, ts_version, env=_abi_args_env(abi15=abi15))
+
+
+def _run_abi_args_cli(grammar_dir: Path, ts_version: str, *, abi15: str | None = None) -> str:
+    """Return ABI args from the CLI wrapper with a controlled env."""
     proc = subprocess.run(
         [ABI_ARGS_SCRIPT, str(grammar_dir), ts_version],
         capture_output=True,
         text=True,
-        env=env,
+        env=_abi_args_env(abi15=abi15),
     )
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip()
 
 
-def _version_at_least(version: str, minimum: str) -> bool:
-    proc = subprocess.run(
-        ["sort", "-V", "-C"],
-        input=f"{minimum}\n{version}\n",
-        text=True,
-        capture_output=True,
-    )
-    return proc.returncode == 0
-
-
 def _default_tree_sitter_bin() -> Path | None:
+    """Return an ABI-15-capable tree-sitter binary if one is available."""
     override = os.environ.get("TREE_SITTER_BIN")
     if override:
         path = Path(override)
@@ -79,9 +83,10 @@ def _default_tree_sitter_bin() -> Path | None:
 
 
 def _reported_version(ts_bin: Path) -> str | None:
+    """Parse the semver from ``tree-sitter --version`` output."""
     proc = subprocess.run([ts_bin, "--version"], capture_output=True, text=True)
-    m = VERSION_RE.search(proc.stdout)
-    return m.group(1) if m else None
+    match = VERSION_RE.search(proc.stdout)
+    return match.group(1) if match else None
 
 
 def _generate_and_read_language_version(
@@ -91,15 +96,12 @@ def _generate_and_read_language_version(
     *,
     abi15: str | None = None,
 ) -> str | None:
+    """Generate parser.c and return the LANGUAGE_VERSION macro value."""
     parser_c = grammar_dir / "src" / "parser.c"
     if parser_c.exists():
         parser_c.unlink()
     args = _run_abi_args(grammar_dir, ts_version, abi15=abi15)
-    env = os.environ.copy()
-    if abi15 is None:
-        env.pop("SEMGREP_ENABLE_ABI15", None)
-    else:
-        env["SEMGREP_ENABLE_ABI15"] = abi15
+    env = _abi_args_env(abi15=abi15)
     env["PATH"] = f"{ts_bin.parent}:{env.get('PATH', '')}"
     proc = subprocess.run(
         ["tree-sitter", "generate", *args.split()],
@@ -109,13 +111,13 @@ def _generate_and_read_language_version(
         env=env,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    text = parser_c.read_text()
-    m = LANGUAGE_VERSION_RE.search(text)
-    return m.group(1) if m else None
+    match = LANGUAGE_VERSION_RE.search(parser_c.read_text())
+    return match.group(1) if match else None
 
 
 @pytest.fixture
 def grammar_dirs(tmp_path):
+    """Provide grammar directories with and without tree-sitter.json."""
     with_json = tmp_path / "with-json"
     without_json = tmp_path / "without-json"
     with_json.mkdir()
@@ -145,11 +147,39 @@ def grammar_dirs(tmp_path):
         "no-json-0.20.8",
     ],
 )
-def test_ts_generate_abi_args(grammar_dirs, has_json, ts_version, abi15, expected):
-    """ts-generate-abi-args returns the expected flag for each input combination."""
+def test_generate_abi_args(grammar_dirs, has_json, ts_version, abi15, expected):
+    """generate_abi_args returns the expected flag for each input combination."""
     with_json, without_json = grammar_dirs
     grammar_dir = with_json if has_json else without_json
     assert _run_abi_args(grammar_dir, ts_version, abi15=abi15) == expected
+
+
+@pytest.mark.parametrize(
+    "has_json,ts_version,abi15,expected",
+    [
+        (True, "0.26.3", "1", "--abi=15"),
+        (True, "0.26.3", None, "--abi=14"),
+        (False, "0.20.8", None, "--no-bindings"),
+    ],
+)
+def test_generate_abi_args_cli(grammar_dirs, has_json, ts_version, abi15, expected):
+    """The ts-generate-abi-args CLI wrapper matches the Python API."""
+    with_json, without_json = grammar_dirs
+    grammar_dir = with_json if has_json else without_json
+    assert _run_abi_args_cli(grammar_dir, ts_version, abi15=abi15) == expected
+
+
+def test_generate_abi_args_abi15_requires_recent_tree_sitter(grammar_dirs):
+    """ABI 15 with an old pinned tree-sitter version is rejected."""
+    with_json, _ = grammar_dirs
+    with pytest.raises(GenerateAbiError, match="requires tree-sitter >= 0.25.0"):
+        generate_abi_args(with_json, "0.22.6", env=_abi_args_env(abi15="1"))
+
+
+def test_generate_abi_args_cli_usage_errors():
+    """ts-generate-abi-args returns exit code 2 when given the wrong number of arguments."""
+    assert main_ts_generate_abi_args(["ts-generate-abi-args"]) == 2
+    assert main_ts_generate_abi_args(["ts-generate-abi-args", "dir"]) == 2
 
 
 def test_abi15_env_var_flips_generated_language_version(tmp_path):
@@ -161,7 +191,7 @@ def test_abi15_env_var_flips_generated_language_version(tmp_path):
             f"(looked for TREE_SITTER_BIN or {REPO_ROOT / 'core/tree-sitter-0.26.3/bin/tree-sitter'})"
         )
     ts_version = _reported_version(ts_bin)
-    if ts_version is None or not _version_at_least(ts_version, "0.25.0"):
+    if ts_version is None or not version_at_least(ts_version, "0.25.0"):
         pytest.skip(f"tree-sitter {ts_version!r} at {ts_bin} does not support ABI 15")
     if shutil.which("node") is None:
         pytest.skip("node not available (tree-sitter generate needs it)")
