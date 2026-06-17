@@ -3,7 +3,7 @@
 # Print the 'tree-sitter generate' ABI argument(s) for a grammar, honoring the
 # SEMGREP_ENABLE_ABI15 environment variable. This is the single source of truth
 # for ABI selection, used by lang/semgrep-grammars/src/Makefile.common and
-# exercised directly by lang/scripts/test-abi15-gating.
+# exercised by lang/test_abi15_gating.py.
 #
 # Rules:
 #   - "--abi=15" only when the grammar dir has a tree-sitter.json AND
