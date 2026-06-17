@@ -69,6 +69,10 @@ elif [[ "$lang" = sfapex ]]; then
   # sosl and soql are subgrammars of apex which have their own test suites
   # but we don't care about them as standalone languages.
   sublangs="apex"
+elif [[ "$lang" = cfml ]]; then
+  # cfscript and cfquery are subgrammars of cfml which have their own test
+  # suites but we only care about cfml as the standalone language.
+  sublangs="cfml"
 fi
 
 check_for_blanks() {

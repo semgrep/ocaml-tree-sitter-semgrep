@@ -139,6 +139,7 @@ workflows:
                 - bash
                 - c
                 - cairo
+                - cfml
                 - circom
                 - clojure
                 - cpp
