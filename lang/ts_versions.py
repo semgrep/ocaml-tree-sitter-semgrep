@@ -7,7 +7,6 @@ The mapping lives in ``lang/languages-<version>`` and
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
@@ -111,38 +110,3 @@ def extract_grammar_name(grammar_dir: Path) -> str:
 def version_for_grammar_dir(grammar_dir: Path | str, lang_dir: Path | None = None) -> str:
     """Return the tree-sitter version pinned for a grammar directory."""
     return version_for_lang(extract_grammar_name(Path(grammar_dir)), lang_dir)
-
-
-def main_ts_versions() -> int:
-    """CLI entry point: print each pinned tree-sitter version on its own line."""
-    for version in list_pinned_versions():
-        print(version)
-    return 0
-
-
-def main_ts_version_for_lang(argv: list[str] | None = None) -> int:
-    """CLI entry point: print the tree-sitter version for a language name."""
-    args = argv if argv is not None else sys.argv
-    if len(args) != 2:
-        print(f"Usage: {args[0]} <lang>", file=sys.stderr)
-        return 2
-    try:
-        print(version_for_lang(args[1]))
-    except TsVersionError as exc:
-        print(exc, file=sys.stderr)
-        return 1
-    return 0
-
-
-def main_ts_version_for_grammar_dir(argv: list[str] | None = None) -> int:
-    """CLI entry point: print the tree-sitter version for a grammar directory."""
-    args = argv if argv is not None else sys.argv
-    if len(args) != 2:
-        print(f"Usage: {args[0]} <grammar-dir>", file=sys.stderr)
-        return 2
-    try:
-        print(version_for_grammar_dir(args[1]))
-    except TsVersionError as exc:
-        print(exc, file=sys.stderr)
-        return 1
-    return 0

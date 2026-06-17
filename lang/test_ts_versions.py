@@ -11,8 +11,6 @@ from ts_versions import (
     TsVersionError,
     extract_grammar_name,
     list_pinned_versions,
-    main_ts_version_for_grammar_dir,
-    main_ts_version_for_lang,
     version_for_grammar_dir,
     version_for_lang,
     version_sort_key,
@@ -96,7 +94,8 @@ def test_cli_entry_points(script, args, expected):
         assert proc.stdout == expected
 
 
-def test_cli_usage_errors():
-    """CLI entry points return exit code 2 when given no arguments."""
-    assert main_ts_version_for_lang(["ts-version-for-lang"]) == 2
-    assert main_ts_version_for_grammar_dir(["ts-version-for-grammar-dir"]) == 2
+@pytest.mark.parametrize("script", ["ts-version-for-lang", "ts-version-for-grammar-dir"])
+def test_cli_usage_errors(script):
+    """CLI wrappers return exit code 2 (argparse) when given no arguments."""
+    proc = subprocess.run([SCRIPTS / script], capture_output=True, text=True)
+    assert proc.returncode == 2

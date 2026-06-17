@@ -7,12 +7,30 @@
 #
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from generate_abi_args import main_ts_generate_abi_args  # noqa: E402
+from generate_abi_args import GenerateAbiError, generate_abi_args  # noqa: E402
+
+
+def main() -> int:
+    """Print the ABI flag for a grammar directory and tree-sitter version."""
+    parser = argparse.ArgumentParser(
+        description="Print the 'tree-sitter generate' ABI flag for a grammar directory."
+    )
+    parser.add_argument("grammar_dir", help="grammar directory to inspect")
+    parser.add_argument("tree_sitter_version", help="tree-sitter version the grammar is pinned to")
+    args = parser.parse_args()
+    try:
+        print(generate_abi_args(args.grammar_dir, args.tree_sitter_version))
+    except GenerateAbiError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    raise SystemExit(main_ts_generate_abi_args())
+    raise SystemExit(main())

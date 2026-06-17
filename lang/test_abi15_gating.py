@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from generate_abi_args import GenerateAbiError, generate_abi_args, main_ts_generate_abi_args
+from generate_abi_args import GenerateAbiError, generate_abi_args
 from ts_versions import version_at_least, version_sort_key
 
 LANG_DIR = Path(__file__).resolve().parent
@@ -176,10 +176,11 @@ def test_generate_abi_args_abi15_requires_recent_tree_sitter(grammar_dirs):
         generate_abi_args(with_json, "0.22.6", env=_abi_args_env(abi15="1"))
 
 
-def test_generate_abi_args_cli_usage_errors():
-    """ts-generate-abi-args returns exit code 2 when given the wrong number of arguments."""
-    assert main_ts_generate_abi_args(["ts-generate-abi-args"]) == 2
-    assert main_ts_generate_abi_args(["ts-generate-abi-args", "dir"]) == 2
+@pytest.mark.parametrize("args", [[], ["dir"]])
+def test_generate_abi_args_cli_usage_errors(args):
+    """ts-generate-abi-args returns exit code 2 (argparse) on the wrong number of arguments."""
+    proc = subprocess.run([ABI_ARGS_SCRIPT, *args], capture_output=True, text=True)
+    assert proc.returncode == 2
 
 
 def test_abi15_env_var_flips_generated_language_version(tmp_path):

@@ -11,7 +11,6 @@ Rules:
 from __future__ import annotations
 
 import os
-import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -49,17 +48,3 @@ def generate_abi_args(
     if version_at_least(ts_version, "0.24.0"):
         return "--abi=14"
     return "--no-bindings"
-
-
-def main_ts_generate_abi_args(argv: list[str] | None = None) -> int:
-    """CLI entry point: print ABI args for a grammar dir and tree-sitter version."""
-    args = argv if argv is not None else sys.argv
-    if len(args) != 3:
-        print(f"Usage: {Path(args[0]).name} <grammar-dir> <tree-sitter-version>", file=sys.stderr)
-        return 2
-    try:
-        print(generate_abi_args(args[1], args[2]))
-    except GenerateAbiError as exc:
-        print(exc, file=sys.stderr)
-        return 1
-    return 0

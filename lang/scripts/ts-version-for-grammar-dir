@@ -6,14 +6,33 @@
 # directory basename. Underscores are normalized to hyphens to match lang
 # directory names (e.g. php_only -> php-only).
 #
+# Usage: ts-version-for-grammar-dir <grammar-dir>
+#
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ts_versions import main_ts_version_for_grammar_dir  # noqa: E402
+from ts_versions import TsVersionError, version_for_grammar_dir  # noqa: E402
+
+
+def main() -> int:
+    """Print the tree-sitter version pinned for a grammar directory."""
+    parser = argparse.ArgumentParser(
+        description="Print the tree-sitter version pinned for a grammar directory."
+    )
+    parser.add_argument("grammar_dir", help="grammar directory to inspect")
+    args = parser.parse_args()
+    try:
+        print(version_for_grammar_dir(args.grammar_dir))
+    except TsVersionError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    raise SystemExit(main_ts_version_for_grammar_dir())
+    raise SystemExit(main())
