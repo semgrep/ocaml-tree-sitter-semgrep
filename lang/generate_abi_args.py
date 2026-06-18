@@ -11,8 +11,10 @@ Rules:
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import TextIO
 
 from ts_versions import version_at_least
 
@@ -34,10 +36,12 @@ def generate_abi_args(
     ts_version: str,
     *,
     env: Mapping[str, str] | None = None,
+    warn: TextIO | None = None,
 ) -> str:
     """Return the ``tree-sitter generate`` flag for a grammar and tree-sitter version."""
     directory = Path(grammar_dir)
-    if (directory / "tree-sitter.json").is_file() and abi15_enabled(env):
+    has_json = (directory / "tree-sitter.json").is_file()
+    if has_json and abi15_enabled(env):
         if not version_at_least(ts_version, "0.25.0"):
             raise GenerateAbiError(
                 f"Error: {directory} uses ABI 15 (tree-sitter.json present, "
@@ -45,6 +49,15 @@ def generate_abi_args(
                 f"but this grammar is pinned to {ts_version}."
             )
         return "--abi=15"
-    if version_at_least(ts_version, "0.24.0"):
-        return "--abi=14"
-    return "--no-bindings"
+    fallback = "--abi=14" if version_at_least(ts_version, "0.24.0") else "--no-bindings"
+    if abi15_enabled(env) and not has_json:
+        # ABI 15 was requested but cannot apply without a tree-sitter.json,
+        # so we silently produce an older ABI. Warn rather than surprise the
+        # user, who is expecting --abi=15. (stderr keeps stdout flag-only.)
+        print(
+            f"Warning: SEMGREP_ENABLE_ABI15 is set but {directory} has no "
+            f"tree-sitter.json, which ABI 15 requires; generating with "
+            f"{fallback} instead.",
+            file=sys.stderr if warn is None else warn,
+        )
+    return fallback

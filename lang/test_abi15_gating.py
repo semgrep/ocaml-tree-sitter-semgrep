@@ -8,6 +8,7 @@ Layer 2 verifies the env var actually changes ``LANGUAGE_VERSION`` in
 Run with: pytest lang/test_abi15_gating.py
 """
 
+import io
 import os
 import re
 import shutil
@@ -167,6 +168,29 @@ def test_generate_abi_args_cli(grammar_dirs, has_json, ts_version, abi15, expect
     with_json, without_json = grammar_dirs
     grammar_dir = with_json if has_json else without_json
     assert _run_abi_args_cli(grammar_dir, ts_version, abi15=abi15) == expected
+
+
+def test_generate_abi_args_warns_on_abi15_without_json(grammar_dirs):
+    """ABI 15 requested without a tree-sitter.json warns and falls back."""
+    _, without_json = grammar_dirs
+    warn = io.StringIO()
+    result = generate_abi_args(
+        without_json, "0.26.3", env=_abi_args_env(abi15="1"), warn=warn
+    )
+    assert result == "--abi=14"
+    message = warn.getvalue()
+    assert "SEMGREP_ENABLE_ABI15" in message
+    assert "tree-sitter.json" in message
+    assert "--abi=14" in message
+
+
+def test_generate_abi_args_no_warning_when_satisfied(grammar_dirs):
+    """No warning when ABI 15 is unset or the grammar has a tree-sitter.json."""
+    with_json, without_json = grammar_dirs
+    for grammar_dir, abi15 in [(with_json, "1"), (with_json, None), (without_json, None)]:
+        warn = io.StringIO()
+        generate_abi_args(grammar_dir, "0.26.3", env=_abi_args_env(abi15=abi15), warn=warn)
+        assert warn.getvalue() == ""
 
 
 def test_generate_abi_args_abi15_requires_recent_tree_sitter(grammar_dirs):
