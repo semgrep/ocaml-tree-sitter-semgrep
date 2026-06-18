@@ -20,7 +20,7 @@ in four layers:
   side effects of the real `core/scripts/*` (which would touch the
   network and the user's installed tree-sitter).
 
-Run with: `python -m unittest scripts/test_update_grammar.py`
+Run with: `pytest scripts/test_update_grammar.py` (or `make test-python`)
 """
 
 from __future__ import annotations

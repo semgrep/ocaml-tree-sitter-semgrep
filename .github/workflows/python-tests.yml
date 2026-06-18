@@ -1,5 +1,17 @@
 name: Python tests
 
+# Runs the Python test suites wired to `make test-python` (Python 3.11):
+# - lang/ts_versions.py (+ lang/scripts/ts-* CLIs): version resolution
+# - lang/test_ts_versions.py: unit tests for version resolution
+# - lang/test_grammar_ts_version.py: per-language tree-sitter version pins
+# - lang/generate_abi_args.py (+ lang/scripts/ts-generate-abi-args): ABI selection
+# - lang/test_abi15_gating.py: SEMGREP_ENABLE_ABI15 gating tests
+# - scripts/test_update_grammar.py: update-grammar script helpers
+#
+# (The per-language CircleCI build matrix additionally generates every grammar
+# with its pinned version on each commit; this job adds explicit resolution and
+# binary-identity checks without needing the grammar submodules.)
+
 on:
   pull_request:
   push:
@@ -8,12 +20,33 @@ on:
       - master
 
 jobs:
-  test-update-grammar:
-    name: scripts/test_update_grammar.py
+  test-python:
+    name: make test-python
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.9'
-      - run: python -m unittest scripts/test_update_grammar.py
+          python-version: '3.11'
+
+      # Install the prebuilt tree-sitter CLI for each version the grammars pin
+      # to, into the versioned layout the build expects (core/tree-sitter-<v>/bin).
+      # The version set is derived from the lang/languages-* files, not hardcoded.
+      - name: Install pinned tree-sitter versions
+        run: |
+          set -euo pipefail
+          for v in $(./lang/scripts/ts-versions); do
+            dir="core/tree-sitter-$v/bin"
+            mkdir -p "$dir"
+            curl -fsSL "https://github.com/tree-sitter/tree-sitter/releases/download/v$v/tree-sitter-linux-x64.gz" \
+              | gunzip > "$dir/tree-sitter"
+            chmod +x "$dir/tree-sitter"
+            "$dir/tree-sitter" --version
+          done
+
+      - name: Run Python tests (make test-python)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'pytest>=8,<9'
+          make test-python

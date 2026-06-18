@@ -37,6 +37,42 @@ distclean:
 .PHONY: test
 test: build
 	$(MAKE) -C core test
+	@echo
+	@echo '=================================================================='
+	@echo '"make test" ran the core (OCaml) tests only.'
+	@echo 'To also run the Python / ABI tests (not covered here), run:'
+	@echo '  make setup-tree-sitter-versions   # install every pinned tree-sitter version'
+	@echo '  make test-python                  # pytest: version resolution, grammar pins, ABI gating, update-grammar'
+	@echo '=================================================================='
+
+# Run the Python test suites (not run by 'make test'). For full coverage, the
+# pinned tree-sitter versions must be installed ('make setup-tree-sitter-versions').
+# Uses the 'pytest' on PATH if present, otherwise falls back to 'python3 -m pytest'.
+PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py
+.PHONY: test-python
+test-python:
+	@if command -v pytest >/dev/null 2>&1; then \
+	  pytest $(PYTHON_TESTS); \
+	else \
+	  python3 -m pytest $(PYTHON_TESTS); \
+	fi
+
+# Install every tree-sitter version the grammars are pinned to (derived from the
+# lang/languages-* files), each into its own core/tree-sitter-<version>/. Needed
+# by the per-language builds and the Python tests. Restores the previously
+# selected version at the end.
+.PHONY: setup-tree-sitter-versions
+setup-tree-sitter-versions:
+	@set -eu; \
+	saved=$$(cat core/tree-sitter-version 2>/dev/null || cat core/tree-sitter-version.default); \
+	for v in $$(lang/scripts/ts-versions); do \
+	  echo ">>> Installing tree-sitter $$v"; \
+	  ( cd core && ./scripts/switch-tree-sitter-version "$$v" \
+	      && ./scripts/install-tree-sitter-cli \
+	      && ./scripts/install-tree-sitter-lib ); \
+	done; \
+	echo ">>> Restoring tree-sitter $$saved"; \
+	( cd core && ./scripts/switch-tree-sitter-version "$$saved" >/dev/null )
 
 # Build and test all the production languages.
 .PHONY: lang
