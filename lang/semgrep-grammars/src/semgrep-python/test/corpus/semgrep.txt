@@ -39,3 +39,100 @@ Metavariable in match
                   (string_start)
                   (string_content)
                   (string_end))))))))))
+
+====================================
+Deep ellipsis
+====================================
+
+foo(<... bar ...>)
+---
+
+(module
+  (expression_statement
+    (call
+      (identifier)
+      (argument_list
+        (deep_ellipsis
+          (identifier))))))
+
+====================================
+Typed metavariable in argument
+====================================
+
+foo($X: int)
+---
+
+(module
+  (expression_statement
+    (call
+      (identifier)
+      (argument_list
+        (typed_metavariable
+          (identifier)
+          (type
+            (identifier)))))))
+
+====================================
+Ellipsis as a parameter
+====================================
+
+def f(...): pass
+---
+
+(module
+  (function_definition
+    (identifier)
+    (parameters
+      (ellipsis))
+    (block
+      (pass_statement))))
+
+====================================
+Standalone decorator pattern
+====================================
+
+@$NAME($...PA)
+---
+
+(module
+  (decorator
+    (call
+      (identifier)
+      (argument_list
+        (identifier)))))
+
+====================================
+Ellipsis as dict elements
+====================================
+
+{ ..., $K: $V, ... }
+---
+
+(module
+  (expression_statement
+    (dictionary
+      (ellipsis)
+      (pair
+        (identifier)
+        (identifier))
+      (ellipsis))))
+
+====================================
+Ellipsis in comprehension body and for-target
+====================================
+
+[... for ... in xs.map(...)]
+---
+
+(module
+  (expression_statement
+    (list_comprehension
+      (ellipsis)
+      (for_in_clause
+        (ellipsis)
+        (call
+          (attribute
+            (identifier)
+            (identifier))
+          (argument_list
+            (ellipsis)))))))
