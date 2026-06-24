@@ -91,7 +91,7 @@ jobs:
       # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
       - name: Rewrite SSH submodule URLs to HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
-      - run: git submodule update --init --recursive
+      - run: git submodule update --init --recursive --depth 1
       - run: ./core/scripts/setup-node
       # Cache the opam/dune + tree-sitter build, keyed on the core submodule
       # SHA so it only rebuilds when core changes.
@@ -177,7 +177,7 @@ jobs:
       - if: steps.gate.outputs.go == 'true'
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - if: steps.gate.outputs.go == 'true'
-        run: git submodule update --init --recursive
+        run: git submodule update --init --recursive --depth 1
       - if: steps.gate.outputs.go == 'true'
         run: ./core/scripts/setup-node
       - if: steps.gate.outputs.go == 'true'
