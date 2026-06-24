@@ -88,6 +88,12 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      # The driver commits the bump; CI runners have no git identity, so
+      # `git commit` fails with exit 128 ("Author identity unknown").
+      - name: Configure git identity
+        run: |
+          git config --global user.name "semgrep-grammar-bot"
+          git config --global user.email "semgrep-grammar-bot@users.noreply.github.com"
       # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
       - name: Rewrite SSH submodule URLs to HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
@@ -177,6 +183,11 @@ jobs:
         uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
         with:
           ocaml-compiler: "5"
+      - if: steps.gate.outputs.go == 'true'
+        name: Configure git identity
+        run: |
+          git config --global user.name "semgrep-grammar-bot"
+          git config --global user.email "semgrep-grammar-bot@users.noreply.github.com"
       - if: steps.gate.outputs.go == 'true'
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - if: steps.gate.outputs.go == 'true'
