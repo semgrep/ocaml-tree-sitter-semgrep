@@ -121,7 +121,10 @@ jobs:
           # PRs is wanted later, swap in a PAT / GitHub App token here.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr \
+          # opam exec puts the switch bin on PATH so the nested test-lang ->
+          # make gen-c can find the `ocaml-tree-sitter` binary (installed by
+          # `make install`). Without it: "ocaml-tree-sitter: command not found".
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr \
             | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -202,7 +205,9 @@ jobs:
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.cursor/bin:$PATH"
-          python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger
+          # opam exec: same reason as the propose job — the nested
+          # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger
 
   summary:
     name: Summary
