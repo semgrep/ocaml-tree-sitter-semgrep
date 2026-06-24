@@ -166,8 +166,8 @@ jobs:
         env:
           # Pushing to the downstream semgrep-<lang> repos needs broader
           # creds than GITHUB_TOKEN; the Cursor agent needs its own key.
-          GH_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
-          GITHUB_TOKEN: ${{ secrets.DOWNSTREAM_PAT }}
+          GH_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
           # Make git's HTTPS pushes (lang/release clones + pushes
