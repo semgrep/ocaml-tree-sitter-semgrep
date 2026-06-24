@@ -109,6 +109,21 @@ def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     )
 
 
+def run_quiet(cmd: list[str], cwd: Path) -> None:
+    """Run a mutating command, mirroring its output to STDERR, raising on error.
+
+    stdout is reserved for the single JSON result line, so git/gh output
+    must never go there (it would corrupt the contract and the workflow's
+    `tee`'d artifact). Captures and re-emits on stderr.
+    """
+    log(f"$ {' '.join(cmd)}  (in {cwd})")
+    r = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=False)
+    sys.stderr.write(r.stdout)
+    sys.stderr.write(r.stderr)
+    if r.returncode != 0:
+        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout, r.stderr)
+
+
 def version_key(tag: str) -> tuple[int, ...]:
     """Sort key for a stable tag: the numeric components as an int tuple.
 
@@ -380,18 +395,21 @@ def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
         print(body)
         return {**result, "status": "dry-run", "branch": branch}
 
-    # Re-apply on a branch (propose() reset the tree).
-    ug.run(["git", "checkout", "-b", branch], cwd=root)
+    # Re-apply on a branch (propose() reset the tree). All git/gh output is
+    # routed to stderr via run_quiet so stdout stays pure JSON.
+    run_quiet(["git", "checkout", "-b", branch], cwd=root)
     run_update_grammar(language, target["ts_version"], tag, root)
     regenerate_snapshots(root, target["wrapper"])
-    ug.run(["git", "add", "-A"], cwd=root)
-    ug.run(
+    # Stage everything except the workflow's result-*.json artifact (the
+    # `tee` target lives in the repo root and must not be committed).
+    run_quiet(["git", "add", "-A", "--", ".", ":(exclude)result-*.json"], cwd=root)
+    run_quiet(
         ["git", "commit", "-m",
          f"Update tree-sitter-{language} grammar to {tag}"],
         cwd=root,
     )
-    ug.run(["git", "push", "origin", branch], cwd=root)
-    ug.run(
+    run_quiet(["git", "push", "origin", branch], cwd=root)
+    run_quiet(
         ["gh", "pr", "create", "--title", title, "--body", body,
          "--head", branch],
         cwd=root,
@@ -628,7 +646,12 @@ def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
     model = os.environ.get("CURSOR_MODEL")
     if model:
         cmd += ["--model", model]
-    ug.run(cmd, cwd=Path.cwd(), check=False)
+    # Route agent output to stderr (visible in CI logs) so stdout stays the
+    # JSON result line.
+    r = subprocess.run(cmd, cwd=Path.cwd(), text=True,
+                       capture_output=True, check=False)
+    sys.stderr.write(r.stdout)
+    sys.stderr.write(r.stderr)
     return {"agent": "launched", "origin_pr": pr_number}
 
 
