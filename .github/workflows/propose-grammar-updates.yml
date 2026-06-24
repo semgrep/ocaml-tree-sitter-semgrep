@@ -16,6 +16,14 @@ on:
       language:
         description: "Single language to propose (optional; default: all)"
         required: false
+  # TEMPORARY smoke-test trigger: workflow_dispatch only works once this file
+  # is on the default branch, so to validate end-to-end before merge we run it
+  # on push to the feature branch. Scoped to one branch, and the enumerate job
+  # forces a single language (php) on push events so it never fans out to all
+  # ~47 languages. REMOVE this push: block before merging to main.
+  push:
+    branches:
+      - brandon/auto-grammar-update-cron
 
 permissions:
   contents: write         # push grammar-update/* branches in THIS repo
@@ -42,7 +50,9 @@ jobs:
         # the script) and is validated against the known language set before
         # use — both to prevent shell injection and to reject typos early.
         env:
-          INPUT_LANGUAGE: ${{ github.event.inputs.language }}
+          # On push (the temporary smoke-test trigger) force a single
+          # language; otherwise honor the dispatch input (empty => all).
+          INPUT_LANGUAGE: ${{ github.event_name == 'push' && 'php' || github.event.inputs.language }}
         run: |
           if [ -n "$INPUT_LANGUAGE" ]; then
             valid=$(python scripts/propose-grammar-update --list-languages --json)
