@@ -67,7 +67,6 @@ jobs:
     name: Propose ${{ matrix.language }}
     needs: enumerate
     runs-on: ubuntu-latest
-    container: returntocorp/ocaml:ubuntu   # matches the CircleCI test-language toolchain
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -80,6 +79,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      # Install OCaml + opam directly (the old returntocorp/ocaml image is
+      # not pullable from Actions). setup-ocaml provides the toolchain the
+      # `make setup/make/make install` build needs.
+      - uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
+        with:
+          ocaml-compiler: "5"
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
       # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
       - name: Rewrite SSH submodule URLs to HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
@@ -132,7 +140,6 @@ jobs:
     needs: [enumerate, propose]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    container: returntocorp/ocaml:ubuntu
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -142,6 +149,9 @@ jobs:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: result-${{ matrix.language }}
@@ -160,6 +170,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - if: steps.gate.outputs.go == 'true'
+        uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
+        with:
+          ocaml-compiler: "5"
       - if: steps.gate.outputs.go == 'true'
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - if: steps.gate.outputs.go == 'true'
