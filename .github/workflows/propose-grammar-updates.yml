@@ -88,12 +88,29 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
-      # The driver commits the bump; CI runners have no git identity, so
-      # `git commit` fails with exit 128 ("Author identity unknown").
-      - name: Configure git identity
+      # The org requires verified (signed) commits on all branches, so the
+      # bump commit must be GPG-signed by a key registered on the authoring
+      # GitHub account. Import the bot key and turn on signing globally.
+      - name: Set up GPG signing
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GRAMMAR_BOT_GPG_PRIVATE_KEY }}
+          GPG_EMAIL: ${{ secrets.GRAMMAR_BOT_GPG_EMAIL }}
         run: |
+          export GNUPGHOME="$HOME/.gnupg"
+          mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
+          # Loopback pinentry so gpg never tries to use a tty in CI
+          # ("Inappropriate ioctl for device"). The key has no passphrase.
+          echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
+          echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
+            | awk -F: '/^sec:/ {print $5; exit}')
           git config --global user.name "semgrep-grammar-bot"
-          git config --global user.email "semgrep-grammar-bot@users.noreply.github.com"
+          git config --global user.email "$GPG_EMAIL"
+          git config --global user.signingkey "$key_id"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
       # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
       - name: Rewrite SSH submodule URLs to HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
@@ -184,10 +201,26 @@ jobs:
         with:
           ocaml-compiler: "5"
       - if: steps.gate.outputs.go == 'true'
-        name: Configure git identity
+        name: Set up GPG signing
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GRAMMAR_BOT_GPG_PRIVATE_KEY }}
+          GPG_EMAIL: ${{ secrets.GRAMMAR_BOT_GPG_EMAIL }}
         run: |
+          export GNUPGHOME="$HOME/.gnupg"
+          mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
+          # Loopback pinentry so gpg never tries to use a tty in CI
+          # ("Inappropriate ioctl for device"). The key has no passphrase.
+          echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
+          echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
+            | awk -F: '/^sec:/ {print $5; exit}')
           git config --global user.name "semgrep-grammar-bot"
-          git config --global user.email "semgrep-grammar-bot@users.noreply.github.com"
+          git config --global user.email "$GPG_EMAIL"
+          git config --global user.signingkey "$key_id"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
       - if: steps.gate.outputs.go == 'true'
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - if: steps.gate.outputs.go == 'true'
