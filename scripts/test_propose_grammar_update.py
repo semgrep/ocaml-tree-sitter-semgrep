@@ -248,6 +248,43 @@ class TestAgentPrompt(unittest.TestCase):
 
 
 ###############################################################################
+# Review-and-adapt agent (on test-lang failure) #
+###############################################################################
+
+
+class TestReviewAgent(unittest.TestCase):
+    def test_prompt_is_review_not_authoring(self):
+        p = pg.review_agent_prompt("php", "php", "v0.24.2", "FAIL log here")
+        # Must steer toward adapting existing tests, never inventing features,
+        # and must forbid touching grammar.js / loosening tests.
+        self.assertIn("v0.24.2", p)
+        self.assertIn("do not invent new feature tests", p)
+        self.assertIn("grammar.js", p)
+        self.assertIn("FAIL log here", p)
+
+    def test_base_branch_default_and_override(self):
+        import os
+        os.environ.pop("GRAMMAR_BASE_BRANCH", None)
+        self.assertEqual(pg.base_branch(), "main")
+        os.environ["GRAMMAR_BASE_BRANCH"] = "develop"
+        try:
+            self.assertEqual(pg.base_branch(), "develop")
+        finally:
+            os.environ.pop("GRAMMAR_BASE_BRANCH", None)
+
+    def test_pr_body_flags_agent_adaptation(self):
+        base = {
+            "language": "php", "ts_version": "0.26.3",
+            "old_sha": "o", "new_sha": "n", "new_tag": "v0.24.2",
+            "corpus_diff": "- a\n+ b", "test_log_tail": "ok",
+        }
+        url = "https://github.com/tree-sitter/tree-sitter-php.git"
+        self.assertNotIn("agent adapted", pg.pr_body(base, url).lower())
+        self.assertIn("agent adapted",
+                      pg.pr_body({**base, "tests_adapted": True}, url).lower())
+
+
+###############################################################################
 # Misc helpers #
 ###############################################################################
 

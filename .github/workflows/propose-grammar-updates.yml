@@ -137,6 +137,13 @@ jobs:
       # This step must come AFTER `make install` populates that dir.
       - name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
+      # The driver invokes a Cursor agent to review + adapt tests when a bump
+      # makes test-lang fail (a mechanical upstream CST rename). Install the
+      # `agent` CLI so it's available if that path triggers.
+      - name: Install Cursor agent CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
       - name: Propose update
         env:
           # NOTE: PRs created with GITHUB_TOKEN do not trigger other GitHub
@@ -145,6 +152,7 @@ jobs:
           # triggers via its own webhook integration. If Actions CI on these
           # PRs is wanted later, swap in a PAT / GitHub App token here.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
