@@ -431,7 +431,11 @@ def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
                          result.get("test_log_tail", ""))
     # Stage everything except the workflow's result-*.json artifact (the
     # `tee` target lives in the repo root and must not be committed).
-    run_quiet(["git", "add", "-A", "--", ".", ":(exclude)result-*.json"], cwd=root)
+    # Exclude the result artifact and the `core` submodule — a grammar bump
+    # must only move the language submodule (+ version files/snapshots), never
+    # `core`, which the build/submodule-update can incidentally bump.
+    run_quiet(["git", "add", "-A", "--", ".",
+               ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
     run_quiet(
         ["git", "commit", "-m",
          f"Update tree-sitter-{language} grammar to {tag}"],
@@ -478,6 +482,22 @@ def review_agent_prompt(language: str, wrapper: str, tag: str,
     )
 
 
+def agent_cmd(prompt: str) -> list[str]:
+    """Build the Cursor `agent` command for headless CI execution.
+
+    `-p` is print/non-interactive mode; `--force` auto-approves file edits
+    and command execution (without it the agent stops at an interactive
+    permission prompt and does nothing in CI). `--output-format json` makes
+    the result parseable. Model overridable via CURSOR_MODEL.
+    """
+    cmd = ["agent", "-p", "--force", "--output-format", "json"]
+    model = os.environ.get("CURSOR_MODEL")
+    if model:
+        cmd += ["--model", model]
+    cmd.append(prompt)
+    return cmd
+
+
 def run_review_agent(root: Path, language: str, wrapper: str, tag: str,
                      test_log: str) -> None:
     """Invoke the Cursor agent to review + adapt tests for a failing bump.
@@ -487,12 +507,9 @@ def run_review_agent(root: Path, language: str, wrapper: str, tag: str,
     caller does afterward, so we don't raise on the agent's own exit code.
     """
     prompt = review_agent_prompt(language, wrapper, tag, test_log)
-    cmd = ["agent", "-p", prompt]
-    model = os.environ.get("CURSOR_MODEL")
-    if model:
-        cmd += ["--model", model]
-    log(f"$ agent -p <review prompt for {language}>  (in {root})")
-    r = subprocess.run(cmd, cwd=root, text=True, capture_output=True, check=False)
+    log(f"$ agent -p --force <review prompt for {language}>  (in {root})")
+    r = subprocess.run(agent_cmd(prompt), cwd=root, text=True,
+                       capture_output=True, check=False)
     sys.stderr.write(r.stdout)
     sys.stderr.write(r.stderr)
 
@@ -740,17 +757,14 @@ def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
     # Ensure the label exists before the agent may need to apply it.
     if origin:
         ensure_label(origin, DOWNSTREAM_BLOCKED_LABEL)
-    cmd = ["agent", "-p", prompt]
-    model = os.environ.get("CURSOR_MODEL")
-    if model:
-        cmd += ["--model", model]
     # Route agent output to stderr (visible in CI logs) so stdout stays the
     # JSON result line.
-    r = subprocess.run(cmd, cwd=Path.cwd(), text=True,
+    r = subprocess.run(agent_cmd(prompt), cwd=Path.cwd(), text=True,
                        capture_output=True, check=False)
     sys.stderr.write(r.stdout)
     sys.stderr.write(r.stderr)
-    return {"agent": "launched", "origin_pr": pr_number}
+    return {"agent": "launched", "agent_exit": r.returncode,
+            "origin_pr": pr_number}
 
 
 ###############################################################################
@@ -866,7 +880,11 @@ def run_release_and_trigger(root: Path, target: dict[str, Any],
     # clean"). The re-run above leaves regenerated files uncommitted, so
     # commit them first (signed, like the propose job) to get a clean tree.
     # No-op commit is fine if nothing changed.
-    run_quiet(["git", "add", "-A", "--", ".", ":(exclude)result-*.json"], cwd=root)
+    # Exclude the result artifact and the `core` submodule — a grammar bump
+    # must only move the language submodule (+ version files/snapshots), never
+    # `core`, which the build/submodule-update can incidentally bump.
+    run_quiet(["git", "add", "-A", "--", ".",
+               ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
     if git_query(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
         run_quiet(
             ["git", "commit", "-m", f"Regenerate {language} parser for {tag}"],
