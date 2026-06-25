@@ -764,6 +764,17 @@ def run_release_and_trigger(root: Path, target: dict[str, Any],
     run_update_grammar(language, target["ts_version"], tag, root)
     regenerate_snapshots(root, wrapper)
 
+    # lang/release refuses to run with a dirty tree ("git status is not
+    # clean"). The re-run above leaves regenerated files uncommitted, so
+    # commit them first (signed, like the propose job) to get a clean tree.
+    # No-op commit is fine if nothing changed.
+    run_quiet(["git", "add", "-A", "--", ".", ":(exclude)result-*.json"], cwd=root)
+    if git_query(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
+        run_quiet(
+            ["git", "commit", "-m", f"Regenerate {language} parser for {tag}"],
+            cwd=root,
+        )
+
     rel = release_downstream(root, language, wrapper, branch, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:
         ug.die(f"{language}: lang/release failed; skipping agent.")
