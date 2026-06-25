@@ -103,7 +103,9 @@ jobs:
           echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
           echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
           gpgconf --kill gpg-agent || true
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          # The secret is base64-encoded so newlines in the armored key can't
+          # be mangled in transit. Decode before importing.
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
           key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
             | awk -F: '/^sec:/ {print $5; exit}')
           git config --global user.name "semgrep-grammar-bot"
@@ -213,7 +215,9 @@ jobs:
           echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
           echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
           gpgconf --kill gpg-agent || true
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          # The secret is base64-encoded so newlines in the armored key can't
+          # be mangled in transit. Decode before importing.
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
           key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
             | awk -F: '/^sec:/ {print $5; exit}')
           git config --global user.name "semgrep-grammar-bot"
