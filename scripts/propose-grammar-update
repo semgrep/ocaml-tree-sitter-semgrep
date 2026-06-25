@@ -310,6 +310,16 @@ def tail(text: str, lines: int = 40) -> str:
     return "\n".join(text.splitlines()[-lines:])
 
 
+def base_branch() -> str:
+    """Branch the grammar-update PR is opened against / forked from.
+
+    The grammar bump must sit on a CLEAN base (just the bump), not on
+    whatever branch CI happens to be checked out on. Defaults to `main`;
+    override with GRAMMAR_BASE_BRANCH (e.g. `develop`).
+    """
+    return os.environ.get("GRAMMAR_BASE_BRANCH", "main")
+
+
 def branch_name(language: str, tag: str) -> str:
     """Branch for a lang+tag proposal.
 
@@ -395,9 +405,12 @@ def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
         print(body)
         return {**result, "status": "dry-run", "branch": branch}
 
-    # Re-apply on a branch (propose() reset the tree). All git/gh output is
-    # routed to stderr via run_quiet so stdout stays pure JSON.
-    run_quiet(["git", "checkout", "-b", branch], cwd=root)
+    # Fork the branch from a CLEAN base (origin/main), NOT the current CI
+    # branch — otherwise the PR carries every commit that branch is ahead of
+    # main. Fetch the base first (CI checks out only the trigger branch).
+    base = base_branch()
+    run_quiet(["git", "fetch", "origin", base], cwd=root)
+    run_quiet(["git", "checkout", "-b", branch, f"origin/{base}"], cwd=root)
     run_update_grammar(language, target["ts_version"], tag, root)
     regenerate_snapshots(root, target["wrapper"])
     # Stage everything except the workflow's result-*.json artifact (the
@@ -411,7 +424,7 @@ def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
     run_quiet(["git", "push", "origin", branch], cwd=root)
     run_quiet(
         ["gh", "pr", "create", "--title", title, "--body", body,
-         "--head", branch],
+         "--base", base, "--head", branch],
         cwd=root,
     )
     return {**result, "branch": branch}
