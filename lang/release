@@ -142,9 +142,21 @@ copy_fyi_files() {
 
     mkdir -p "$fyi_dst"
 
-    # It would be nice if the path to tree-sitter came from an included
-    # config file but we only have an includable makefile at the moment.
-    ../core/tree-sitter/bin/tree-sitter --version \
+    # Record the tree-sitter ABI version straight from the generated parser,
+    # so the stamp describes the code we are actually releasing rather than
+    # relying on the global 'core/tree-sitter' symlink or the lang version
+    # lists. Note: tree-sitter does not embed its semver in generated code,
+    # only this ABI number (set by the --abi flag at generation time).
+    parser_c="$lang/ocaml-src/lib/parser.c"
+    if [[ ! -f "$parser_c" ]]; then
+      error "Cannot record tree-sitter version: missing '$parser_c'."
+    fi
+    abi=$(grep -m1 -E '#define[[:space:]]+LANGUAGE_VERSION' "$parser_c" \
+            | grep -oE '[0-9]+')
+    if [[ -z "$abi" ]]; then
+      error "Could not read LANGUAGE_VERSION from '$parser_c'."
+    fi
+    echo "tree-sitter ABI $abi (LANGUAGE_VERSION in generated parser.c)" \
       > "$fyi_dst"/tree-sitter-version
 
     # Record the git commit of each "FYI" file.
