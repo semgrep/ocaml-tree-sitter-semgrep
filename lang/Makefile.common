@@ -82,7 +82,6 @@ gen-c:
           || [ ! -e "$(TS_PARSER_SRC)" ] \
           || [ "$(TS_PARSER_SRC)" -nt src/parser.c ]; then \
 	  $(SCRIPTS)/ocaml-tree-sitter-gen-c; \
-	  $(PROJECT_ROOT)/lang/scripts/stamp-tree-sitter-version src/parser.c; \
 	else \
 	  echo "src/parser.c for $(LANG) is up to date."; \
 	fi
