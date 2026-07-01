@@ -19,7 +19,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from submodule_drift import find_drift  # noqa: E402
+from submodule_drift import _submodule_statuses, find_drift  # noqa: E402
 
 CLI = Path(__file__).resolve().parent / "submodule_drift.py"
 SM_PATH = "semgrep-grammars/src/tree-sitter-foo"
@@ -185,6 +185,26 @@ def test_cli_missing_fyi_list_exit_code(repo: Path) -> None:
     result = run_cli("foo/does-not-exist.list", cwd=repo)
     assert result.returncode == 2
     assert "Error: missing fyi.list" in result.stderr
+
+
+def test_submodule_statuses_handles_paths_with_spaces(tmp_path: Path) -> None:
+    # git's own output has no escaping for spaces in a submodule path, so the
+    # status-line parser must not truncate at the first one.
+    make_grammar_repo(tmp_path / "grammar-src")
+    super_ = tmp_path / "super"
+    super_.mkdir()
+    git("init", "-qb", "main", cwd=super_)
+    sm_path = "semgrep-grammars/src/tree sitter foo"
+    git(
+        "submodule", "add", "-q",
+        (tmp_path / "grammar-src").as_uri(), sm_path,
+        cwd=super_,
+    )
+    git("commit", "-qm", "pin", cwd=super_)
+
+    statuses = _submodule_statuses(super_)
+    assert sm_path in statuses
+    assert statuses[sm_path].initialized
 
 
 def test_cli_reports_clean_error_on_unexpected_git_failure(repo: Path) -> None:

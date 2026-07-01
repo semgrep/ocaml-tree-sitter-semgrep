@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
-"""Detect grammar submodule drift for lang/release.
-
-A grammar submodule has "drifted" when its checked-out commit differs from the
-one pinned in git; releasing then would record an ephemeral, uncommitted commit
-in fyi/versions. Also catches the case where a submodule was never initialized
-(empty working tree) -- that's just as unsafe to release from, but produces no
-file for the usual checked-out-vs-pinned comparison to find. Importable (tests
-in lang/test_submodule_drift.py) and runnable directly:
-`./submodule_drift.py <fyi.list>` (paths relative to the cwd, as lang/release
-passes them). Exits non-zero on drift.
+"""Detect grammar submodule drift (checked-out commit != pinned commit) for
+lang/release. Importable, or runnable directly: `./submodule_drift.py
+<fyi.list>`. Exits non-zero on drift.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -27,11 +21,8 @@ def _short(commit: str) -> str:
 class Drift:
     """A submodule whose checked-out commit differs from its pinned commit.
 
-    ``checked_out``/``pinned`` are usually full commit SHAs, but either can
-    instead be a sentinel describing why there's nothing to compare:
-    ``checked_out="<not initialized>"`` (submodule never cloned, or
-    ``deinit``-ed) or ``pinned="<not committed in superproject>"`` (submodule
-    path added but not yet committed in the superproject).
+    ``checked_out``/``pinned`` hold a sentinel instead of a SHA when there's
+    nothing to compare (submodule not initialized, or pin not yet committed).
     """
 
     path: str  # submodule path relative to the superproject root
@@ -47,6 +38,18 @@ class Drift:
 
 def _git(args: list[str], cwd: Path) -> str:
     """Run git in ``cwd``; raises ``CalledProcessError`` on a non-zero exit."""
+    return _run_git(args, cwd).stdout.strip()
+
+
+def _git_lines(args: list[str], cwd: Path) -> list[str]:
+    """Like ``_git``, but preserves each line's leading whitespace -- some git
+    output (e.g. submodule status's flag column) encodes meaning there, which
+    a plain ``.strip()`` of the whole output would eat for a one-line result.
+    """
+    return _run_git(args, cwd).stdout.splitlines()
+
+
+def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
@@ -54,7 +57,7 @@ def _git(args: list[str], cwd: Path) -> str:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-    ).stdout.strip()
+    )
 
 
 def _fyi_entries(fyi_list: Path) -> list[str]:
@@ -66,41 +69,36 @@ def _fyi_entries(fyi_list: Path) -> list[str]:
     ]
 
 
-def _submodule_statuses(repo_root: Path) -> dict[str, tuple[str, str]]:
-    """Map each submodule's path (relative to ``repo_root``) to (status, sha).
+@dataclass(frozen=True)
+class SubmoduleStatus:
+    """A submodule's state per ``git submodule status``."""
 
-    Parsed from ``git submodule status``, whose leading status char is ``-``
-    for an uninitialized submodule (never cloned, or ``deinit``-ed), ``+`` for
-    a checked-out commit that doesn't match the pin, or blank when clean. An
-    uninitialized submodule has an empty working tree, so ``find_drift`` can't
-    discover it by walking up from a file inside it -- there is no file inside
-    it to walk up from. This is what makes that case detectable.
-    """
-    statuses: dict[str, tuple[str, str]] = {}
-    for line in _git(["submodule", "status"], cwd=repo_root).splitlines():
-        if not line:
-            continue
-        status, sha, path = line[0], line[1:41], line[42:].split(" ", 1)[0]
-        statuses[path] = (status, sha)
-    return statuses
+    initialized: bool
+    sha: str  # commit recorded in the superproject's index
+
+
+_STATUS_LINE = re.compile(
+    r"^(?P<flag>.)(?P<sha>[0-9a-f]{40}) (?P<path>.+?)(?: \([^()]*\))?$"
+)
+
+
+def _submodule_statuses(repo_root: Path) -> dict[str, SubmoduleStatus]:
+    """Map each submodule path (relative to ``repo_root``) to its status."""
+    lines = _git_lines(["submodule", "status"], cwd=repo_root)
+    matches = filter(None, map(_STATUS_LINE.match, lines))
+    return {
+        m["path"]: SubmoduleStatus(initialized=m["flag"] != "-", sha=m["sha"])
+        for m in matches
+    }
 
 
 def find_drift(fyi_list: Path, root: Path) -> list[Drift]:
-    """Return the drifted submodules referenced by ``fyi_list``.
-
-    Paths in ``fyi_list`` (and ``fyi_list`` itself) are resolved relative to
-    ``root`` -- the directory lang/release runs from. Entries that are not
-    inside a submodule are ignored, and each submodule is reported at most
-    once. An entry inside a submodule that was never initialized is reported
-    even though the entry's file doesn't exist on disk (see
-    ``_submodule_statuses``). Returns an empty list when there is no drift.
-    Every language ships an fyi.list, so a missing one is an error, not
-    "nothing to check".
+    """Return the drifted submodules referenced by ``fyi_list``, resolved
+    relative to ``root``. Non-submodule entries are ignored; each submodule
+    is reported at most once.
 
     Raises ``FileNotFoundError`` if ``fyi_list`` doesn't exist, or
-    ``subprocess.CalledProcessError`` if ``root`` isn't inside a git
-    repository or a git command otherwise fails unexpectedly. The CLI
-    (``main``) turns both into a clean, actionable error message.
+    ``subprocess.CalledProcessError`` on an unexpected git failure.
     """
     fyi_path = fyi_list if fyi_list.is_absolute() else root / fyi_list
     if not fyi_path.exists():
@@ -144,27 +142,24 @@ def find_drift(fyi_list: Path, root: Path) -> list[Drift]:
 def _report_if_uninitialized(
     file_path: Path,
     repo_root: Path,
-    submodules: dict[str, tuple[str, str]],
+    submodules: dict[str, SubmoduleStatus],
     seen: set[str],
     drifts: list[Drift],
 ) -> None:
-    """Record a Drift if ``file_path`` sits inside an uninitialized submodule.
-
-    ``file_path`` doesn't exist on disk, so it's either not a submodule path
-    at all, or it's inside a submodule with an empty working tree -- the two
-    look identical from a plain existence check, which is why this needs
-    ``submodules`` (from ``git submodule status``) to tell them apart.
-    """
+    """Record a Drift if ``file_path`` (which doesn't exist on disk) sits
+    inside an uninitialized submodule rather than just not being one."""
     try:
         rel = file_path.resolve().relative_to(repo_root).as_posix()
     except ValueError:
         return  # outside the superproject entirely (e.g. a bad fyi.list path)
-    for sm_path, (status, sha) in submodules.items():
-        if status == "-" and (rel == sm_path or rel.startswith(sm_path + "/")):
+    for sm_path, status in submodules.items():
+        if status.initialized:
+            continue
+        if rel == sm_path or rel.startswith(sm_path + "/"):
             if sm_path not in seen:
                 seen.add(sm_path)
                 drifts.append(
-                    Drift(path=sm_path, checked_out="<not initialized>", pinned=sha)
+                    Drift(path=sm_path, checked_out="<not initialized>", pinned=status.sha)
                 )
             return
 
@@ -185,11 +180,7 @@ def format_error(drifts: list[Drift]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    """CLI entry point: ``argv`` is ``sys.argv`` (program name + one path).
-
-    Exit codes: 2 for a usage error or a missing/unreadable fyi.list or repo,
-    1 if drift was detected, 0 if clean.
-    """
+    """CLI entry point. Exit codes: 2 usage/setup error, 1 drift found, 0 clean."""
     if len(argv) != 2:
         print(f"Usage: {Path(argv[0]).name} <fyi.list>", file=sys.stderr)
         return 2
