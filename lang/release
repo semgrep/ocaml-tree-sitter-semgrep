@@ -90,6 +90,11 @@ esac
 
 id=$(git rev-parse --short HEAD)
 
+# Fail fast (in dry-run too) if a grammar source submodule is out of sync with
+# its pinned commit, before we generate anything from it. (release runs from
+# the lang/ directory, where submodule_drift.py lives.)
+"$PWD"/submodule_drift.py "$lang/fyi.list"
+
 if [[ "$dry_run" = false ]]; then
 
   # clean up for repos missing a proper .gitignore
