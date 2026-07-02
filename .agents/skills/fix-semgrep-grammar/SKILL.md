@@ -5,12 +5,12 @@ description: >-
   passes. Use when the semgrep grammar build/test fails — typically after an
   upstream tree-sitter grammar was bumped: parser-generation errors, corpus
   mismatches, failed example files, or Blank-node warnings under
-  `lang/semgrep-grammars/src/semgrep-<lang>/`. This is "step 4" of the
-  grammar-update process. Edits only this repo's semgrep grammar/tests; never
+  `lang/semgrep-grammars/src/semgrep-<lang>/`.
+  Edits only this repo's semgrep grammar/tests; never
   the upstream submodule or the CST→AST translation.
 ---
 
-# Fix the Semgrep grammar (step 4)
+# Fix the Semgrep grammar
 
 This repo extends each upstream `tree-sitter-<lang>` grammar with semgrep
 pattern constructs — ellipsis `...`, metavariables `$X`, deep ellipsis
@@ -31,11 +31,10 @@ extension grammar and its tests.**
   lang itself). Steps 1 and 4 act on whichever directories it builds.
 - **Repo root** — `git rev-parse --show-toplevel`. Never hardcode an absolute path.
 - **(optional) `max-iterations`** — caps the loop; default **20**. One
-  iteration = one step-7 fix plus its step-4 re-run (the initial baseline run
-  doesn't count; the step-3 rename batch counts as one). The default is a
-  guess, not empirical — the worst run measured so far (Solidity) needed ~6
-  fixes; the cap exists to stop runaway loops, not to be approached. Reaching
-  it is a normal, logical stop (see Exit contract).
+  iteration = one step-8 fix plus its step-5 re-run (the step-3 baseline run
+  doesn't count; the step-4 rename batch counts as one). The default is a
+  guess, not empirical; the cap exists to stop runaway loops, not to be
+  approached. Reaching it is a normal, logical stop (see Exit contract).
 - **(optional) Budget hint** — advisory only; bias toward landing a minimal fix
   and stopping. The harness owns hard time/turn/cost limits.
 
@@ -45,34 +44,49 @@ extension grammar and its tests.**
    ```
    git status --porcelain --ignored -- lang/semgrep-grammars/src/semgrep-<lang> lang/<sublang-1> lang/<sublang-2> ...
    ```
-   using the sublanguage set from Inputs (`--ignored` matters — plain status
-   won't list the ignored files `git clean -dfX` deletes). `test-lang` runs
-   `make clean` in each of these directories on every iteration, and `make
-   clean` there is `git clean -dfX`: it force-deletes every git-ignored file
-   under the tree, no confirmation. Normally that's regenerable build output
-   (`src/`, `test.log`, `CST.ml`, `ocaml-src`, …), but don't assume. If the
-   status reports anything — tracked changes *or* untracked/ignored files —
-   **stop, list exactly what `git clean -dfX` would remove (noting which files
-   are recognizably generated: generated-file headers, standard artifact
-   names), and ask the user to confirm.** A clean tree needs no confirmation.
+   using the sublanguage set from Inputs (`--ignored` matters: plain status
+   misses ignored files). Every `test-lang` iteration runs `git clean -dfX`
+   in each of these directories — force-deleting all git-ignored files, no
+   confirmation. That's normally regenerable build output, but don't assume:
+   if the status reports anything, **stop, list what would be deleted (noting
+   which files look machine-generated), and ask the user to confirm.** A
+   clean tree needs no confirmation.
 
-2. **Require the toolchain** (precondition, from the repo root). The
-   tree-sitter version for `<lang>` is pinned in `lang/languages-*`; verify it,
-   never install it (installing mutates shared `core/` state — that's the
-   harness's job):
+2. **Ensure the toolchain** (from the repo root). Grammar builds are
+   parametrized on the `lang/languages-*` pins; each pinned version lives
+   side by side in `core/tree-sitter-<version>/`:
    ```
    v=$(lang/scripts/ts-version-for-lang <lang>)
-   [ -x core/tree-sitter-$v/bin/tree-sitter ] || \
-     { echo "tree-sitter $v is not installed for <lang> — cannot proceed"; exit 1; }
+   [ -x core/tree-sitter-$v/bin/tree-sitter ] || make setup-tree-sitter-versions
    ```
-   If missing, stop with `CANNOT_PROCEED`, reporting the version and the
-   install command for the harness to run: `cd core &&
-   ./scripts/switch-tree-sitter-version <v> && ./scripts/install-tree-sitter-cli
-   && ./scripts/install-tree-sitter-lib`.
+   `make setup-tree-sitter-versions` installs every pinned version and then
+   restores the repo's default `core/tree-sitter-version`. Never run
+   `core/scripts/switch-tree-sitter-version` on its own — it changes that
+   default. If the install fails, stop with `CANNOT_PROCEED` reporting the
+   error.
 
-3. **Statically pre-diagnose broken references, once, before the first run.**
-   `tree-sitter generate` reports only the first broken reference per
-   invocation, so find them all by name up front:
+3. **Capture the Blank-node baseline** — run `test-lang` once, before any
+   edit (from the `lang/` dir, not the repo root):
+   ```
+   cd lang && ./test-lang <lang>
+   ```
+   It runs, in order: (a) build + `tree-sitter test` corpus tests in
+   `semgrep-grammars/src/semgrep-<lang>/`, (b) `parse-examples` per sublang —
+   the generated parser over real files in `lang/<sublang>/test/{ok,xfail}` —
+   (c) a Blank-node check per sublang, grepping generated
+   `ocaml-src/lib/CST.ml` (advisory: it never affects the exit code). Each
+   directory is `git clean -dfX`'d first (step 1).
+
+   If this run reaches the check for a sublang, its warnings are that
+   sublang's **baseline** — pre-existing Blank nodes are out of scope, and
+   fixing one would violate "smallest correct edit". If it fails earlier, the
+   baseline is **empty** and `SUCCESS` requires no Blank-node warnings at
+   all. Keep the run's failure output — it feeds step 6. This run doesn't
+   count toward `max-iterations`.
+
+4. **Statically pre-diagnose broken references, once.** `tree-sitter
+   generate` reports only the first broken reference per invocation, so find
+   them all by name up front:
    ```
    grep -oE '\$\.\w+' lang/semgrep-grammars/src/semgrep-<lang>/grammar.js | sort -u
    ```
@@ -81,10 +95,10 @@ extension grammar and its tests.**
    each remaining name still resolves in the *current*
    `lang/semgrep-grammars/src/tree-sitter-<lang>/grammar.js` (adjust for quoted
    keys / declaration style). Each name that doesn't is a candidate
-   rename/promotion — diagnose it per step 6, proactively. Apply the verified
+   rename/promotion — diagnose it per step 7, proactively. Apply the verified
    rename queue as a **single batched fix** — renames are one fix class and
    `generate` validates them together; everything else stays one fix per
-   iteration (step 7).
+   iteration (step 8).
 
    A rename fix has two parts, applied together as one edit: the `grammar.js`
    reference *and* every semgrep-owned corpus case naming the old node:
@@ -95,60 +109,43 @@ extension grammar and its tests.**
    substitutions are drafts until verified against actual output once
    `test-lang` runs — an upstream rename isn't guaranteed pure. This pass only
    catches "this name no longer exists"; conflicts, corpus drift, and symbols
-   that still resolve but changed meaning surface only in step 4.
+   that still resolve but changed meaning surface only when `test-lang` runs.
 
-4. **Run** (from the `lang/` dir, not the repo root):
-   ```
-   cd lang && ./test-lang <lang>
-   ```
-   In order: (a) build + `tree-sitter test` corpus tests in
-   `semgrep-grammars/src/semgrep-<lang>/`, (b) `parse-examples` per sublang —
-   the generated parser over real files in `lang/<sublang>/test/{ok,xfail}` —
-   (c) a Blank-node check per sublang. Each directory is `git clean -dfX`'d
-   first (step 1). Success = **exit code 0 and no new Blank-node warnings vs.
-   the baseline**.
+5. **Run** `cd lang && ./test-lang <lang>` again (if step 4 changed nothing,
+   reuse the step-3 output instead of re-running). Success = **exit code 0
+   and no new Blank-node warnings vs. the step-3 baseline**.
 
-   **Blank-node baseline:** the check greps generated `ocaml-src/lib/CST.ml`,
-   so it can only report on a run that builds far enough to produce that file;
-   it is advisory and never affects `test-lang`'s exit code. If the **first**
-   run (before any edit) reaches the check for a sublang, its warnings are
-   that sublang's baseline — those pre-existing Blank nodes are out of scope,
-   and fixing one would violate "smallest correct edit". If the first run
-   fails before the check, the baseline is **empty**: `SUCCESS` then requires
-   no Blank-node warnings at all. On later runs, only warnings not in the
-   baseline count against `SUCCESS`.
-
-5. **Classify** the first failure:
+6. **Classify** the first failure:
 
    | Symptom | Meaning |
    |---|---|
    | `tree-sitter generate` errors | grammar.js references a rule upstream renamed/removed, or the overrides create an unresolved conflict (the error names the rule) |
-   | corpus test diff (expected vs actual S-expr) | expected tree ≠ actual — either a legitimate upstream change or a regression from your own earlier edit; step 6 decides which |
+   | corpus test diff (expected vs actual S-expr) | expected tree ≠ actual — either a legitimate upstream change or a regression from your own earlier edit; step 7 decides which |
    | example in `test.out/fail.list` — entries are paths relative to `lang/<sublang>/test/ok/`; each CST dump is at `test.out/ok/<entry>.cst` (look for `!ERROR!`/`ERROR`) | a real source file no longer parses |
    | Blank-node warning not in the baseline | a node your edit introduced or exposed produces no tokens — give it a named rule |
    | tree-sitter version/ABI errors (grammar needs a newer tree-sitter than the pin, ABI mismatch) | the `lang/languages-*` pin is stale, not a grammar bug — out of scope: `CANNOT_PROCEED`, reporting the version-list change needed |
 
-6. **Diagnose against upstream** — match each rule you override to its
+7. **Diagnose against upstream** — match each rule you override to its
    *current* definition in `lang/semgrep-grammars/src/tree-sitter-<lang>/grammar.js`
    and check what changed:
    `git -C lang/semgrep-grammars/src/tree-sitter-<lang> log --oneline -5`.
    For example failures, the `.cst` dump shows which node became `ERROR`.
    Don't guess.
 
-7. **Apply the smallest correct edit** (playbook below), one logical fix at a
-   time — the sole exception is the step-3 rename queue, which lands as one
+8. **Apply the smallest correct edit** (playbook below), one logical fix at a
+   time — the sole exception is the step-4 rename queue, which lands as one
    batched fix. A fix includes its corpus updates: a rename carries its corpus
-   substitutions (step 3), and a new/changed rule override carries its corpus
+   substitutions (step 4), and a new/changed rule override carries its corpus
    case (coverage invariant, Edit boundaries). To derive and verify a corpus
    expectation without burning an iteration: `make` in `semgrep-<lang>/`, then
    `core/tree-sitter-<v>/bin/tree-sitter parse <snippet>` for the actual tree
    and `tree-sitter test --include '<case name>'` for the case — then re-run
    `test-lang` to confirm end to end.
 
-8. **Re-run** step 4. Repeat until exit 0, or until `max-iterations` is spent —
+9. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
    whichever comes first. Hitting the cap is a normal stop: go to Exit.
 
-9. **Exit** per the contract below.
+10. **Exit** per the contract below.
 
 ## Edit boundaries
 
@@ -263,7 +260,4 @@ From the repo, give the agent the language and this skill, e.g.
 a tighter cap, e.g. `... pass, with max-iterations 5.` Under the Claude Agent
 SDK (e.g. a Python GitHub Action), keep the hard limits (`max_turns`, budget,
 an outer `timeout`) at the harness level — `max-iterations` bounds only the fix
-loop. The tree-sitter toolchain is a precondition the harness provisions (step
-2 only verifies it). Unattended runs should start from a clean checkout or
-explicitly pre-approve step 1's confirmation — never silently auto-confirm on
-the skill's behalf.
+loop.
