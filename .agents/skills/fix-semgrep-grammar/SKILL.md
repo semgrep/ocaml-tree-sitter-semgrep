@@ -234,6 +234,27 @@ Common shapes when an upstream bump breaks the extension:
   blindly paste.
 - **Stale `// TODO: use PREC.X`** for a constant that isn't exported → if you must
   hardcode a precedence, replace the TODO with the one-line reason.
+- **New parse conflict** (generate error names two rules, not a missing one) →
+  resolve it in the extension grammar with the most specific `prec`/`prec.dynamic`
+  or `conflicts: [...]` entry that works; don't restate upstream rules to dodge it.
+- **Failure traces to an external token** — one listed in upstream's `externals:`
+  array and produced by `scanner.c` → the real fix lives in the scanner, which is
+  out of scope: `CANNOT_PROCEED`, naming the token.
+- **Upstream changed the `word:`/identifier token** → metavariables folded into
+  `identifier` may stop lexing; re-fold them against the new identifier rule. If
+  `$X` can no longer be admitted without scanner changes, `CANNOT_PROCEED`.
+- **New upstream syntax collides with a semgrep construct** (e.g. upstream adds
+  real `...` or `$`-prefixed names) → try precedence/token ordering so both
+  survive; if the construct can't be disambiguated without weakening it,
+  `CANNOT_PROCEED`.
+- **Upstream restructured its grammar file layout** (e.g. a dialect factory like
+  `common/define-grammar.js`) → update the extension's `require(...)`/wrapping to
+  the new entry point; the rule overrides themselves may need no change.
+- **Upstream deliberately dropped syntax**, so a `test/ok` example or corpus case
+  is legitimately no longer parseable → do **not** move it to `xfail`, delete it,
+  or rewrite it on your own: **warn the user, state exactly what upstream dropped
+  and which tests it strands, and ask how to proceed.** If no one can answer
+  (unattended run), exit `CANNOT_PROCEED` with that question as the blocker.
 
 Prefer extending over replacing, and replacing over copy-pasting — the less of the
 upstream rule you restate, the less drifts next time.
