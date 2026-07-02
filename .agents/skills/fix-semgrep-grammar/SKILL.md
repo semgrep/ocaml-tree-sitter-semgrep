@@ -38,7 +38,7 @@ extension grammar and its tests.**
 - **(optional) Budget hint** — advisory only; bias toward landing a minimal fix
   and stopping. The harness owns hard time/turn/cost limits.
 
-## The loop
+## Preconditions
 
 1. **Check for uncommitted changes** (precondition, from the repo root):
    ```
@@ -111,6 +111,8 @@ extension grammar and its tests.**
    catches "this name no longer exists"; conflicts, corpus drift, and symbols
    that still resolve but changed meaning surface only when `test-lang` runs.
 
+## The loop
+
 5. **Run** `cd lang && ./test-lang <lang>` again (if step 4 changed nothing,
    reuse the step-3 output instead of re-running). Success = **exit code 0
    and no new Blank-node warnings vs. the step-3 baseline**.
@@ -136,11 +138,14 @@ extension grammar and its tests.**
    time — the sole exception is the step-4 rename queue, which lands as one
    batched fix. A fix includes its corpus updates: a rename carries its corpus
    substitutions (step 4), and a new/changed rule override carries its corpus
-   case (coverage invariant, Edit boundaries). To derive and verify a corpus
-   expectation without burning an iteration: `make` in `semgrep-<lang>/`, then
-   `core/tree-sitter-<v>/bin/tree-sitter parse <snippet>` for the actual tree
-   and `tree-sitter test --include '<case name>'` for the case — then re-run
-   `test-lang` to confirm end to end.
+   case (coverage invariant, Edit boundaries). When a fix needs a corpus
+   expectation, don't guess the tree and let the loop correct you: a
+   `test-lang` cycle cleans and rebuilds everything (parser, OCaml codegen and
+   compile, every example file — minutes), while `make` in `semgrep-<lang>/`
+   regenerates just the parser (seconds). Get the actual tree with
+   `core/tree-sitter-<v>/bin/tree-sitter parse <snippet>`, check the case with
+   `tree-sitter test --include '<case name>'`, then let the loop's `test-lang`
+   confirm end to end.
 
 9. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
    whichever comes first. Hitting the cap is a normal stop: go to Exit.
