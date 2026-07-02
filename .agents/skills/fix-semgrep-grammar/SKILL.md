@@ -32,7 +32,8 @@ extension grammar and its tests.**
 - **Repo root** — `git rev-parse --show-toplevel`. Never hardcode an absolute path.
 - **(optional) `max-iterations`** — caps the loop; default **20**. One
   iteration = one step-8 fix plus its step-5 re-run (the step-3 baseline run
-  doesn't count; the step-4 rename batch counts as one). The default is a
+  doesn't count; the step-4 rename batch counts as one; step-8 inner-loop
+  refinements are part of their fix). The default is a
   guess, not empirical; the cap exists to stop runaway loops, not to be
   approached. Reaching it is a normal, logical stop (see Exit contract).
 - **(optional) Budget hint** — advisory only; bias toward landing a minimal fix
@@ -138,14 +139,19 @@ extension grammar and its tests.**
    time — the sole exception is the step-4 rename queue, which lands as one
    batched fix. A fix includes its corpus updates: a rename carries its corpus
    substitutions (step 4), and a new/changed rule override carries its corpus
-   case (coverage invariant, Edit boundaries). When a fix needs a corpus
-   expectation, don't guess the tree and let the loop correct you: a
-   `test-lang` cycle cleans and rebuilds everything (parser, OCaml codegen and
-   compile, every example file — minutes), while `make` in `semgrep-<lang>/`
-   regenerates just the parser (seconds). Get the actual tree with
-   `core/tree-sitter-<v>/bin/tree-sitter parse <snippet>`, check the case with
-   `tree-sitter test --include '<case name>'`, then let the loop's `test-lang`
-   confirm end to end.
+   case (coverage invariant, Edit boundaries).
+
+   **Refine the fix in a fast inner loop before the outer run.** A `test-lang`
+   cycle cleans and rebuilds everything (parser, OCaml codegen and compile,
+   every example file — minutes); `make` in `semgrep-<lang>/` regenerates just
+   the parser (seconds). Iterate there until the fix is locally green:
+   `make` catches generate errors, `core/tree-sitter-<v>/bin/tree-sitter test`
+   runs the corpus, and `... tree-sitter parse <file>` prints the actual tree
+   — both for writing corpus expectations and for checking a failing example
+   file directly. If a few inner attempts haven't gone green, stop tweaking
+   and return to step 7: that's misdiagnosis, not bad luck. The inner loop
+   never replaces the outer run — only `test-lang` (step 9) validates the
+   OCaml build, the example sweep, and the Blank check.
 
 9. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
    whichever comes first. Hitting the cap is a normal stop: go to Exit.
