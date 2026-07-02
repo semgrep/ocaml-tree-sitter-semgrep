@@ -16,13 +16,6 @@ if [[ ! -f "$fyi" ]]; then
     exit 1
 fi
 
-# General approach and rationale:
-# For git status to tell us whether a submodule is modified, we must provide
-# the path to the submodule.
-# To avoid hardcoding submodule paths, we use git ls-files, which is faster
-# and less error-prone than git submodule status.
-# So we map the paths in fyi.list to the submodule paths.
-
 # fyi.list entries: paths inside grammar submodules, one per line ('#'
 # comments and blank lines ignored).
 entries=()
@@ -39,25 +32,20 @@ is_referenced() {
     return 1
 }
 
-# Submodule paths registered in the index (gitlink mode 160000) that fyi.list
-# references. Read via 'git ls-files --stage', whose records look like
-# '<mode> <hash> <stage>\t<path>'.
-# We don't merely grep against the list of files in fyi.list because we'd have to
-# escape special characters.
+# git status only reports submodule drift when given the submodule's own
+# path, not a file inside it, so map fyi.list entries to the submodule
+# paths (gitlink mode 160000) that own them, via 'git ls-files --stage'.
+# Its records look like '<mode> <hash> <stage>\t<path>'.
 if ! listing=$(git ls-files --stage 2>&1); then
     echo "$listing" >&2
     exit 1
 fi
 
-# Filtered separately from the command above so a real 'git ls-files'
-# failure isn't masked by grep's own "no match" exit status, and so a repo
-# with no submodules at all (no '160000' lines) isn't treated as an error.
-gitlinks=$(grep '^160000 ' <<< "$listing" || true)
-
 referenced=()
 while IFS=$' \t' read -r mode hash stage path; do
+    [[ $mode == 160000 ]] || continue
     is_referenced "$path" && referenced+=("$path")
-done <<< "$gitlinks"
+done <<< "$listing"
 
 # Fail fast on any uninitialized referenced submodule: an uninitialized
 # submodule has no working tree to check the pin of.
