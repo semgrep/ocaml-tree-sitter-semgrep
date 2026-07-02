@@ -32,7 +32,7 @@ extension grammar and its tests.**
 - **Repo root** — `git rev-parse --show-toplevel`. Never hardcode an absolute path.
 - **(optional) `max-iterations`** — caps the loop; default **20**. One
   iteration = one step-8 fix plus its step-5 re-run (the step-3 baseline run
-  doesn't count; the step-4 rename batch counts as one; step-8 inner-loop
+  doesn't count; the step-4 rename batch counts as one; step-9 pre-check
   refinements are part of their fix). The default is a
   guess, not empirical; the cap exists to stop runaway loops, not to be
   approached. Reaching it is a normal, logical stop (see Exit contract).
@@ -141,22 +141,24 @@ extension grammar and its tests.**
    substitutions (step 4), and a new/changed rule override carries its corpus
    case (coverage invariant, Edit boundaries).
 
-   **Refine the fix in a fast inner loop before the outer run.** A `test-lang`
-   cycle cleans and rebuilds everything (parser, OCaml codegen and compile,
-   every example file — minutes); `make` in `semgrep-<lang>/` regenerates just
-   the parser (seconds). Iterate there until the fix is locally green:
-   `make` catches generate errors, `core/tree-sitter-<v>/bin/tree-sitter test`
-   runs the corpus, and `... tree-sitter parse <file>` prints the actual tree
-   — both for writing corpus expectations and for checking a failing example
-   file directly. If a few inner attempts haven't gone green, stop tweaking
-   and return to step 7: that's misdiagnosis, not bad luck. The inner loop
-   never replaces the outer run — only `test-lang` (step 9) validates the
+9. **Fix validity pre-check** — `make` in
+   `semgrep-<lang>/` regenerates just the parser, which is much faster than
+   another iteration. Iterate there until the fix is locally green:
+
+   9.1. `make` catches generate errors.
+   9.2. `core/tree-sitter-<v>/bin/tree-sitter test` runs the corpus.
+   9.3. `tree-sitter parse <file>` prints the actual tree — both for writing
+        corpus expectations and for checking a failing example file directly.
+
+   If a few inner attempts haven't gone green, stop tweaking
+   and return to step 7: that's misdiagnosis, not bad luck. The pre-check
+   never replaces the outer run — only `test-lang` (step 10) validates the
    OCaml build, the example sweep, and the Blank check.
 
-9. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
-   whichever comes first. Hitting the cap is a normal stop: go to Exit.
+10. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
+    whichever comes first. Hitting the cap is a normal stop: go to Exit.
 
-10. **Exit** per the contract below.
+11. **Exit** per the contract below.
 
 ## Edit boundaries
 
