@@ -17,7 +17,7 @@ pattern constructs — ellipsis `...`, metavariables `$X`, deep ellipsis
 `<... e ...>`, typed/variadic metavariables, alternate entry points, and
 friends — in `lang/semgrep-grammars/src/semgrep-<lang>/grammar.js`, via
 `($, previous) => ...` rule overrides. Rule names vary per language; the full
-name inventory is in [references/semgrep-constructs.md](references/semgrep-constructs.md).
+name inventory is in `doc/semgrep-constructs.md` at the repo root.
 When upstream changes, the extension stops matching and `test-lang` fails.
 **Make `test-lang <lang>` pass with the smallest correct change to the
 extension grammar and its tests.**

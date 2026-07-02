@@ -1,11 +1,11 @@
 # Semgrep construct name inventory
 
-The semgrep pattern constructs the extension grammars add. Rule names vary per
-language — this is the full family seen across the wrappers. (No other
-inventory exists: the repo's `doc/README.md` links out to
-https://docs.semgrep.dev/contributing/adding-a-language, which names only `$X`
-and `...`; the user-facing construct list is
-https://docs.semgrep.dev/writing-rules/pattern-syntax.)
+The semgrep pattern constructs that the extension grammars
+(`lang/semgrep-grammars/src/semgrep-<lang>/grammar.js`) add on top of each
+upstream tree-sitter grammar. Rule names vary per language — this is the full
+family seen across the wrappers, mapping the user-facing pattern syntax
+(https://docs.semgrep.dev/writing-rules/pattern-syntax) to grammar-level rule
+names.
 
 - **Ellipsis** `...` — `ellipsis` / `semgrep_ellipsis`; spliced in as a statement,
   expression, parameter/argument, and list element (e.g. `catch_ellipsis`,
