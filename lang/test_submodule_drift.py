@@ -104,6 +104,32 @@ def test_dedups_multiple_entries_in_same_submodule(repo: Path) -> None:
     assert result.stderr.count("tree-sitter-foo") == 1
 
 
+def test_fyi_entry_is_the_submodule_path_itself(repo: Path) -> None:
+    # fyi.list can name the submodule directory directly, not just a file
+    # inside it -- the 'entry == sm' branch of is_referenced, as opposed to
+    # the 'entry starts with sm/' branch every other test exercises.
+    (repo / "foo" / "fyi.list").write_text(f"{SM_PATH}\n")
+    git("commit", "-q", "--allow-empty", "-m", "drift", cwd=repo / SM_PATH)
+
+    result = run_check("foo/fyi.list", cwd=repo)
+    assert result.returncode == 1
+    assert "tree-sitter-foo" in result.stderr
+
+
+def test_prefix_collision_without_slash_boundary_is_not_a_match(repo: Path) -> None:
+    # 'tree-sitter-foobar/grammar.js' shares a string prefix with the
+    # submodule path 'tree-sitter-foo' but isn't inside it (no '/' right
+    # after 'foo'). is_referenced must require that boundary, not just a
+    # prefix match, or an unrelated drifted submodule would be reported.
+    (repo / "foo" / "fyi.list").write_text(
+        "semgrep-grammars/src/tree-sitter-foobar/grammar.js\n"
+    )
+    git("commit", "-q", "--allow-empty", "-m", "drift", cwd=repo / SM_PATH)
+
+    result = run_check("foo/fyi.list", cwd=repo)
+    assert result.returncode == 0, result.stderr
+
+
 def test_mixed_drift_across_multiple_submodules(repo: Path) -> None:
     make_grammar_repo(repo.parent / "grammar-src-2")
     git(
@@ -129,6 +155,32 @@ def test_uninitialized_submodule_is_reported(repo: Path) -> None:
     assert result.returncode == 1
     assert "not initialized" in result.stderr.lower()
     assert "tree-sitter-foo" in result.stderr
+
+
+def test_uninitialized_check_short_circuits_before_modified_check(repo: Path) -> None:
+    # tree-sitter-foo is uninitialized AND (also-referenced) tree-sitter-bar
+    # is modified: only the uninitialized error should surface, proving the
+    # two checks run as separate, fail-fast phases rather than one combined
+    # pass that could report both at once.
+    make_grammar_repo(repo.parent / "grammar-src-2")
+    git(
+        "submodule", "add", "-q",
+        (repo.parent / "grammar-src-2").as_uri(), SM_PATH_2,
+        cwd=repo,
+    )
+    git("commit", "-qm", "pin tree-sitter-bar", cwd=repo)
+    (repo / "foo" / "fyi.list").write_text(
+        f"{SM_PATH}/grammar.js\n{SM_PATH_2}/grammar.js\n"
+    )
+    git("commit", "-q", "--allow-empty", "-m", "drift", cwd=repo / SM_PATH_2)
+    git("submodule", "deinit", "-f", SM_PATH, cwd=repo)
+
+    result = run_check("foo/fyi.list", cwd=repo)
+    assert result.returncode == 1
+    assert "not initialized" in result.stderr.lower()
+    assert "tree-sitter-foo" in result.stderr
+    assert "modified" not in result.stderr.lower()
+    assert "tree-sitter-bar" not in result.stderr
 
 
 def test_uncommitted_new_submodule_is_reported(repo: Path) -> None:
@@ -165,6 +217,34 @@ def test_submodules_handles_paths_with_spaces(tmp_path: Path) -> None:
     assert "tree sitter foo" in result.stderr
 
 
+def test_repo_with_no_submodules_at_all(tmp_path: Path) -> None:
+    # A repo with zero '160000' (gitlink) entries at all -- guards the
+    # mode-filtering loop against ever mistaking "found nothing to check"
+    # for an error.
+    super_ = tmp_path / "super"
+    super_.mkdir()
+    git("init", "-qb", "main", cwd=super_)
+    (super_ / "plain.js").write_text("// plain\n")
+    git("add", "-A", cwd=super_)
+    git("commit", "-qm", "init", cwd=super_)
+    (super_ / "fyi.list").write_text("plain.js\n")
+
+    result = run_check("fyi.list", cwd=super_)
+    assert result.returncode == 0, result.stderr
+    assert "all pinned" in result.stdout
+
+
+def test_empty_fyi_list_has_nothing_to_check(repo: Path) -> None:
+    # Comments and a blank line only: entries ends up empty, so no
+    # submodule is ever referenced -- even though tree-sitter-foo is
+    # genuinely drifted, there's nothing in this fyi.list to catch it.
+    (repo / "foo" / "fyi.list").write_text("# nothing referenced here\n\n")
+    git("commit", "-q", "--allow-empty", "-m", "drift", cwd=repo / SM_PATH)
+
+    result = run_check("foo/fyi.list", cwd=repo)
+    assert result.returncode == 0, result.stderr
+
+
 def test_unregistered_directory_is_ignored(repo: Path) -> None:
     stray = repo / "semgrep-grammars" / "src" / "tree-sitter-stray"
     stray.mkdir(parents=True)
@@ -192,7 +272,23 @@ def test_help(repo: Path) -> None:
     assert "Usage:" in result.stdout
 
 
+def test_help_short_flag(repo: Path) -> None:
+    result = run_check("-h", cwd=repo)
+    assert result.returncode == 0
+    assert "Usage:" in result.stdout
+
+
+def test_wrong_argument_count_prints_usage(repo: Path) -> None:
+    for args in ((), ("foo/fyi.list", "extra")):
+        result = run_check(*args, cwd=repo)
+        assert result.returncode == 0
+        assert "Usage:" in result.stdout
+
+
 def test_not_a_git_repository(tmp_path: Path) -> None:
     (tmp_path / "fyi.list").write_text("some/file.js\n")
     result = run_check("fyi.list", cwd=tmp_path)
     assert result.returncode != 0
+    # A bare "some error happened" isn't enough: git's own diagnostic must
+    # actually reach the user, not be silently swallowed.
+    assert "not a git repository" in result.stderr.lower()
