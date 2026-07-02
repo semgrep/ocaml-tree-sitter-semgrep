@@ -1,7 +1,11 @@
 # Semgrep construct name inventory
 
 The semgrep pattern constructs the extension grammars add. Rule names vary per
-language — this is the full family seen across the wrappers:
+language — this is the full family seen across the wrappers. (No other
+inventory exists: the repo's `doc/README.md` links out to
+https://docs.semgrep.dev/contributing/adding-a-language, which names only `$X`
+and `...`; the user-facing construct list is
+https://docs.semgrep.dev/writing-rules/pattern-syntax.)
 
 - **Ellipsis** `...` — `ellipsis` / `semgrep_ellipsis`; spliced in as a statement,
   expression, parameter/argument, and list element (e.g. `catch_ellipsis`,
@@ -10,7 +14,12 @@ language — this is the full family seen across the wrappers:
 - **Deep ellipsis** `<... e ...>` — `deep_ellipsis` / `semgrep_deep_ellipsis` /
   `semgrep_deep_expression`.
 - **Metavariables** `$X` — `_semgrep_metavariable` / `semgrep_metavariable`,
-  usually folded into the base `identifier` rule.
+  usually folded into the base `identifier` rule. Anonymous metavariables
+  (`$_`) need no separate rule — they lex as ordinary metavariables.
+- **Literal metavariables** — `$X` inside string (`"$X"`), regex (`/$X/`), or
+  atom (`:$X`) literals. Often handled post-parse in the CST→AST layer, but
+  some wrappers admit them in the grammar, e.g. elixir's
+  `metavariable_atom: seq(":", $._semgrep_metavariable)`.
 - **Typed metavariables** `(T $X)` — `typed_metavariable` / `semgrep_typed_metavar`
   (+ `typed_metavariable_declaration`).
 - **Variadic / ellipsis metavariables** `$...X` — `semgrep_variadic_metavariable` /
