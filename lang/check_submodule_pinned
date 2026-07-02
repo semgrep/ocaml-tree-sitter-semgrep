@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Usage: check_submodule_pinned <list.fyi file>
+# If the submodules referenced by the list.fyi file are not all pinned,
+# exit with an error. Also asserts that those submodules are initialized.
+
+set -euo pipefail
+
+if [[ $# -ne 1 || "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: check_submodule_pinned <list.fyi file>"
+    exit 0
+fi
+
+fyi=$1
+if [[ ! -f "$fyi" ]]; then
+    echo "$fyi file not found" >&2
+    exit 1
+fi
+
+# General approach and rationale:
+# For git status to tell us whether a submodule is modified, we must provide
+# the path to the submodule.
+# To avoid hardcoding submodule paths, we use git ls-files, which is faster
+# and less error-prone than git submodule status.
+# So we map the paths in fyi.list to the submodule paths.
+
+# fyi.list entries: paths inside grammar submodules, one per line ('#'
+# comments and blank lines ignored).
+entries=()
+while IFS= read -r line; do
+    entries+=("$line")
+done < <(grep -Ev '^[[:space:]]*(#|$)' "$fyi")
+
+# True if some fyi.list entry is the submodule itself or lives under it.
+is_referenced() {
+    local sm=$1 entry
+    for entry in "${entries[@]}"; do
+        [[ $entry == "$sm" || $entry == "$sm"/* ]] && return 0
+    done
+    return 1
+}
+
+# Submodule paths registered in the index (gitlink mode 160000) that fyi.list
+# references. Read via 'git ls-files --stage', whose records look like
+# '<mode> <hash> <stage>\t<path>'.
+# We don't merely grep against the list of files in fyi.list because we'd have to
+# escape special characters.
+if ! listing=$(git ls-files --stage 2>&1); then
+    echo "$listing" >&2
+    exit 1
+fi
+
+# Filtered separately from the command above so a real 'git ls-files'
+# failure isn't masked by grep's own "no match" exit status, and so a repo
+# with no submodules at all (no '160000' lines) isn't treated as an error.
+gitlinks=$(grep '^160000 ' <<< "$listing" || true)
+
+referenced=()
+while IFS=$' \t' read -r mode hash stage path; do
+    is_referenced "$path" && referenced+=("$path")
+done <<< "$gitlinks"
+
+# Fail fast on any uninitialized referenced submodule: an uninitialized
+# submodule has no working tree to check the pin of.
+uninitialized=()
+for sm in "${referenced[@]}"; do
+    [[ -e "$sm/.git" ]] || uninitialized+=("$sm")
+done
+if [[ ${#uninitialized[@]} -gt 0 ]]; then
+    echo "The following submodules are not initialized:" >&2
+    printf '  %s\n' "${uninitialized[@]}" >&2
+    echo "Run: git submodule update --init --checkout <path>" >&2
+    exit 1
+fi
+
+# Every referenced submodule is now known to be initialized, so all that's
+# left to check is whether its working tree matches the pinned commit.
+modified=()
+for sm in "${referenced[@]}"; do
+    [[ -n $(git status --porcelain -- "$sm") ]] && modified+=("$sm")
+done
+if [[ ${#modified[@]} -gt 0 ]]; then
+    echo "The following submodules are modified:" >&2
+    printf '  %s\n' "${modified[@]}" >&2
+    echo "Either pin the submodules or revert the changes." >&2
+    exit 1
+fi
+
+echo "Submodules in $fyi are all pinned."
