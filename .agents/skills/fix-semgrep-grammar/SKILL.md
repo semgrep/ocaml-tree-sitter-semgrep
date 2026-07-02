@@ -13,11 +13,10 @@ description: >-
 # Fix the Semgrep grammar
 
 This repo extends each upstream `tree-sitter-<lang>` grammar with semgrep
-pattern constructs — ellipsis `...`, metavariables `$X`, deep ellipsis
-`<... e ...>`, typed/variadic metavariables, alternate entry points, and
-friends — in `lang/semgrep-grammars/src/semgrep-<lang>/grammar.js`, via
-`($, previous) => ...` rule overrides. Rule names vary per language; the full
-name inventory is in `doc/semgrep-constructs.md` at the repo root.
+pattern constructs (ellipsis `...`, metavariables `$X`, and friends — full
+per-language rule-name inventory in `doc/semgrep-constructs.md`) via
+`($, previous) => ...` rule overrides in
+`lang/semgrep-grammars/src/semgrep-<lang>/grammar.js`.
 When upstream changes, the extension stops matching and `test-lang` fails.
 **Make `test-lang <lang>` pass with the smallest correct change to the
 extension grammar and its tests.**
@@ -26,9 +25,8 @@ extension grammar and its tests.**
 
 - **`<lang>`** — the `test-lang` argument (e.g. `javascript`, `solidity`). The
   sublanguage set it builds is hardcoded in the `sublangs=` block of
-  `lang/test-lang` — read it there (currently `typescript`→`typescript tsx`,
-  `php`→`php php-only`, `sfapex`→`apex`, `cfml`→`cfml`, everything else → the
-  lang itself). Steps 1 and 4 act on whichever directories it builds.
+  `lang/test-lang` — read it there; usually it's just the lang itself. Steps
+  1, 3, and 5 act on whichever directories it builds.
 - **Repo root** — `git rev-parse --show-toplevel`. Never hardcode an absolute path.
 - **(optional) `max-iterations`** — caps the loop; default **20**. One
   iteration = one step-8 fix plus its step-5 re-run (the step-3 baseline run
@@ -53,9 +51,8 @@ extension grammar and its tests.**
    which files look machine-generated), and ask the user to confirm.** A
    clean tree needs no confirmation.
 
-2. **Ensure the toolchain** (from the repo root). Grammar builds are
-   parametrized on the `lang/languages-*` pins; each pinned version lives
-   side by side in `core/tree-sitter-<version>/`:
+2. **Ensure the toolchain** (from the repo root). Pinned tree-sitter versions
+   live side by side in `core/tree-sitter-<version>/`:
    ```
    v=$(lang/scripts/ts-version-for-lang <lang>)
    [ -x core/tree-sitter-$v/bin/tree-sitter ] || make setup-tree-sitter-versions
@@ -106,11 +103,10 @@ extension grammar and its tests.**
    ```
    grep -rn "(<old>" lang/semgrep-grammars/src/semgrep-<lang>/test/corpus/*.txt
    ```
-   (never `test/corpus/inherited` — that's upstream's own corpus). Corpus
-   substitutions are drafts until verified against actual output once
-   `test-lang` runs — an upstream rename isn't guaranteed pure. This pass only
-   catches "this name no longer exists"; conflicts, corpus drift, and symbols
-   that still resolve but changed meaning surface only when `test-lang` runs.
+   (never `test/corpus/inherited` — that's upstream's own corpus). Verify the
+   substitutions against actual output in step 9 — a rename isn't guaranteed
+   pure. This pass only catches dead names; everything else surfaces when
+   `test-lang` runs.
 
 ## The loop
 
@@ -141,19 +137,18 @@ extension grammar and its tests.**
    substitutions (step 4), and a new/changed rule override carries its corpus
    case (coverage invariant, Edit boundaries).
 
-9. **Fix validity pre-check** — `make` in
-   `semgrep-<lang>/` regenerates just the parser, which is much faster than
-   another iteration. Iterate there until the fix is locally green:
+9. **Fix validity pre-check** — iterate inside `semgrep-<lang>/` until the fix
+   is locally green; this rebuilds just the parser, much faster than another
+   iteration:
 
-   9.1. `make` catches generate errors.
-   9.2. `core/tree-sitter-<v>/bin/tree-sitter test` runs the corpus.
-   9.3. `tree-sitter parse <file>` prints the actual tree — both for writing
-        corpus expectations and for checking a failing example file directly.
+   a) `make` — regenerates the parser; catches generation errors.
+   b) `core/tree-sitter-<v>/bin/tree-sitter test` — runs the corpus.
+   c) `tree-sitter parse <file>` — prints the actual tree, for writing corpus
+      expectations and checking a failing example file directly.
 
-   If a few inner attempts haven't gone green, stop tweaking
-   and return to step 7: that's misdiagnosis, not bad luck. The pre-check
-   never replaces the outer run — only `test-lang` (step 10) validates the
-   OCaml build, the example sweep, and the Blank check.
+   If a few attempts haven't gone green, return to step 7: that's
+   misdiagnosis, not bad luck. Only the outer `test-lang` run (step 10)
+   validates the OCaml build, the example sweep, and the Blank check.
 
 10. **Re-run** step 5. Repeat until exit 0, or until `max-iterations` is spent —
     whichever comes first. Hitting the cap is a normal stop: go to Exit.
@@ -207,11 +202,10 @@ Common shapes when an upstream bump breaks the extension:
 - **Corpus tree drifted** from a legitimate upstream change → update the
   expected S-expr in `test/corpus/*.txt` to match; verify against the actual
   tree, don't blindly paste.
-- **Stale `// TODO: use PREC.X`** for a constant that isn't exported → don't
-  re-investigate: upstream `PREC` tables are module-local `const`s the
-  extension can never reference, and `prec.dynamic` doesn't resolve a static
-  LR conflict. If you must hardcode a precedence, replace the TODO with the
-  one-line reason.
+- **Stale `// TODO: use PREC.X`** → don't re-investigate: upstream `PREC`
+  tables are module-local `const`s the extension can never reference, and
+  `prec.dynamic` doesn't resolve a static LR conflict — hardcode the
+  precedence and replace the TODO with the one-line reason.
 - **New parse conflict** (generate error names two rules, not a missing one) →
   resolve it in the extension grammar with the most specific
   `prec`/`prec.dynamic` or `conflicts: [...]` entry that works; don't restate
