@@ -16,21 +16,19 @@ if [[ ! -f "$fyi" ]]; then
     exit 1
 fi
 
+# fyi.list entries are written relative lang/ -- and that's also what the
+# git commands below need to be run from for their output paths to line
+# up. Resolve fyi to an absolute path first.
+# CHECK_SUBMODULE_PINNED_DIR overrides the base directory for testing.
+fyi=$(cd -- "$(dirname -- "$fyi")" && pwd)/$(basename -- "$fyi")
+cd -- "${CHECK_SUBMODULE_PINNED_DIR:-$(dirname -- "${BASH_SOURCE[0]}")}"
+
 # fyi.list entries: paths inside grammar submodules, one per line ('#'
 # comments and blank lines ignored).
 entries=()
 while IFS= read -r line; do
     entries+=("$line")
 done < <(grep -Ev '^[[:space:]]*(#|$)' "$fyi")
-
-# True if some fyi.list entry is the submodule itself or lives under it.
-is_referenced() {
-    local sm=$1 entry
-    for entry in "${entries[@]}"; do
-        [[ $entry == "$sm" || $entry == "$sm"/* ]] && return 0
-    done
-    return 1
-}
 
 # git status only reports submodule drift when given the submodule's own
 # path, not a file inside it, so map fyi.list entries to the submodule
@@ -44,7 +42,13 @@ fi
 referenced=()
 while IFS=$' \t' read -r mode hash stage path; do
     [[ $mode == 160000 ]] || continue
-    is_referenced "$path" && referenced+=("$path")
+    for entry in "${entries[@]}"; do
+        # A submodule is referenced if some fyi.list entry is the
+        # submodule itself or lives under it.
+        case $entry in
+            "$path" | "$path"/*) referenced+=("$path"); break ;;
+        esac
+    done
 done <<< "$listing"
 
 # Fail fast on any uninitialized referenced submodule: an uninitialized
@@ -60,8 +64,8 @@ if [[ ${#uninitialized[@]} -gt 0 ]]; then
     exit 1
 fi
 
-# Every referenced submodule is now known to be initialized, so all that's
-# left to check is whether its working tree matches the pinned commit.
+# Check every referenced submodule's status. This compares against the pinned
+# commit under the hood.
 modified=()
 for sm in "${referenced[@]}"; do
     [[ -n $(git status --porcelain -- "$sm") ]] && modified+=("$sm")

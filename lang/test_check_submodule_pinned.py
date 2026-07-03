@@ -3,6 +3,7 @@ with a grammar submodule under pytest's ``tmp_path`` (cleaned up
 automatically) to exercise drift detection end to end."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -41,8 +42,12 @@ def make_grammar_repo(path: Path) -> None:
 
 
 def run_check(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+    # fyi.list entries are relative to `cwd` here (our throwaway repo),
+    # not to the real check_submodule_pinned's own directory, so override
+    # the base directory the script would otherwise default to.
+    env = {**os.environ, "CHECK_SUBMODULE_PINNED_DIR": str(cwd)}
     return subprocess.run(
-        [str(CLI), *args], cwd=cwd, text=True,
+        [str(CLI), *args], cwd=cwd, text=True, env=env,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
 
