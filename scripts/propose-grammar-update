@@ -235,6 +235,43 @@ def submodule_head(submodule: Path) -> str:
     return git_query(["git", "rev-parse", "HEAD"], cwd=submodule).stdout.strip()
 
 
+def recorded_submodule_sha(root: Path, submodule: Path) -> str | None:
+    """Return the submodule SHA recorded in the outer repo's index (HEAD).
+
+    Reads the committed gitlink via `git ls-tree` — no submodule checkout
+    needed, so this is cheap enough for the enumerate pre-filter.
+    """
+    rel = submodule.relative_to(root).as_posix()
+    out = git_query(["git", "ls-tree", "HEAD", rel], cwd=root).stdout.split()
+    return out[2] if len(out) >= 3 else None
+
+
+def tag_commit_sha(url: str, tag: str) -> str | None:
+    """Resolve `tag` to a commit SHA on the remote (peeling annotated tags)."""
+    out = git_query(
+        ["git", "ls-remote", url, f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}"],
+        cwd=Path.cwd(),
+    ).stdout
+    return out.split()[0] if out.strip() else None
+
+
+def is_up_to_date(root: Path, language: str) -> bool | None:
+    """True if `language`'s submodule is already at its latest stable tag.
+
+    Cheap: reads the recorded gitlink + a remote ls-remote, no build/checkout.
+    Returns None if it can't be determined (no tag / no url) so callers can
+    fall back to attempting the bump rather than wrongly skipping.
+    """
+    target = resolve_target(root, language)
+    if target["skip_reason"] or target["tag"] is None or not target["url"]:
+        return None
+    cur = recorded_submodule_sha(root, target["submodule"])
+    tag_sha = tag_commit_sha(target["url"], target["tag"])
+    if cur is None or tag_sha is None:
+        return None
+    return cur == tag_sha
+
+
 def wrapper_dir(root: Path, wrapper: str) -> Path:
     """Return the semgrep-<wrapper> directory under semgrep-grammars/src."""
     return root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{wrapper}"
@@ -772,9 +809,25 @@ def trigger_agent(language: str, wrapper: str, branch: str, tag: str,
 ###############################################################################
 
 
-def list_languages(root: Path, as_json: bool) -> None:
-    """Print all proposable languages (sorted)."""
+def list_languages(root: Path, as_json: bool, updatable_only: bool = False) -> None:
+    """Print proposable languages (sorted).
+
+    With `updatable_only`, emit only languages whose recorded submodule SHA
+    differs from their latest stable tag — the cheap pre-filter that keeps
+    up-to-date languages out of the expensive build matrix entirely.
+    Languages whose status can't be cheaply determined are INCLUDED (so the
+    full flow decides, rather than wrongly skipping them).
+    """
     names = sorted(ug.discover_valid_languages(root))
+    if updatable_only:
+        kept = []
+        for name in names:
+            up = is_up_to_date(root, name)
+            if up is True:
+                log(f"skip {name}: already at latest tag")
+            else:
+                kept.append(name)
+        names = kept
     if as_json:
         print(json.dumps(names))
     else:
@@ -824,6 +877,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--list-languages", action="store_true",
         help="Print the set of proposable languages and exit.",
+    )
+    parser.add_argument(
+        "--updatable-only", action="store_true",
+        help="With --list-languages, emit only languages whose submodule is "
+             "behind its latest stable tag (cheap pre-filter; skips the build "
+             "matrix for up-to-date languages).",
     )
     parser.add_argument(
         "--summarize", metavar="DIR",
@@ -907,7 +966,7 @@ def main() -> int:
     args = parse_args()
 
     if args.list_languages:
-        list_languages(root, args.json)
+        list_languages(root, args.json, updatable_only=args.updatable_only)
         return 0
 
     if args.summarize:

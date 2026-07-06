@@ -252,6 +252,43 @@ class TestAgentPrompt(unittest.TestCase):
 ###############################################################################
 
 
+class TestUpToDateFilter(unittest.TestCase):
+    """The cheap pre-filter that keeps up-to-date languages out of the build."""
+
+    def _patch(self, recorded, tag_sha, tag="v1.0.0", url="https://x/y.git"):
+        # is_up_to_date compares recorded gitlink SHA vs the tag's commit SHA.
+        return (
+            unittest.mock.patch.object(
+                pg, "resolve_target",
+                lambda root, lang: {
+                    "language": lang, "wrapper": lang, "ts_version": "0.26.3",
+                    "submodule": Path("/tmp/sub"), "url": url, "tag": tag,
+                    "skip_reason": None,
+                },
+            ),
+            unittest.mock.patch.object(pg, "recorded_submodule_sha", lambda r, s: recorded),
+            unittest.mock.patch.object(pg, "tag_commit_sha", lambda u, t: tag_sha),
+        )
+
+    def test_up_to_date_when_shas_match(self):
+        p1, p2, p3 = self._patch(recorded="abc123", tag_sha="abc123")
+        with p1, p2, p3:
+            self.assertIs(pg.is_up_to_date(Path("."), "php"), True)
+
+    def test_behind_when_shas_differ(self):
+        p1, p2, p3 = self._patch(recorded="abc123", tag_sha="def456")
+        with p1, p2, p3:
+            self.assertIs(pg.is_up_to_date(Path("."), "php"), False)
+
+    def test_none_when_no_tag(self):
+        with unittest.mock.patch.object(
+            pg, "resolve_target",
+            lambda root, lang: {"skip_reason": None, "tag": None, "url": "u",
+                                "submodule": Path("/tmp/s")},
+        ):
+            self.assertIsNone(pg.is_up_to_date(Path("."), "php"))
+
+
 class TestReviewAgent(unittest.TestCase):
     def test_prompt_is_review_not_authoring(self):
         p = pg.review_agent_prompt("php", "php", "v0.24.2", "FAIL log here")
