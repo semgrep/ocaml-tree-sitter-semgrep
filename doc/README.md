@@ -3,6 +3,8 @@ ocaml-tree-sitter documentation
 
 * [How to add support for a new language](http://semgrep.dev/docs/contributing/adding-a-language/)
 * [How to upgrade the grammar for a language](http://semgrep.dev/docs/contributing/updating-a-grammar/)
+* [Semgrep pattern-construct inventory for extension grammars](semgrep-constructs.md)
+* [fix-semgrep-grammar: the grammar-repair agent skill](fix-semgrep-grammar-skill.md)
 * [Releasing generated code for semgrep](release.md)
 
 See also:

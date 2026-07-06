@@ -11,7 +11,12 @@ const javascript_grammar = require('tree-sitter-javascript/grammar');
 
 module.exports = grammar(javascript_grammar, {
   name: 'javascript',
-  rules: {}
+  rules: {
+    // Allow a bare '>' among JSX element children. The upstream external
+    // scanner ends a jsx_text token at '>', but a literal '>' between
+    // tags is valid JSX.
+    _jsx_child: ($, previous) => choice(previous, '>'),
+  }
 });
 
 // copy-pasted from the original grammar
