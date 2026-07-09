@@ -532,7 +532,12 @@ def agent_cmd(prompt: str) -> list[str]:
     if model:
         cmd += ["--model", model]
     cmd.append(prompt)
-    return cmd
+    # Hard wall-clock bound so a stuck agent session can't burn the whole job
+    # (a bounded loop cap the CLI doesn't expose). `timeout` returns 124 on
+    # expiry; callers treat a non-zero agent as best-effort. Override via
+    # CURSOR_AGENT_TIMEOUT (default 25m, comfortably inside the 45m job cap).
+    limit = os.environ.get("CURSOR_AGENT_TIMEOUT", "25m")
+    return ["timeout", limit, *cmd]
 
 
 def run_review_agent(root: Path, language: str, wrapper: str, tag: str,

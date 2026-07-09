@@ -26,6 +26,7 @@ jobs:
   enumerate:
     name: Enumerate languages
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # cheap: checkout + ~47 ls-remote calls
     outputs:
       languages: ${{ steps.list.outputs.languages }}
     steps:
@@ -62,6 +63,7 @@ jobs:
     name: Propose ${{ matrix.language }}
     needs: enumerate
     runs-on: ubuntu-latest
+    timeout-minutes: 45   # OCaml build (~15m) + test-lang + possible review agent
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -171,6 +173,7 @@ jobs:
     needs: [enumerate, propose]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45   # build + lang/release + integration agent (~18m)
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -265,6 +268,7 @@ jobs:
     needs: [propose, integrate]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 10   # download artifacts + render summary
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
