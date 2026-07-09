@@ -328,3 +328,29 @@ $...X;
 (source_file
   (expression_statement
     (identifier)))
+
+================================================================================
+Ellipsis in struct expressions
+================================================================================
+
+TypedData { ... };
+TypedData { x: 1, ... };
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (shorthand_field_initializer
+          (ellipsis)))))
+  (expression_statement
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (field_identifier)
+          (integer_literal))
+        (shorthand_field_initializer
+          (ellipsis))))))

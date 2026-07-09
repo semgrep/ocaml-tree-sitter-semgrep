@@ -73,6 +73,14 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    // Ellipsis in struct expressions: `TypedData { ... }`
+    shorthand_field_initializer: ($, previous) => {
+      return choice(
+        previous,
+        $.ellipsis
+      );
+    },
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(
