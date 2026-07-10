@@ -494,7 +494,7 @@ def open_pr(root: Path, target: Target, result: Result,
     if dry_run:
         log(f"\n=== would push branch: {branch}")
         log(f"=== would create PR (base {base}): {title}\n")
-        print(body)
+        log(body)  # stderr: stdout must stay JSON-pure for the artifact
         result.status = "dry-run"
         return result
 

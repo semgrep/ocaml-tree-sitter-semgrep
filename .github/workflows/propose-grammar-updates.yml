@@ -24,6 +24,10 @@ on:
         description: "On test-lang failure, dispatch a Cursor agent (fix-semgrep-grammar skill) to adapt the extension grammar/tests. Off = failing bumps are just reported as failed; no Cursor dispatch ever happens."
         type: boolean
         default: false
+      dry_run:
+        description: "Full pipeline (build, bump, snapshot regen, test-lang) but push nothing: no PR here, integrate job skipped."
+        type: boolean
+        default: false
 
 permissions:
   contents: write         # push grammar-update/* branches in THIS repo
@@ -164,13 +168,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURSOR_API_KEY: ${{ inputs.run_review_agent && secrets.CURSOR_API_KEY || '' }}
           RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
+          mode="--open-pr"
+          if [ "$DRY_RUN" = "true" ]; then mode="--dry-run"; fi
           flags=""
           if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr $flags \
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
