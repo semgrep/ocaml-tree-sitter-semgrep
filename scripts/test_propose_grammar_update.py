@@ -394,6 +394,34 @@ class TestReviewAgent(unittest.TestCase):
 ###############################################################################
 
 
+class TestEnvValidation(unittest.TestCase):
+    """Env-sourced values that flow into git/gh argv must be validated."""
+
+    def _with_env(self, key, value, fn):
+        import os
+        old = os.environ.get(key)
+        os.environ[key] = value
+        try:
+            return fn()
+        finally:
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+    def test_base_branch_rejects_option_injection(self):
+        with self.assertRaises(SystemExit):
+            self._with_env("GRAMMAR_BASE_BRANCH", "--upload-pack=evil", pg.base_branch)
+
+    def test_github_org_rejects_shellish_values(self):
+        with self.assertRaises(SystemExit):
+            self._with_env("GITHUB_ORG", "x;rm -rf /", pg.github_org)
+
+    def test_defaults_pass(self):
+        self.assertEqual(pg.github_org(), "semgrep")
+        self.assertEqual(pg.base_branch(), "main")
+
+
 class TestTail(unittest.TestCase):
     def test_returns_last_n_lines(self):
         text = "\n".join(str(i) for i in range(100))

@@ -395,9 +395,13 @@ def base_branch() -> str:
 
     The grammar bump must sit on a CLEAN base (just the bump), not on
     whatever branch CI happens to be checked out on. Defaults to `main`;
-    override with GRAMMAR_BASE_BRANCH (e.g. `develop`).
+    override with GRAMMAR_BASE_BRANCH (e.g. `develop`). Validated so an
+    env-injected value can't smuggle git options or ref tricks.
     """
-    return os.environ.get("GRAMMAR_BASE_BRANCH", "main")
+    base = os.environ.get("GRAMMAR_BASE_BRANCH", "main")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", base):
+        ug.die(f"invalid GRAMMAR_BASE_BRANCH: {base!r}")
+    return base
 
 
 def branch_name(language: str, tag: str) -> str:
@@ -680,6 +684,14 @@ def propose(root: Path, target: Target, keep: bool = False,
 ###############################################################################
 
 
+def github_org() -> str:
+    """Org owning the semgrep-<dialect> repos, validated as an owner name."""
+    org = os.environ.get("GITHUB_ORG", "semgrep")
+    if not re.fullmatch(r"[A-Za-z0-9-]+", org):
+        ug.die(f"invalid GITHUB_ORG: {org!r}")
+    return org
+
+
 def downstream_repo_exists(dialect: str) -> bool:
     """True if a semgrep-<dialect> repo exists to release into.
 
@@ -689,9 +701,9 @@ def downstream_repo_exists(dialect: str) -> bool:
     Releasing a dialect with no repo would fail, so we filter to the ones
     that exist.
     """
-    org = os.environ.get("GITHUB_ORG", "semgrep")
     return git_query(
-        ["gh", "repo", "view", f"{org}/semgrep-{dialect}", "--json", "name"],
+        ["gh", "repo", "view", f"{github_org()}/semgrep-{dialect}",
+         "--json", "name"],
         cwd=Path.cwd(),
     ).returncode == 0
 
@@ -736,8 +748,7 @@ def open_downstream_pr(dialect: str, branch: str, tag: str,
     change lands via review, not a dangling branch. Skips if a PR for the
     branch already exists.
     """
-    org = os.environ.get("GITHUB_ORG", "semgrep")
-    repo = f"{org}/semgrep-{dialect}"
+    repo = f"{github_org()}/semgrep-{dialect}"
     if dry_run:
         log(f"[dry run] would open PR on {repo} for {branch}")
         return
@@ -1003,8 +1014,12 @@ def main() -> int:
     return 0 if result.status != STATUS_FAILED else 1
 
 
-if __name__ == "__main__":
+def cli() -> None:
     try:
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(130)
+
+
+if __name__ == "__main__":
+    cli()
