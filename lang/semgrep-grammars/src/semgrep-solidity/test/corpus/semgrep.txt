@@ -43,7 +43,11 @@ for(...) {
 ---
 
 (source_file
-  (for_statement (ellipsis) (block_statement)))
+  (statement
+    (for_statement
+      (ellipsis)
+      (statement
+        (block_statement)))))
 
 =====================================
 Constructor pattern
@@ -57,8 +61,9 @@ constructor (...) {
         (parameter
           (ellipsis))
         (function_body
-          (expression_statement
-            (ellipsis)))))
+          (statement
+            (expression_statement
+              (ellipsis))))))
 
 =====================================
 Modifier pattern
@@ -74,8 +79,9 @@ modifier $M(...) {
         (parameter
           (ellipsis))
         (function_body
-          (expression_statement
-            (ellipsis)))))
+          (statement
+            (expression_statement
+              (ellipsis))))))
 
 =====================================
 Inheritance ellipsis pattern
@@ -107,7 +113,8 @@ enum $X {
 (source_file
       (enum_declaration
         (identifier)
-        (ellipsis)))
+        (enum_body
+          (ellipsis))))
 
 =====================================
 Event pattern
@@ -119,5 +126,5 @@ event $EV(...);
 (source_file
       (event_definition
         (identifier)
-        (event_paramater
+        (event_parameter
           (ellipsis))))
