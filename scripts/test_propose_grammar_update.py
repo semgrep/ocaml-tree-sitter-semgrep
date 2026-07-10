@@ -290,13 +290,14 @@ class TestUpToDateFilter(unittest.TestCase):
 
 
 class TestReviewAgent(unittest.TestCase):
-    def test_prompt_is_review_not_authoring(self):
+    def test_prompt_drives_fix_semgrep_grammar_skill(self):
         p = pg.review_agent_prompt("php", "php", "v0.24.2", "FAIL log here")
-        # Must steer toward adapting existing tests, never inventing features,
-        # and must forbid touching grammar.js / loosening tests.
+        # Must invoke Marc-André's skill (not hand-rolled fix logic), pass the
+        # language/tag, forbid committing, and surface the failing log.
+        self.assertIn("fix-semgrep-grammar", p)
+        self.assertIn("test-lang php", p)
         self.assertIn("v0.24.2", p)
-        self.assertIn("do not invent new feature tests", p)
-        self.assertIn("grammar.js", p)
+        self.assertIn("do not commit", p)
         self.assertIn("FAIL log here", p)
 
     def test_base_branch_default_and_override(self):

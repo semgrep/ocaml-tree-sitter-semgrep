@@ -491,30 +491,23 @@ def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
 
 def review_agent_prompt(language: str, wrapper: str, tag: str,
                         test_log: str) -> str:
-    """Prompt for the in-repo agent that reviews a failing bump's tests.
+    """Prompt that drives Marc-André's `fix-semgrep-grammar` skill.
 
-    A version bump only moves the upstream submodule; it never edits our
-    patching grammar.js, so this is REVIEW + ADAPT, never authoring new
-    feature tests. The usual failure is a mechanical upstream API change
-    (e.g. a CST node renamed `_expression` -> `expression`) that breaks
-    existing corpus snapshots.
+    That skill (`.agents/skills/fix-semgrep-grammar/SKILL.md`, from #619) is
+    the purpose-built tool for repairing the semgrep extension grammar +
+    corpus after an upstream tree-sitter bump: it has its own bounded loop,
+    strict edit boundaries, coverage invariant, and machine-readable exit
+    statuses (FIX-SEMGREP-GRAMMAR: SUCCESS | CANNOT_PROCEED | ITERATION_LIMIT).
+    We invoke it rather than hand-rolling the fix logic; the authoritative
+    signal remains the test-lang RE-RUN the caller does afterward.
     """
-    corpus = f"lang/semgrep-grammars/src/semgrep-{wrapper}/test/corpus"
     return (
-        f"In this repo (ocaml-tree-sitter-semgrep), the tree-sitter-{language} "
-        f"submodule was just bumped to {tag} and `lang/test-lang {language}` "
-        f"now FAILS. Review the grammar update and adapt the EXISTING tests so "
-        f"they reflect the new grammar — do not invent new feature tests (a "
-        f"version bump never changes our patching grammar.js).\n\n"
-        f"Typical cause: an upstream rename/restructure of CST nodes that the "
-        f"corpus snapshots in `{corpus}` (and any inherited base-grammar "
-        f"tests) no longer match. Update those expected snapshots to the new, "
-        f"correct shapes. Verify by re-running `cd lang && ./test-lang "
-        f"{language}` until it passes. Only adapt existing test expectations; "
-        f"do NOT change grammar.js or loosen tests to force a pass. If the "
-        f"failure is a real parse regression (new ERROR/MISSING nodes on valid "
-        f"input) rather than a mechanical snapshot shift, STOP and leave it "
-        f"failing for a human.\n\n"
+        f"Use the `fix-semgrep-grammar` skill to make `test-lang {language}` "
+        f"pass. Context: the tree-sitter-{language} submodule was just bumped "
+        f"to {tag} and test-lang now fails. Follow the skill's edit boundaries "
+        f"and exit contract exactly; do not commit, push, or open a PR — leave "
+        f"the working tree changed for the outer pipeline. Print the skill's "
+        f"final FIX-SEMGREP-GRAMMAR status line.\n\n"
         f"Failing test-lang output:\n{tail(test_log, 60)}"
     )
 
