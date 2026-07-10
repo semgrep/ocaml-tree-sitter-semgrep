@@ -431,57 +431,32 @@ AGENT_ADAPTED_LABEL = "agent-adapted-tests"
 
 def open_pr(root: Path, target: dict[str, Any], result: dict[str, Any],
             dry_run: bool) -> dict[str, Any]:
-    """Re-apply the update on a branch and open a PR (or print it for --dry-run).
+    """Push the branch propose(keep=True) built and open a PR for it.
 
-    propose() reset the tree, so we re-run the bump + snapshot regen on a
-    fresh branch, then commit/push/PR. Idempotent: skips if a branch
-    already exists for this lang+tag.
+    The validated commit already exists on `grammar-update/<lang>/<tag>`
+    (created + committed by propose in keep mode) — here we only push it and
+    open the PR. Idempotent: skips if a branch already exists upstream.
     """
     language, tag = target["language"], result["new_tag"]
-    branch = branch_name(language, tag)
-    if proposal_exists(root, branch):
-        return {**result, "status": STATUS_EXISTS,
-                "detail": f"branch {branch} already exists"}
-
+    base = base_branch()
+    branch = result.get("branch") or branch_name(language, tag)
     title = f"Update tree-sitter-{language} grammar to {tag}"
     body = pr_body(result, target["url"])
 
     if dry_run:
-        log(f"\n=== would create branch: {branch}")
-        log(f"=== would create PR: {title}\n")
+        log(f"\n=== would push branch: {branch}")
+        log(f"=== would create PR (base {base}): {title}\n")
         print(body)
         return {**result, "status": "dry-run", "branch": branch}
 
-    # Fork the branch from a CLEAN base (origin/main), NOT the current CI
-    # branch — otherwise the PR carries every commit that branch is ahead of
-    # main. Fetch the base first (CI checks out only the trigger branch).
-    base = base_branch()
-    run_quiet(["git", "fetch", "origin", base], cwd=root)
-    run_quiet(["git", "checkout", "-b", branch, f"origin/{base}"], cwd=root)
-    run_update_grammar(language, target["ts_version"], tag, root)
-    regenerate_snapshots(root, target["wrapper"])
-    # propose() reset the tree, so if it needed the agent to adapt tests,
-    # re-run that here too — otherwise the committed branch would carry the
-    # un-adapted (broken) tests. test-lang already validated this path.
-    if result.get("tests_adapted"):
-        run_review_agent(root, language, target["wrapper"], tag,
-                         result.get("test_log_tail", ""))
-    # Stage everything except the workflow's result-*.json artifact (the
-    # `tee` target lives in the repo root and must not be committed).
-    # Exclude the result artifact and the `core` submodule — a grammar bump
-    # must only move the language submodule (+ version files/snapshots), never
-    # `core`, which the build/submodule-update can incidentally bump.
-    run_quiet(["git", "add", "-A", "--", ".",
-               ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
-    run_quiet(
-        ["git", "commit", "-m",
-         f"Update tree-sitter-{language} grammar to {tag}"],
-        cwd=root,
-    )
+    if proposal_exists(root, branch):
+        return {**result, "status": STATUS_EXISTS,
+                "detail": f"branch {branch} already exists"}
+
     run_quiet(["git", "push", "origin", branch], cwd=root)
     create = ["gh", "pr", "create", "--title", title, "--body", body,
               "--base", base, "--head", branch]
-    # Flag PRs where an agent touched test expectations so reviewers look closely.
+    # Flag PRs where the skill adapted test expectations so reviewers look closely.
     if result.get("tests_adapted"):
         ensure_label(origin_repo(), AGENT_ADAPTED_LABEL)
         create += ["--label", AGENT_ADAPTED_LABEL]
@@ -549,23 +524,28 @@ def run_review_agent(root: Path, language: str, wrapper: str, tag: str,
     sys.stderr.write(r.stderr)
 
 
-def propose(root: Path, target: dict[str, Any]) -> dict[str, Any]:
+def propose(root: Path, target: dict[str, Any],
+            keep: bool = False) -> dict[str, Any]:
     """Run the full single-language propose flow; return a JSON-able result.
 
-    Bumps to the latest tag, regenerates snapshots, re-runs test-lang, and
-    classifies the outcome. On a test-lang failure, a Cursor agent reviews
-    the grammar diff and adapts the existing tests, then test-lang is
-    re-run (the authoritative signal). Always resets the working tree
-    before returning (the PR path re-applies changes from the result).
+    Bumps to the latest tag, regenerates snapshots, runs test-lang, and
+    classifies the outcome. On a test-lang failure, the fix-semgrep-grammar
+    skill adapts the tests, then test-lang is re-run (the authoritative
+    signal). With `keep=True`, the work is done on the grammar-update branch
+    (forked from origin/main) and the validated tree is committed there for
+    open_pr() to push — no re-bump, no second agent run. With keep=False
+    (classify-only), the working tree is reset before returning.
     Does NOT create a PR — that's the caller's job under --open-pr.
     """
     language = target["language"]
+    tag = target["tag"]
+    wrapper = target["wrapper"]
     result: dict[str, Any] = {
         "language": language,
         "ts_version": target["ts_version"],
         "old_sha": None,
         "new_sha": None,
-        "new_tag": target["tag"],
+        "new_tag": tag,
         "status": None,
         "test_log_tail": "",
         "corpus_diff": "",
@@ -573,7 +553,7 @@ def propose(root: Path, target: dict[str, Any]) -> dict[str, Any]:
 
     if target["skip_reason"]:
         return {**result, "status": STATUS_NO_TAGS, "detail": target["skip_reason"]}
-    if target["tag"] is None:
+    if tag is None:
         return {**result, "status": STATUS_NO_TAGS,
                 "detail": "no stable release tag upstream"}
 
@@ -581,52 +561,72 @@ def propose(root: Path, target: dict[str, Any]) -> dict[str, Any]:
     old_sha = submodule_head(submodule)
     result["old_sha"] = old_sha
 
+    # In `keep` (PR) mode, do all the work directly on the grammar-update
+    # branch forked from origin/main, and DON'T reset — the validated tree
+    # becomes the PR commit (open_pr just pushes it). In classify-only mode,
+    # do the work in place and reset the tree before returning. Doing it once,
+    # on the final branch, avoids the old propose-resets/open_pr-redoes
+    # duplication (and the second, unvalidated agent run it caused).
+    branch = branch_name(language, tag)
+    committed = False
+    if keep:
+        base = base_branch()
+        run_quiet(["git", "fetch", "origin", base], cwd=root)
+        run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
+
     try:
-        bump = run_update_grammar(
-            language, target["ts_version"], target["tag"], root,
-        )
+        bump = run_update_grammar(language, target["ts_version"], tag, root)
         new_sha = submodule_head(submodule)
         result["new_sha"] = new_sha
 
         if new_sha == old_sha:
             return {**result, "status": STATUS_NO_OP}
 
-        # Snapshots are expected to churn; regenerate then re-test for the
-        # authoritative result. update-grammar already ran test-lang once
-        # (it may have failed on snapshot drift) — the regen + re-run is
-        # what decides updated-vs-failed.
-        regenerate_snapshots(root, target["wrapper"])
-        result["corpus_diff"] = corpus_diff(root, target["wrapper"])
+        # Snapshots are expected to churn; regenerate then test for the
+        # authoritative result.
+        regenerate_snapshots(root, wrapper)
+        result["corpus_diff"] = corpus_diff(root, wrapper)
         test = run_test_lang(language, root)
         result["test_log_tail"] = tail(test.stdout + test.stderr)
 
-        if test.returncode == 0:
-            result["status"] = STATUS_UPDATED
-            return result
+        if test.returncode != 0:
+            # test-lang failed — most often a mechanical upstream CST rename
+            # that broke existing corpus snapshots. Invoke the fix-semgrep-
+            # grammar skill to adapt the tests, then re-test as the
+            # authoritative signal (the skill's own status is advisory).
+            run_review_agent(root, language, wrapper, tag,
+                             test.stdout + test.stderr)
+            result["corpus_diff"] = corpus_diff(root, wrapper)
+            test = run_test_lang(language, root)
+            result["test_log_tail"] = tail(test.stdout + test.stderr)
+            if test.returncode == 0:
+                result["tests_adapted"] = True
 
-        # test-lang failed. Most often this is a mechanical upstream CST
-        # rename that broke existing corpus snapshots — invoke the in-repo
-        # agent to review + adapt those tests, then re-run test-lang as the
-        # authoritative signal.
-        review_log = test.stdout + test.stderr
-        run_review_agent(root, language, target["wrapper"], tag, review_log)
-        result["corpus_diff"] = corpus_diff(root, target["wrapper"])
-        retest = run_test_lang(language, root)
-        result["test_log_tail"] = tail(retest.stdout + retest.stderr)
-
-        if retest.returncode == 0:
-            # Agent adapted the tests and the bump is green again. Flag it so
-            # reviewers know an agent touched test expectations.
-            result["status"] = STATUS_UPDATED
-            result["tests_adapted"] = True
-        else:
+        if test.returncode != 0:
             result["status"] = STATUS_FAILED
-            result["detail"] = "test-lang failed even after agent test review"
+            result["detail"] = "test-lang failed (skill could not make it pass)"
             if not result["test_log_tail"]:
                 result["test_log_tail"] = tail(bump.stdout + bump.stderr)
+            return result
+
+        result["status"] = STATUS_UPDATED
+        if keep:
+            # Commit the validated tree on the branch — this is exactly what
+            # was tested. Exclude the workflow's result artifact and `core`
+            # (a grammar bump must only move the language submodule).
+            run_quiet(["git", "add", "-A", "--", ".",
+                       ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
+            run_quiet(["git", "commit", "-m",
+                       f"Update tree-sitter-{language} grammar to {tag}"], cwd=root)
+            committed = True
+            result["branch"] = branch
         return result
     finally:
-        reset_language_state(root, submodule, old_sha)
+        # Classify-only mode always resets. keep mode resets only if we did
+        # NOT land a commit (early return / failure) so a broken branch isn't
+        # left checked out; a committed branch is intentionally kept.
+        if not (keep and committed):
+            reset_language_state(root, submodule, old_sha)
 
 
 ###############################################################################
@@ -956,39 +956,30 @@ def run_release_and_trigger(root: Path, target: dict[str, Any],
                             dry_run: bool, run_agent: bool = True) -> int:
     """Downstream hand-off: release to semgrep-<lang>, then launch the agent.
 
-    Assumes the grammar-update/<lang>/<tag> branch already exists in this
-    repo (pushed by the propose job) and is checked out. Re-applies the
-    bump locally so `lang/release` has the generated sources, releases to
-    the downstream branch, and (when `run_agent`) triggers the
-    proprietary-PR agent. `run_agent=False` does the release only — the
-    semgrep-<lang> artifact is published but the proprietary hand-off is
-    left to a separate, opt-in step.
+    Checks out the grammar-update/<lang>/<tag> branch the propose job built
+    and validated (rather than re-bumping), releases its generated parser to
+    the same branch on semgrep-<lang> via PR, and (when `run_agent`) triggers
+    the proprietary-PR agent. `run_agent=False` does the release only.
+
+    NOTE: `tag` is re-resolved live here; if upstream cut a newer tag between
+    the propose and integrate jobs, the computed branch name won't exist and
+    the fetch fails loudly (no silent wrong-version release). Threading the
+    validated tag through the result artifact would remove that window.
     """
     language, wrapper, tag = target["language"], target["wrapper"], target["tag"]
     if tag is None:
         ug.die(f"{language}: no stable tag; nothing to release.")
     branch = branch_name(language, tag)
 
-    # Regenerate the parser sources on the existing branch so release has
-    # something to publish. (The propose job committed the submodule bump +
-    # snapshots; this re-runs the bump to repopulate generated files.)
-    run_update_grammar(language, target["ts_version"], tag, root)
-    regenerate_snapshots(root, wrapper)
-
-    # lang/release refuses to run with a dirty tree ("git status is not
-    # clean"). The re-run above leaves regenerated files uncommitted, so
-    # commit them first (signed, like the propose job) to get a clean tree.
-    # No-op commit is fine if nothing changed.
-    # Exclude the result artifact and the `core` submodule — a grammar bump
-    # must only move the language submodule (+ version files/snapshots), never
-    # `core`, which the build/submodule-update can incidentally bump.
-    run_quiet(["git", "add", "-A", "--", ".",
-               ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
-    if git_query(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
-        run_quiet(
-            ["git", "commit", "-m", f"Regenerate {language} parser for {tag}"],
-            cwd=root,
-        )
+    # Check out the exact branch the propose job built + validated (submodule
+    # bump + any skill-adapted tests are committed there). Do NOT re-bump or
+    # re-resolve the tag — that could pull different content than what
+    # test-lang actually validated. `lang/release` regenerates the OCaml
+    # sources from this tree via its own `make gen`.
+    run_quiet(["git", "fetch", "origin", branch], cwd=root)
+    run_quiet(["git", "checkout", branch], cwd=root)
+    run_quiet(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
+               "--", str(target["submodule"].relative_to(root))], cwd=root)
 
     rel = release_downstream(root, language, wrapper, branch, tag, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:
@@ -1034,7 +1025,10 @@ def main() -> int:
         return run_release_and_trigger(root, target, args.dry_run,
                                        run_agent=not args.no_agent)
 
-    result = propose(root, target)
+    # keep=True (do the work on the PR branch, commit it) only for a real
+    # --open-pr run; --dry-run and classify-only leave the tree reset.
+    keep = args.open_pr and not args.dry_run
+    result = propose(root, target, keep=keep)
 
     # Only a green, real update is worth a PR. Everything else (no-op,
     # no-tags, failed) is reported as-is for the workflow summary.

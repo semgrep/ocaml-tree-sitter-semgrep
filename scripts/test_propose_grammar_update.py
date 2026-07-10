@@ -210,6 +210,59 @@ class TestReleaseDialects(unittest.TestCase):
             self.assertEqual(pg.release_dialects("php", "php"), ["php"])
 
 
+class TestProposeFailurePath(unittest.TestCase):
+    """Exercise propose()'s test-lang-fails branch (classify-only, keep=False).
+
+    This is the path that previously shipped a NameError (`tag` undefined) —
+    these tests fail loudly if it regresses.
+    """
+
+    TARGET = {
+        "language": "php", "wrapper": "php", "ts_version": "0.26.3",
+        "submodule": Path("/tmp/sub"), "url": "https://x/y.git",
+        "tag": "v0.24.2", "skip_reason": None,
+    }
+
+    def _run(self, test_returncodes):
+        """Run propose() with mocked internals; test_returncodes drives the
+        test-lang result(s) in sequence (first run, then post-agent re-run)."""
+        import subprocess as sp
+        calls = iter(test_returncodes)
+
+        def fake_test(_lang, _root):
+            return sp.CompletedProcess([], next(calls), stdout="log", stderr="")
+
+        with unittest.mock.patch.multiple(
+            pg,
+            run_update_grammar=lambda *a, **k: sp.CompletedProcess([], 0, "", ""),
+            submodule_head=unittest.mock.Mock(side_effect=["OLD", "NEW"]),
+            regenerate_snapshots=lambda *a, **k: None,
+            corpus_diff=lambda *a, **k: "",
+            run_test_lang=fake_test,
+            run_review_agent=lambda *a, **k: None,
+            reset_language_state=lambda *a, **k: None,
+        ):
+            return pg.propose(Path("."), dict(self.TARGET), keep=False)
+
+    def test_failure_returns_failed_not_nameerror(self):
+        # test-lang fails, agent runs, re-test still fails -> STATUS_FAILED,
+        # and crucially NO NameError on the (formerly bare) `tag`.
+        r = self._run([1, 1])
+        self.assertEqual(r["status"], pg.STATUS_FAILED)
+        self.assertNotIn("tests_adapted", r)
+
+    def test_agent_recovers_sets_tests_adapted(self):
+        # test-lang fails, agent adapts, re-test passes -> updated + flag.
+        r = self._run([1, 0])
+        self.assertEqual(r["status"], pg.STATUS_UPDATED)
+        self.assertTrue(r["tests_adapted"])
+
+    def test_clean_bump_is_updated_no_agent(self):
+        r = self._run([0])
+        self.assertEqual(r["status"], pg.STATUS_UPDATED)
+        self.assertNotIn("tests_adapted", r)
+
+
 class TestAgentPrompt(unittest.TestCase):
     ORIGIN = "semgrep/ocaml-tree-sitter-semgrep"
 
