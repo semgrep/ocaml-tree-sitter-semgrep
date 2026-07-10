@@ -703,14 +703,47 @@ def release_dialects(language: str, wrapper: str) -> list[str]:
     return existing or [language]
 
 
-def release_downstream(root: Path, language: str, wrapper: str, branch: str,
-                       *, dry_run: bool) -> subprocess.CompletedProcess:
-    """Push the generated parser to `branch` on each semgrep-<dialect> repo.
+def open_downstream_pr(dialect: str, branch: str, tag: str,
+                       *, dry_run: bool) -> None:
+    """Open a PR on semgrep-<dialect> for the released branch (idempotent).
 
-    Runs `lang/release <dialect> --branch <branch>` for every dialect.
-    This is the only step that pushes to the downstream semgrep-<lang>
-    repos, so it is gated behind --release (the this-repo PR job never
-    calls it) and supports --dry-run for safe testing.
+    The default branch is protected (requires PRs), so the generated-parser
+    change lands via review, not a dangling branch. Skips if a PR for the
+    branch already exists.
+    """
+    org = os.environ.get("GITHUB_ORG", "semgrep")
+    repo = f"{org}/semgrep-{dialect}"
+    if dry_run:
+        log(f"[dry run] would open PR on {repo} for {branch}")
+        return
+    existing = git_query(
+        ["gh", "pr", "list", "--repo", repo, "--head", branch,
+         "--state", "all", "--json", "number", "-q", ".[0].number"],
+        cwd=Path.cwd(),
+    ).stdout.strip()
+    if existing:
+        log(f"{repo}: PR already exists for {branch} (#{existing})")
+        return
+    title = f"Update generated {dialect} parser for {tag}"
+    body = ("Automated: regenerated parser from the tree-sitter-"
+            f"{dialect} {tag} grammar bump.\n\n"
+            "🤖 Generated with [Claude Code](https://claude.com/claude-code)")
+    run_quiet(
+        ["gh", "pr", "create", "--repo", repo, "--head", branch,
+         "--title", title, "--body", body],
+        cwd=Path.cwd(),
+    )
+
+
+def release_downstream(root: Path, language: str, wrapper: str, branch: str,
+                       tag: str, *, dry_run: bool) -> subprocess.CompletedProcess:
+    """Release the generated parser to each semgrep-<dialect> repo, via PR.
+
+    For each dialect: `lang/release <dialect> --branch <branch>` pushes the
+    generated parser to that branch, then open a PR (branch -> default) so
+    it merges through review — the default branch is PR-protected, so a
+    direct push isn't possible anyway. This is the only step that touches
+    the downstream repos, gated behind --release, --dry-run safe.
     """
     lang_dir = root / "lang"
     last = None
@@ -728,6 +761,7 @@ def release_downstream(root: Path, language: str, wrapper: str, branch: str,
         sys.stderr.write(last.stderr)
         if last.returncode != 0:
             return last
+        open_downstream_pr(dialect, branch, tag, dry_run=dry_run)
     return last  # type: ignore[return-value]
 
 
@@ -963,7 +997,7 @@ def run_release_and_trigger(root: Path, target: dict[str, Any],
             cwd=root,
         )
 
-    rel = release_downstream(root, language, wrapper, branch, dry_run=dry_run)
+    rel = release_downstream(root, language, wrapper, branch, tag, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:
         ug.die(f"{language}: lang/release failed; skipping agent.")
 
