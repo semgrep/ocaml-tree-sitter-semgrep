@@ -20,7 +20,7 @@ in four layers:
   side effects of the real `core/scripts/*` (which would touch the
   network and the user's installed tree-sitter).
 
-Run with: `python -m unittest scripts/test_update_grammar.py`
+Run with: `pytest scripts/test_update_grammar.py` (or `make test-python`)
 """
 
 from __future__ import annotations
@@ -718,6 +718,41 @@ class UpdateSubmoduleTests(FilesystemTest):
         self.assertEqual(
             _git("rev-parse", "HEAD", cwd=self.submodule).stdout.strip(),
             remote_newer,
+        )
+
+    def test_is_shallow_repo_false_for_full_clone(self):
+        # The fixture submodule is a normal (non-shallow) clone.
+        self.assertFalse(ug.is_shallow_repo(self.submodule))
+
+    def test_fetch_unshallows_shallow_submodule(self):
+        # Re-clone the submodule shallow (depth 1) so only the pinned commit
+        # is present, then verify update_submodule unshallows and resolves an
+        # older commit that lies beyond the shallow boundary.
+        import shutil
+
+        shutil.rmtree(self.submodule)
+        # `--no-local` forces the transport path; git otherwise ignores
+        # `--depth` for same-filesystem clones and produces a full clone.
+        subprocess.run(
+            ["git", "-c", "protocol.file.allow=always",
+             "clone", "--no-local", "--depth", "1",
+             str(self.remote), str(self.submodule)],
+            check=True, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        _git("config", "protocol.file.allow", "always", cwd=self.submodule)
+        self.assertTrue(ug.is_shallow_repo(self.submodule))
+
+        # remote_old precedes remote_new (the shallow HEAD), so it is only
+        # reachable after unshallowing.
+        old, new = ug.update_submodule(
+            self.submodule, self.outer, ref=self.remote_old, fetch=True,
+        )
+        self.assertFalse(ug.is_shallow_repo(self.submodule))
+        self.assertEqual(new, self.remote_old)
+        self.assertEqual(
+            _git("rev-parse", "HEAD", cwd=self.submodule).stdout.strip(),
+            self.remote_old,
         )
 
     def test_fetch_skipped_when_disabled(self):

@@ -12,7 +12,8 @@ Steps performed by `main()` in order:
 3. Verify the outer repo and the target submodule have clean working
    trees (skipped under `--skip-release`).
 4. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<sub>,
-   fetch from origin, and check out the ref passed via --ref.
+   fetch from origin (unshallowing a shallow clone first so any historical
+   ref resolves), and check out the ref passed via --ref.
 5. Create a matching branch `$USER/update-<lang>-<short-sha>` in both
    the outer repo and the submodule (so `git push --recurse-submodules`
    finds a matching ref, and so the file edits below land on the branch
@@ -383,6 +384,19 @@ def parse_args(version_choices: Collection[str],
     return parser.parse_args(argv)
 
 
+def is_shallow_repo(repo: Path) -> bool:
+    """Return True if `repo` is a shallow clone.
+
+    Submodules are usually cloned shallow, which leaves arbitrary historical
+    refs unresolvable. `git rev-parse --is-shallow-repository` prints
+    'true'/'false' (available since git 2.15).
+    """
+    return run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=repo, capture=True,
+    ).stdout.strip() == "true"
+
+
 def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
     """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
@@ -391,6 +405,11 @@ def update_submodule(submodule: Path, root: Path, ref: str,
     ).stdout.strip()
 
     if fetch:
+        # Convert a shallow submodule clone to a full one so any historical
+        # `ref` (old tags, distant commits) resolves. `--unshallow` errors on
+        # an already-complete repo, so only run it when actually shallow.
+        if is_shallow_repo(submodule):
+            run(["git", "fetch", "origin", "--unshallow"], cwd=submodule)
         run(["git", "fetch", "--tags", "origin"], cwd=submodule)
 
     new_sha = run(
