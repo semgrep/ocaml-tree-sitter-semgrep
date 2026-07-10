@@ -48,7 +48,7 @@ test: build
 # Run the Python test suites (not run by 'make test'). For full coverage, the
 # pinned tree-sitter versions must be installed ('make setup-tree-sitter-versions').
 # Uses the 'pytest' on PATH if present, otherwise falls back to 'python3 -m pytest'.
-PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py
+PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py scripts/test_propose_grammar_update.py
 .PHONY: test-python
 test-python:
 	@if command -v pytest >/dev/null 2>&1; then \

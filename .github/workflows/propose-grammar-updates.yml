@@ -1,0 +1,308 @@
+name: Propose grammar updates
+
+# Scheduled driver that proposes upstream tree-sitter grammar updates as PRs
+# in THIS repo. For each language it bumps to the latest stable release tag,
+# regenerates corpus snapshots, runs test-lang, and opens a PR only when the
+# bump is green. The propose job never touches the downstream semgrep-<lang>
+# repos (update-grammar --skip-release; GITHUB_TOKEN is same-repo only); the
+# separate integrate job then releases each green bump to semgrep-<lang> via
+# PR. semgrep-proprietary integration is deliberately out of scope.
+#
+# See scripts/propose-grammar-update for the per-language logic.
+
+on:
+  # Scheduled runs are DISABLED for now — re-enable by uncommenting when the
+  # team is ready to let this run unattended.
+  # schedule:
+  #   - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      language:
+        description: "Language to propose (a name like 'php', or 'all'/blank for every language)"
+        required: false
+      run_review_agent:
+        description: "On test-lang failure, dispatch a Cursor agent (fix-semgrep-grammar skill) to adapt the extension grammar/tests. Off = failing bumps are just reported as failed; no Cursor dispatch ever happens."
+        type: boolean
+        default: false
+      dry_run:
+        description: "Full pipeline (build, bump, snapshot regen, test-lang) but push nothing: no PR here, integrate job skipped."
+        type: boolean
+        default: false
+
+permissions:
+  contents: write         # push grammar-update/* branches in THIS repo
+  pull-requests: write    # open PRs
+  issues: write           # optional failure/no-tags tracking
+
+jobs:
+  enumerate:
+    name: Enumerate languages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # cheap: checkout + ~47 ls-remote calls
+    outputs:
+      languages: ${{ steps.list.outputs.languages }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - id: list
+        # A single dispatched language overrides the full set. The input is
+        # untrusted, so it goes through an env var (never interpolated into
+        # the script) and is validated against the known language set before
+        # use — both to prevent shell injection and to reject typos early.
+        env:
+          # A specific language name targets just that one; 'all' or blank
+          # (and scheduled runs) => every language. Untrusted input goes via
+          # env (never interpolated into the script) and is validated against
+          # the known set — prevents shell injection and rejects typos.
+          INPUT_LANGUAGE: ${{ github.event.inputs.language }}
+        run: |
+          if [ -n "$INPUT_LANGUAGE" ] && [ "$INPUT_LANGUAGE" != "all" ]; then
+            # Single named language: validate against the FULL set (a manual
+            # run may target a language even just to re-check it — no filter).
+            valid=$(python scripts/propose-grammar-update --list-languages --json)
+            echo "$valid" | python -c "import json,sys; ls=json.load(sys.stdin); sys.exit(0 if sys.argv[1] in ls else 1)" "$INPUT_LANGUAGE" \
+              || { echo "Unknown language: $INPUT_LANGUAGE" >&2; exit 1; }
+            echo "languages=$(python -c 'import json,os; print(json.dumps([os.environ["INPUT_LANGUAGE"]]))')" >> "$GITHUB_OUTPUT"
+          else
+            # 'all'/blank/scheduled: only languages actually behind their latest
+            # tag, so up-to-date ones never enter the expensive build matrix.
+            echo "languages=$(python scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
+          fi
+
+  propose:
+    name: Propose ${{ matrix.language }}
+    needs: enumerate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # OCaml build (~15m) + test-lang + possible review agent
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      # Install OCaml + opam directly (the old returntocorp/ocaml image is
+      # not pullable from Actions). setup-ocaml provides the toolchain the
+      # `make setup/make/make install` build needs.
+      - uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
+        with:
+          ocaml-compiler: "5"
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      # The org requires verified (signed) commits on all branches, so the
+      # bump commit must be GPG-signed by a key registered on the authoring
+      # GitHub account. Import the bot key and turn on signing globally.
+      - name: Set up GPG signing
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GRAMMAR_BOT_GPG_PRIVATE_KEY }}
+          GPG_EMAIL: ${{ secrets.GRAMMAR_BOT_GPG_EMAIL }}
+        run: |
+          export GNUPGHOME="$HOME/.gnupg"
+          mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
+          # Loopback pinentry so gpg never tries to use a tty in CI
+          # ("Inappropriate ioctl for device"). The key has no passphrase.
+          echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
+          echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+          # The secret is base64-encoded so newlines in the armored key can't
+          # be mangled in transit. Decode before importing.
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
+            | awk -F: '/^sec:/ {print $5; exit}')
+          git config --global user.name "semgrep-grammar-bot"
+          git config --global user.email "$GPG_EMAIL"
+          git config --global user.signingkey "$key_id"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+      # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
+      - name: Rewrite SSH submodule URLs to HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - run: git submodule update --init --recursive --depth 1
+      - run: ./core/scripts/setup-node
+      # Cache the opam/dune + tree-sitter build, keyed on the core submodule
+      # SHA so it only rebuilds when core changes.
+      - id: core-sha
+        run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            core/_build
+            core/tree-sitter
+          key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+      - run: opam exec -- make setup
+      - run: opam exec -- make
+      - run: opam exec -- make install
+      # The load-bearing PATH fix: test-lang / Makefiles call bare
+      # `tree-sitter` from PATH. It MUST be the version update-grammar
+      # installed (in core/tree-sitter/bin), not whatever else is around.
+      # This step must come AFTER `make install` populates that dir.
+      - name: Put pinned tree-sitter CLI on PATH
+        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
+      # The review agent (Cursor dispatch on a failing test-lang) is an
+      # explicit opt-in via the run_review_agent input: without it, neither
+      # the CLI nor the API key is even present on the runner, so no grammar
+      # source or test logs can ever leave it.
+      - name: Install Cursor agent CLI
+        if: inputs.run_review_agent
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+      - name: Propose update
+        env:
+          # NOTE: PRs created with GITHUB_TOKEN do not trigger other GitHub
+          # Actions workflows (documented GitHub behavior) — so python-tests
+          # won't run on the auto-PRs. CircleCI (the heavy grammar CI) still
+          # triggers via its own webhook integration. If Actions CI on these
+          # PRs is wanted later, swap in a PAT / GitHub App token here.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURSOR_API_KEY: ${{ inputs.run_review_agent && secrets.CURSOR_API_KEY || '' }}
+          RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # opam exec puts the switch bin on PATH so the nested test-lang ->
+          # make gen-c can find the `ocaml-tree-sitter` binary (installed by
+          # `make install`). Without it: "ocaml-tree-sitter: command not found".
+          mode="--open-pr"
+          if [ "$DRY_RUN" = "true" ]; then mode="--dry-run"; fi
+          flags=""
+          if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
+            | tee "result-${{ matrix.language }}.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: result-${{ matrix.language }}
+          path: result-${{ matrix.language }}.json
+          if-no-files-found: ignore
+
+  # Downstream hand-off, deliberately SEPARATE from `propose`: it carries
+  # broader credentials (push to semgrep-<lang>), which the auth-minimal
+  # this-repo PR job above must not have. Runs the same matrix but acts only
+  # on languages that came back `updated`. It releases the validated parser
+  # to semgrep-<lang> via PR and stops there — semgrep-proprietary
+  # integration is left to the existing Cursor workflow on that repo.
+  integrate:
+    name: Integrate ${{ matrix.language }}
+    needs: [enumerate, propose]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45   # build + lang/release (~18m)
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: result-${{ matrix.language }}
+          path: result
+        continue-on-error: true   # no artifact => this language wasn't proposed
+      - name: Skip unless this language was updated
+        id: gate
+        run: |
+          f="result/result-${{ matrix.language }}.json"
+          if [ -f "$f" ] && [ "$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status'))" "$f")" = "updated" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.go == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - if: steps.gate.outputs.go == 'true'
+        uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
+        with:
+          ocaml-compiler: "5"
+      - if: steps.gate.outputs.go == 'true'
+        name: Set up GPG signing
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GRAMMAR_BOT_GPG_PRIVATE_KEY }}
+          GPG_EMAIL: ${{ secrets.GRAMMAR_BOT_GPG_EMAIL }}
+        run: |
+          export GNUPGHOME="$HOME/.gnupg"
+          mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"
+          # Loopback pinentry so gpg never tries to use a tty in CI
+          # ("Inappropriate ioctl for device"). The key has no passphrase.
+          echo "pinentry-mode loopback" > "$GNUPGHOME/gpg.conf"
+          echo "allow-loopback-pinentry" > "$GNUPGHOME/gpg-agent.conf"
+          gpgconf --kill gpg-agent || true
+          # The secret is base64-encoded so newlines in the armored key can't
+          # be mangled in transit. Decode before importing.
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          key_id=$(gpg --list-secret-keys --keyid-format=long --with-colons \
+            | awk -F: '/^sec:/ {print $5; exit}')
+          git config --global user.name "semgrep-grammar-bot"
+          git config --global user.email "$GPG_EMAIL"
+          git config --global user.signingkey "$key_id"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+      - if: steps.gate.outputs.go == 'true'
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - if: steps.gate.outputs.go == 'true'
+        run: git submodule update --init --recursive --depth 1
+      - if: steps.gate.outputs.go == 'true'
+        run: ./core/scripts/setup-node
+      - if: steps.gate.outputs.go == 'true'
+        run: opam exec -- make setup && opam exec -- make && opam exec -- make install
+      - if: steps.gate.outputs.go == 'true'
+        name: Put pinned tree-sitter CLI on PATH
+        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
+      - if: steps.gate.outputs.go == 'true'
+        name: Release to semgrep-${{ matrix.language }}
+        env:
+          # Pushing to the downstream semgrep-<lang> repos needs broader
+          # creds than GITHUB_TOKEN.
+          GH_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
+          GITHUB_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
+        run: |
+          # Make git's HTTPS pushes (lang/release clones + pushes
+          # semgrep-<lang> via the insteadOf rewrite) authenticate with the
+          # PAT. Without this, `git push` has no credential helper and the
+          # downstream release fails.
+          gh auth setup-git
+          # opam exec: same reason as the propose job — the nested
+          # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
+          # --result: release the exact tag/branch the propose job validated
+          # (from its artifact), never a live re-resolved one.
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release \
+            --result "result/result-${{ matrix.language }}.json"
+
+  summary:
+    name: Summary
+    needs: [propose, integrate]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10   # download artifacts + render summary
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: results
+          merge-multiple: true
+      - name: Render summary
+        run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
