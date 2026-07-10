@@ -9,6 +9,7 @@ by the integration run in the workflow.
 
 from __future__ import annotations
 
+import sys
 import unittest
 import unittest.mock
 from importlib.machinery import SourceFileLoader
@@ -24,6 +25,9 @@ def _load_script_module():
     loader = SourceFileLoader("propose_grammar_update", str(SCRIPT_PATH))
     spec = spec_from_loader("propose_grammar_update", loader)
     module = module_from_spec(spec)
+    # @dataclass resolves field types via sys.modules[cls.__module__], so the
+    # module must be registered BEFORE exec runs the class definitions.
+    sys.modules["propose_grammar_update"] = module
     spec.loader.exec_module(module)
     return module
 
@@ -163,11 +167,11 @@ class TestPrShaping(unittest.TestCase):
         )
 
     def test_pr_body_has_key_fields_and_footer(self):
-        result = {
-            "language": "python", "ts_version": "0.26.3",
-            "old_sha": "old123", "new_sha": "new456", "new_tag": "v0.25.0",
-            "corpus_diff": "- a\n+ b", "test_log_tail": "ok",
-        }
+        result = pg.Result(
+            language="python", ts_version="0.26.3",
+            old_sha="old123", new_sha="new456", new_tag="v0.25.0",
+            corpus_diff="- a\n+ b", test_log_tail="ok",
+        )
         body = pg.pr_body(result, "https://github.com/tree-sitter/tree-sitter-python.git")
         self.assertIn("v0.25.0", body)
         self.assertIn("old123", body)
@@ -176,11 +180,10 @@ class TestPrShaping(unittest.TestCase):
         self.assertIn("Claude Code", body)        # required footer
 
     def test_pr_body_handles_empty_diff(self):
-        result = {
-            "language": "php", "ts_version": "0.26.3",
-            "old_sha": "o", "new_sha": "n", "new_tag": "v0.24.2",
-            "corpus_diff": "", "test_log_tail": "",
-        }
+        result = pg.Result(
+            language="php", ts_version="0.26.3",
+            old_sha="o", new_sha="n", new_tag="v0.24.2",
+        )
         body = pg.pr_body(result, "https://github.com/tree-sitter/tree-sitter-php.git")
         self.assertIn("_No corpus snapshot changes._", body)
 
@@ -217,21 +220,22 @@ class TestProposeFailurePath(unittest.TestCase):
     these tests fail loudly if it regresses.
     """
 
-    TARGET = {
-        "language": "php", "wrapper": "php", "ts_version": "0.26.3",
-        "submodule": Path("/tmp/sub"), "url": "https://x/y.git",
-        "tag": "v0.24.2", "skip_reason": None,
-    }
+    TARGET = pg.Target(
+        language="php", wrapper="php", submodule=Path("/tmp/sub"),
+        ts_version="0.26.3", url="https://x/y.git", tag="v0.24.2",
+    )
 
-    def _run(self, test_returncodes):
+    def _run(self, test_returncodes, review_agent=True):
         """Run propose() with mocked internals; test_returncodes drives the
-        test-lang result(s) in sequence (first run, then post-agent re-run)."""
+        test-lang result(s) in sequence (first run, then post-agent re-run).
+        Returns (result, review_agent_mock)."""
         import subprocess as sp
         calls = iter(test_returncodes)
 
         def fake_test(_lang, _root):
             return sp.CompletedProcess([], next(calls), stdout="log", stderr="")
 
+        agent = unittest.mock.Mock(return_value=None)
         with unittest.mock.patch.multiple(
             pg,
             run_update_grammar=lambda *a, **k: sp.CompletedProcess([], 0, "", ""),
@@ -239,65 +243,73 @@ class TestProposeFailurePath(unittest.TestCase):
             regenerate_snapshots=lambda *a, **k: None,
             corpus_diff=lambda *a, **k: "",
             run_test_lang=fake_test,
-            run_review_agent=lambda *a, **k: None,
+            run_review_agent=agent,
             reset_language_state=lambda *a, **k: None,
         ):
-            return pg.propose(Path("."), dict(self.TARGET), keep=False)
+            result = pg.propose(Path("."), self.TARGET, keep=False,
+                                review_agent=review_agent)
+        return result, agent
 
     def test_failure_returns_failed_not_nameerror(self):
         # test-lang fails, agent runs, re-test still fails -> STATUS_FAILED,
         # and crucially NO NameError on the (formerly bare) `tag`.
-        r = self._run([1, 1])
-        self.assertEqual(r["status"], pg.STATUS_FAILED)
-        self.assertNotIn("tests_adapted", r)
+        r, agent = self._run([1, 1])
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertFalse(r.tests_adapted)
+        agent.assert_called_once()
 
     def test_agent_recovers_sets_tests_adapted(self):
         # test-lang fails, agent adapts, re-test passes -> updated + flag.
-        r = self._run([1, 0])
-        self.assertEqual(r["status"], pg.STATUS_UPDATED)
-        self.assertTrue(r["tests_adapted"])
+        r, _agent = self._run([1, 0])
+        self.assertEqual(r.status, pg.STATUS_UPDATED)
+        self.assertTrue(r.tests_adapted)
 
     def test_clean_bump_is_updated_no_agent(self):
-        r = self._run([0])
-        self.assertEqual(r["status"], pg.STATUS_UPDATED)
-        self.assertNotIn("tests_adapted", r)
+        r, agent = self._run([0])
+        self.assertEqual(r.status, pg.STATUS_UPDATED)
+        self.assertFalse(r.tests_adapted)
+        agent.assert_not_called()
+
+    def test_agent_not_dispatched_unless_opted_in(self):
+        # The Cursor dispatch is an explicit opt-in: with review_agent=False
+        # a failing bump is reported failed and the agent is NEVER invoked.
+        r, agent = self._run([1], review_agent=False)
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertIn("not enabled", r.detail)
+        agent.assert_not_called()
 
 
-class TestAgentPrompt(unittest.TestCase):
-    ORIGIN = "semgrep/ocaml-tree-sitter-semgrep"
+class TestResultArtifact(unittest.TestCase):
+    """The result-<lang>.json contract between the propose and integrate jobs.
 
-    def test_references_correct_proprietary_paths(self):
-        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
-                            self.ORIGIN, "42")
-        self.assertIn("OSS/languages/php/tree-sitter/semgrep-php", p)
-        self.assertIn("Parse_php_tree_sitter.ml", p)
-        self.assertIn("grammar-update/php/v0.24.2", p)
-        self.assertIn("v0.24.2", p)
-        self.assertIn("draft PR", p)
+    The integrate job releases the tag/branch read back from this artifact
+    (never a live re-resolved tag), so the round-trip must preserve them.
+    """
 
-    def test_aliased_language_uses_wrapper_for_submodule(self):
-        # apex's submodule wrapper is sfapex; the parse file stays apex.
-        p = pg.agent_prompt("apex", "sfapex", "grammar-update/apex/v2.3", "v2.3",
-                            self.ORIGIN, "7")
-        self.assertIn("semgrep-sfapex", p)
-        self.assertIn("Parse_apex_tree_sitter.ml", p)
+    def test_round_trip_preserves_validated_tag_and_branch(self):
+        r = pg.Result(language="php", ts_version="0.26.3", new_tag="v0.24.2",
+                      status="updated", branch="grammar-update/php/v0.24.2")
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-php.json"
+            path.write_text(r.to_json())
+            back = pg.Result.from_file(path)
+        self.assertEqual(back.new_tag, "v0.24.2")
+        self.assertEqual(back.branch, "grammar-update/php/v0.24.2")
+        self.assertEqual(back.status, "updated")
 
-    def test_report_back_loop_present(self):
-        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
-                            self.ORIGIN, "42")
-        # Must tell the agent how to reach the originating PR and signal failure.
-        self.assertIn("PR #42", p)
-        self.assertIn(self.ORIGIN, p)
-        self.assertIn(pg.DOWNSTREAM_BLOCKED_LABEL, p)
-        self.assertIn("On SUCCESS", p)
-        self.assertIn("FAILURE", p)
+    def test_to_json_drops_nones_keeps_falsy(self):
+        import json
+        d = json.loads(pg.Result(language="php").to_json())
+        self.assertNotIn("status", d)           # None dropped
+        self.assertEqual(d["tests_adapted"], False)  # real bool kept
 
-    def test_handles_unknown_pr_number(self):
-        # If the PR lookup failed, the prompt still references the branch.
-        p = pg.agent_prompt("php", "php", "grammar-update/php/v0.24.2", "v0.24.2",
-                            self.ORIGIN, None)
-        self.assertIn("grammar-update/php/v0.24.2", p)
-        self.assertIn(self.ORIGIN, p)
+    def test_from_file_ignores_unknown_keys(self):
+        # Forward compat: an artifact written by a newer script version with
+        # extra fields must still load.
+        with TemporaryDirectory() as d:
+            path = Path(d) / "r.json"
+            path.write_text('{"language": "php", "status": "updated", "novel": 1}')
+            self.assertEqual(pg.Result.from_file(path).status, "updated")
 
 
 ###############################################################################
@@ -313,11 +325,10 @@ class TestUpToDateFilter(unittest.TestCase):
         return (
             unittest.mock.patch.object(
                 pg, "resolve_target",
-                lambda root, lang: {
-                    "language": lang, "wrapper": lang, "ts_version": "0.26.3",
-                    "submodule": Path("/tmp/sub"), "url": url, "tag": tag,
-                    "skip_reason": None,
-                },
+                lambda root, lang: pg.Target(
+                    language=lang, wrapper=lang, submodule=Path("/tmp/sub"),
+                    ts_version="0.26.3", url=url, tag=tag,
+                ),
             ),
             unittest.mock.patch.object(pg, "recorded_submodule_sha", lambda r, s: recorded),
             unittest.mock.patch.object(pg, "tag_commit_sha", lambda u, t: tag_sha),
@@ -336,8 +347,10 @@ class TestUpToDateFilter(unittest.TestCase):
     def test_none_when_no_tag(self):
         with unittest.mock.patch.object(
             pg, "resolve_target",
-            lambda root, lang: {"skip_reason": None, "tag": None, "url": "u",
-                                "submodule": Path("/tmp/s")},
+            lambda root, lang: pg.Target(
+                language=lang, wrapper=lang, submodule=Path("/tmp/s"),
+                url="u", tag=None,
+            ),
         ):
             self.assertIsNone(pg.is_up_to_date(Path("."), "php"))
 
@@ -364,15 +377,16 @@ class TestReviewAgent(unittest.TestCase):
             os.environ.pop("GRAMMAR_BASE_BRANCH", None)
 
     def test_pr_body_flags_agent_adaptation(self):
-        base = {
-            "language": "php", "ts_version": "0.26.3",
-            "old_sha": "o", "new_sha": "n", "new_tag": "v0.24.2",
-            "corpus_diff": "- a\n+ b", "test_log_tail": "ok",
-        }
+        import dataclasses
+        base = pg.Result(
+            language="php", ts_version="0.26.3",
+            old_sha="o", new_sha="n", new_tag="v0.24.2",
+            corpus_diff="- a\n+ b", test_log_tail="ok",
+        )
         url = "https://github.com/tree-sitter/tree-sitter-php.git"
         self.assertNotIn("agent adapted", pg.pr_body(base, url).lower())
-        self.assertIn("agent adapted",
-                      pg.pr_body({**base, "tests_adapted": True}, url).lower())
+        adapted = dataclasses.replace(base, tests_adapted=True)
+        self.assertIn("agent adapted", pg.pr_body(adapted, url).lower())
 
 
 ###############################################################################

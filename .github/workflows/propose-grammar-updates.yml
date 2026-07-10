@@ -3,8 +3,10 @@ name: Propose grammar updates
 # Scheduled driver that proposes upstream tree-sitter grammar updates as PRs
 # in THIS repo. For each language it bumps to the latest stable release tag,
 # regenerates corpus snapshots, runs test-lang, and opens a PR only when the
-# bump is green. It never pushes to the downstream semgrep-<lang> repos (the
-# driver uses update-grammar --skip-release; GITHUB_TOKEN is same-repo only).
+# bump is green. The propose job never touches the downstream semgrep-<lang>
+# repos (update-grammar --skip-release; GITHUB_TOKEN is same-repo only); the
+# separate integrate job then releases each green bump to semgrep-<lang> via
+# PR. semgrep-proprietary integration is deliberately out of scope.
 #
 # See scripts/propose-grammar-update for the per-language logic.
 
@@ -18,8 +20,8 @@ on:
       language:
         description: "Language to propose (a name like 'php', or 'all'/blank for every language)"
         required: false
-      run_integration:
-        description: "Also run the semgrep-proprietary integration agent (downstream release always runs; this only gates the Cursor agent)"
+      run_review_agent:
+        description: "On test-lang failure, dispatch a Cursor agent (fix-semgrep-grammar skill) to adapt the extension grammar/tests. Off = failing bumps are just reported as failed; no Cursor dispatch ever happens."
         type: boolean
         default: false
 
@@ -143,10 +145,12 @@ jobs:
       # This step must come AFTER `make install` populates that dir.
       - name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
-      # The driver invokes a Cursor agent to review + adapt tests when a bump
-      # makes test-lang fail (a mechanical upstream CST rename). Install the
-      # `agent` CLI so it's available if that path triggers.
+      # The review agent (Cursor dispatch on a failing test-lang) is an
+      # explicit opt-in via the run_review_agent input: without it, neither
+      # the CLI nor the API key is even present on the runner, so no grammar
+      # source or test logs can ever leave it.
       - name: Install Cursor agent CLI
+        if: inputs.run_review_agent
         run: |
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
@@ -158,12 +162,15 @@ jobs:
           # triggers via its own webhook integration. If Actions CI on these
           # PRs is wanted later, swap in a PAT / GitHub App token here.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CURSOR_API_KEY: ${{ inputs.run_review_agent && secrets.CURSOR_API_KEY || '' }}
+          RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
         run: |
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr \
+          flags=""
+          if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --open-pr $flags \
             | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -173,16 +180,17 @@ jobs:
           if-no-files-found: ignore
 
   # Downstream hand-off, deliberately SEPARATE from `propose`: it carries
-  # broader credentials (push to semgrep-<lang>, launch a Cursor agent),
-  # which the auth-minimal this-repo PR job above must not have. Runs the
-  # same matrix but acts only on languages that came back `updated`, and
-  # fires automatically on every green bump.
+  # broader credentials (push to semgrep-<lang>), which the auth-minimal
+  # this-repo PR job above must not have. Runs the same matrix but acts only
+  # on languages that came back `updated`. It releases the validated parser
+  # to semgrep-<lang> via PR and stops there — semgrep-proprietary
+  # integration is left to the existing Cursor workflow on that repo.
   integrate:
     name: Integrate ${{ matrix.language }}
     needs: [enumerate, propose]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45   # build + lang/release + integration agent (~18m)
+    timeout-minutes: 45   # build + lang/release (~18m)
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -252,35 +260,24 @@ jobs:
         name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
       - if: steps.gate.outputs.go == 'true'
-        name: Release to semgrep-${{ matrix.language }} and trigger Cursor agent
+        name: Release to semgrep-${{ matrix.language }}
         env:
           # Pushing to the downstream semgrep-<lang> repos needs broader
-          # creds than GITHUB_TOKEN; the Cursor agent needs its own key.
+          # creds than GITHUB_TOKEN.
           GH_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
           GITHUB_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          # Untrusted dispatch input via env (never interpolated into the
-          # script) to avoid shell injection.
-          RUN_INTEGRATION: ${{ github.event.inputs.run_integration }}
         run: |
           # Make git's HTTPS pushes (lang/release clones + pushes
           # semgrep-<lang> via the insteadOf rewrite) authenticate with the
           # PAT. Without this, `git push` has no credential helper and the
           # downstream release fails.
           gh auth setup-git
-          curl https://cursor.com/install -fsS | bash
-          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.cursor/bin:$PATH"
-          # The downstream release always runs; the Cursor agent (proprietary
-          # PR) is opt-in via run_integration — default OFF, so pass --no-agent
-          # unless explicitly enabled.
-          agent_flag=""
-          if [ "$RUN_INTEGRATION" != "true" ]; then
-            agent_flag="--no-agent"
-          fi
           # opam exec: same reason as the propose job — the nested
           # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger $agent_flag
+          # --result: release the exact tag/branch the propose job validated
+          # (from its artifact), never a live re-resolved one.
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release \
+            --result "result/result-${{ matrix.language }}.json"
 
   summary:
     name: Summary
