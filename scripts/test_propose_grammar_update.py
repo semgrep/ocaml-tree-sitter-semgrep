@@ -225,7 +225,8 @@ class TestProposeFailurePath(unittest.TestCase):
         ts_version="0.26.3", url="https://x/y.git", tag="v0.24.2",
     )
 
-    def _run(self, test_returncodes, review_agent=True):
+    def _run(self, test_returncodes, review_agent=True, bump_rc=0,
+             shas=("OLD", "NEW")):
         """Run propose() with mocked internals; test_returncodes drives the
         test-lang result(s) in sequence (first run, then post-agent re-run).
         Returns (result, review_agent_mock)."""
@@ -238,8 +239,9 @@ class TestProposeFailurePath(unittest.TestCase):
         agent = unittest.mock.Mock(return_value=None)
         with unittest.mock.patch.multiple(
             pg,
-            run_update_grammar=lambda *a, **k: sp.CompletedProcess([], 0, "", ""),
-            submodule_head=unittest.mock.Mock(side_effect=["OLD", "NEW"]),
+            run_update_grammar=lambda *a, **k: sp.CompletedProcess(
+                [], bump_rc, "bump-log", ""),
+            submodule_head=unittest.mock.Mock(side_effect=list(shas)),
             regenerate_snapshots=lambda *a, **k: None,
             corpus_diff=lambda *a, **k: "",
             run_test_lang=fake_test,
@@ -277,6 +279,24 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_FAILED)
         self.assertIn("not enabled", r.detail)
         agent.assert_not_called()
+
+    def test_failed_bump_without_move_is_failed_not_noop(self):
+        # update-grammar dies before moving the submodule -> must surface
+        # as failed (previously misclassified as no-op).
+        r, _agent = self._run([], bump_rc=1, shas=("OLD", "OLD"))
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertEqual(r.detail, "update-grammar failed")
+        self.assertIn("bump-log", r.test_log_tail)
+
+    def test_clean_noop_still_noop(self):
+        r, _agent = self._run([], bump_rc=0, shas=("OLD", "OLD"))
+        self.assertEqual(r.status, pg.STATUS_NO_OP)
+
+    def test_failed_bump_with_move_proceeds_to_test_lang(self):
+        # Non-zero bump but the submodule moved: expected (its internal
+        # test-lang fails on stale snapshots) — our re-test decides.
+        r, _agent = self._run([0], bump_rc=1)
+        self.assertEqual(r.status, pg.STATUS_UPDATED)
 
 
 class TestResultArtifact(unittest.TestCase):
@@ -392,6 +412,57 @@ class TestReviewAgent(unittest.TestCase):
 ###############################################################################
 # Misc helpers #
 ###############################################################################
+
+
+class TestTagCommitSha(unittest.TestCase):
+    """Annotated tags must resolve to the PEELED commit, not the tag object.
+
+    ls-remote sorts by refname, so the plain (tag-object) line comes first;
+    grabbing it made every annotated-tag language look permanently behind.
+    """
+
+    def _with_ls_remote(self, stdout):
+        import subprocess as sp
+        return unittest.mock.patch.object(
+            pg, "git_query",
+            lambda cmd, cwd: sp.CompletedProcess(cmd, 0, stdout, ""),
+        )
+
+    def test_annotated_tag_prefers_peeled_sha(self):
+        out = ("tagobj111\trefs/tags/v1.0.0\n"
+               "commit222\trefs/tags/v1.0.0^{}\n")
+        with self._with_ls_remote(out):
+            self.assertEqual(pg.tag_commit_sha("u", "v1.0.0"), "commit222")
+
+    def test_lightweight_tag_falls_back_to_plain(self):
+        with self._with_ls_remote("commit333\trefs/tags/v1.0.0\n"):
+            self.assertEqual(pg.tag_commit_sha("u", "v1.0.0"), "commit333")
+
+    def test_no_output_returns_none(self):
+        with self._with_ls_remote(""):
+            self.assertIsNone(pg.tag_commit_sha("u", "v1.0.0"))
+
+
+class TestExistingProposal(unittest.TestCase):
+    """The cheap pre-build check for an already-proposed lang+tag."""
+
+    TARGET = pg.Target(language="php", wrapper="php", submodule=Path("/tmp/s"),
+                       ts_version="0.26.3", tag="v0.24.2")
+
+    def test_existing_branch_short_circuits(self):
+        with unittest.mock.patch.object(pg, "proposal_exists", lambda r, b: True):
+            r = pg.existing_proposal(Path("."), self.TARGET)
+        self.assertEqual(r.status, pg.STATUS_EXISTS)
+        self.assertEqual(r.branch, "grammar-update/php/v0.24.2")
+
+    def test_absent_branch_returns_none(self):
+        with unittest.mock.patch.object(pg, "proposal_exists", lambda r, b: False):
+            self.assertIsNone(pg.existing_proposal(Path("."), self.TARGET))
+
+    def test_no_tag_returns_none(self):
+        import dataclasses
+        target = dataclasses.replace(self.TARGET, tag=None)
+        self.assertIsNone(pg.existing_proposal(Path("."), target))
 
 
 class TestEnvValidation(unittest.TestCase):

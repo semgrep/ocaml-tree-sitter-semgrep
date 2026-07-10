@@ -164,14 +164,16 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
 
     stdout is reserved for the single JSON result line, so git/gh output
     must never go there (it would corrupt the contract and the workflow's
-    `tee`'d artifact). Captures and re-emits on stderr.
+    `tee`'d artifact). The child's stderr is merged into its stdout at
+    capture time (stderr=STDOUT) so the re-emitted log keeps the original
+    interleaving.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
-    r = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=False)
+    r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     sys.stderr.write(r.stdout)
-    sys.stderr.write(r.stderr)
     if r.returncode != 0:
-        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout, r.stderr)
+        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
 
 
 def version_key(tag: str) -> tuple[int, ...]:
@@ -290,12 +292,28 @@ def recorded_submodule_sha(root: Path, submodule: Path) -> str | None:
 
 
 def tag_commit_sha(url: str, tag: str) -> str | None:
-    """Resolve `tag` to a commit SHA on the remote (peeling annotated tags)."""
+    """Resolve `tag` to a commit SHA on the remote (peeling annotated tags).
+
+    ls-remote sorts output by refname, so the plain tag ref comes before
+    its peeled `^{}` line — and for annotated tags the plain ref is the
+    tag OBJECT, which would never match a gitlink commit SHA. Prefer the
+    peeled line; lightweight tags have no peeled line, so fall back.
+    """
     out = git_query(
         ["git", "ls-remote", url, f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}"],
         cwd=Path.cwd(),
     ).stdout
-    return out.split()[0] if out.strip() else None
+    peeled = plain = None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        sha, ref = parts
+        if ref.endswith("^{}"):
+            peeled = sha
+        else:
+            plain = sha
+    return peeled or plain
 
 
 def is_up_to_date(root: Path, language: str) -> bool | None:
@@ -429,6 +447,23 @@ def proposal_exists(root: Path, branch: str) -> bool:
         cwd=root,
     )
     return local.returncode == 0
+
+
+def existing_proposal(root: Path, target: Target) -> Result | None:
+    """Result for an already-proposed lang+tag, or None if there is none.
+
+    Runs before the expensive build so a re-run on an in-flight proposal
+    costs seconds, not a full bump/test cycle. open_pr() re-checks right
+    before pushing, so the small race window stays covered.
+    """
+    if target.tag is None:
+        return None
+    branch = branch_name(target.language, target.tag)
+    if not proposal_exists(root, branch):
+        return None
+    return Result(language=target.language, ts_version=target.ts_version,
+                  new_tag=target.tag, status=STATUS_EXISTS, branch=branch,
+                  detail=f"branch {branch} already exists")
 
 
 def compare_url(url: str, old_sha: str, new_tag: str) -> str:
@@ -622,11 +657,21 @@ def propose(root: Path, target: Target, keep: bool = False,
         run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
 
     try:
+        # A non-zero bump with a MOVED submodule is expected (update-grammar's
+        # own final test-lang fails on the stale snapshots we regenerate next);
+        # our re-run below is the authoritative signal. But an unchanged
+        # submodule is only a real no-op if the bump itself succeeded —
+        # otherwise it failed before doing anything and must be surfaced.
         bump = run_update_grammar(language, target.ts_version, tag, root)
         new_sha = submodule_head(submodule)
         result.new_sha = new_sha
 
         if new_sha == old_sha:
+            if bump.returncode != 0:
+                result.status = STATUS_FAILED
+                result.detail = "update-grammar failed"
+                result.test_log_tail = tail(bump.stdout + bump.stderr)
+                return result
             result.status = STATUS_NO_OP
             return result
 
@@ -1002,8 +1047,12 @@ def main() -> int:
 
     # keep=True (do the work on the PR branch, commit it) only for a real
     # --open-pr run; --dry-run and classify-only leave the tree reset.
+    # In keep mode, bail cheaply if this lang+tag was already proposed
+    # (dry runs still exercise the full pipeline on purpose).
     keep = args.open_pr and not args.dry_run
-    result = propose(root, target, keep=keep, review_agent=args.review_agent)
+    result = existing_proposal(root, target) if keep else None
+    if result is None:
+        result = propose(root, target, keep=keep, review_agent=args.review_agent)
 
     # Only a green, real update is worth a PR. Everything else (no-op,
     # no-tags, failed) is reported as-is for the workflow summary.
