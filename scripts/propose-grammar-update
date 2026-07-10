@@ -917,17 +917,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
              "this AFTER the this-repo PR branch exists. Needs downstream "
              "push creds + CURSOR_API_KEY.",
     )
+    parser.add_argument(
+        "--no-agent", action="store_true",
+        help="With --release-and-trigger, do the semgrep-<lang> release only "
+             "and SKIP the semgrep-proprietary Cursor agent (opt-in step).",
+    )
     return parser.parse_args(argv)
 
 
 def run_release_and_trigger(root: Path, target: dict[str, Any],
-                            dry_run: bool) -> int:
+                            dry_run: bool, run_agent: bool = True) -> int:
     """Downstream hand-off: release to semgrep-<lang>, then launch the agent.
 
     Assumes the grammar-update/<lang>/<tag> branch already exists in this
     repo (pushed by the propose job) and is checked out. Re-applies the
     bump locally so `lang/release` has the generated sources, releases to
-    the downstream branch, and triggers the proprietary-PR agent.
+    the downstream branch, and (when `run_agent`) triggers the
+    proprietary-PR agent. `run_agent=False` does the release only — the
+    semgrep-<lang> artifact is published but the proprietary hand-off is
+    left to a separate, opt-in step.
     """
     language, wrapper, tag = target["language"], target["wrapper"], target["tag"]
     if tag is None:
@@ -959,7 +967,12 @@ def run_release_and_trigger(root: Path, target: dict[str, Any],
     if rel is not None and rel.returncode != 0:
         ug.die(f"{language}: lang/release failed; skipping agent.")
 
-    result = trigger_agent(language, wrapper, branch, tag, dry_run=dry_run)
+    if run_agent:
+        result = trigger_agent(language, wrapper, branch, tag, dry_run=dry_run)
+    else:
+        log(f"{language}: released to semgrep-{wrapper} branch {branch}; "
+            f"skipping proprietary agent (not opted in).")
+        result = {"agent": "skipped"}
     print(json.dumps({"language": language, "new_tag": tag,
                       "branch": branch, **result}))
     return 0
@@ -991,7 +1004,8 @@ def main() -> int:
         return 0
 
     if args.release_and_trigger:
-        return run_release_and_trigger(root, target, args.dry_run)
+        return run_release_and_trigger(root, target, args.dry_run,
+                                       run_agent=not args.no_agent)
 
     result = propose(root, target)
 

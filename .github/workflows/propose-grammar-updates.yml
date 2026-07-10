@@ -9,13 +9,19 @@ name: Propose grammar updates
 # See scripts/propose-grammar-update for the per-language logic.
 
 on:
-  schedule:
-    - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
+  # Scheduled runs are DISABLED for now — re-enable by uncommenting when the
+  # team is ready to let this run unattended.
+  # schedule:
+  #   - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
   workflow_dispatch:
     inputs:
       language:
-        description: "Single language to propose (optional; default: all)"
+        description: "Language to propose (a name like 'php', or 'all'/blank for every language)"
         required: false
+      run_integration:
+        description: "Also run the semgrep-proprietary integration agent (downstream release always runs; this only gates the Cursor agent)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write         # push grammar-update/* branches in THIS repo
@@ -43,19 +49,22 @@ jobs:
         # the script) and is validated against the known language set before
         # use — both to prevent shell injection and to reject typos early.
         env:
-          # Honor the dispatch input if given; empty => propose all languages.
+          # A specific language name targets just that one; 'all' or blank
+          # (and scheduled runs) => every language. Untrusted input goes via
+          # env (never interpolated into the script) and is validated against
+          # the known set — prevents shell injection and rejects typos.
           INPUT_LANGUAGE: ${{ github.event.inputs.language }}
         run: |
-          if [ -n "$INPUT_LANGUAGE" ]; then
-            # Manual dispatch of one language: validate against the FULL set
-            # (a manual run may target a language even to re-check it).
+          if [ -n "$INPUT_LANGUAGE" ] && [ "$INPUT_LANGUAGE" != "all" ]; then
+            # Single named language: validate against the FULL set (a manual
+            # run may target a language even just to re-check it — no filter).
             valid=$(python scripts/propose-grammar-update --list-languages --json)
             echo "$valid" | python -c "import json,sys; ls=json.load(sys.stdin); sys.exit(0 if sys.argv[1] in ls else 1)" "$INPUT_LANGUAGE" \
               || { echo "Unknown language: $INPUT_LANGUAGE" >&2; exit 1; }
             echo "languages=$(python -c 'import json,os; print(json.dumps([os.environ["INPUT_LANGUAGE"]]))')" >> "$GITHUB_OUTPUT"
           else
-            # Scheduled run: only languages actually behind their latest tag,
-            # so up-to-date languages never enter the expensive build matrix.
+            # 'all'/blank/scheduled: only languages actually behind their latest
+            # tag, so up-to-date ones never enter the expensive build matrix.
             echo "languages=$(python scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
           fi
 
@@ -250,6 +259,9 @@ jobs:
           GH_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
           GITHUB_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          # Untrusted dispatch input via env (never interpolated into the
+          # script) to avoid shell injection.
+          RUN_INTEGRATION: ${{ github.event.inputs.run_integration }}
         run: |
           # Make git's HTTPS pushes (lang/release clones + pushes
           # semgrep-<lang> via the insteadOf rewrite) authenticate with the
@@ -259,9 +271,16 @@ jobs:
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.cursor/bin:$PATH"
+          # The downstream release always runs; the Cursor agent (proprietary
+          # PR) is opt-in via run_integration — default OFF, so pass --no-agent
+          # unless explicitly enabled.
+          agent_flag=""
+          if [ "$RUN_INTEGRATION" != "true" ]; then
+            agent_flag="--no-agent"
+          fi
           # opam exec: same reason as the propose job — the nested
           # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger
+          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release-and-trigger $agent_flag
 
   summary:
     name: Summary
