@@ -408,3 +408,252 @@ namespace $N;
         (ellipsis)))
     (identifier)
     (ellipsis)))
+
+================================================================================
+Top-level is-pattern with null
+================================================================================
+
+$X is null
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (is_pattern_expression
+    (identifier)
+    (constant_pattern
+      (null_literal))))
+
+================================================================================
+Top-level with expression
+================================================================================
+
+$X with { $P = $V }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (with_expression
+    (identifier)
+    (with_initializer_expression
+      (simple_assignment_expression
+        (identifier)
+        (identifier)))))
+
+================================================================================
+Top-level is-pattern with property pattern
+================================================================================
+
+$X is { $P: $V }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (is_pattern_expression
+    (identifier)
+    (recursive_pattern
+      (property_pattern_clause
+        (subpattern
+          (expression_colon
+            (identifier))
+          (constant_pattern
+            (identifier)))))))
+
+================================================================================
+Top-level LINQ query expression
+================================================================================
+
+from $X in $Y where $C select $E
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (query_expression
+    (from_clause
+      (identifier)
+      (identifier))
+    (where_clause
+      (identifier))
+    (select_clause
+      (identifier))))
+
+================================================================================
+Top-level property with accessors
+================================================================================
+
+public $T $P { get; init; }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (property_declaration
+    (modifier)
+    (identifier)
+    (identifier)
+    (accessor_list
+      (accessor_declaration)
+      (accessor_declaration))))
+
+================================================================================
+Is-pattern declaration as expression statement
+================================================================================
+
+$X is $T $Y;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (is_pattern_expression
+        (identifier)
+        (declaration_pattern
+          (identifier)
+          (identifier))))))
+
+================================================================================
+Interpolated string as expression statement
+================================================================================
+
+$"hello {$X} world";
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (interpolated_string_expression
+        (interpolated_string_text)
+        (interpolation
+          (identifier))
+        (interpolated_string_text)))))
+
+================================================================================
+Lambda as expression statement
+================================================================================
+
+($X) => $E;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (lambda_expression
+        (parameter_list
+          (parameter
+            (identifier)))
+        (identifier)))))
+
+================================================================================
+Conditional access as expression statement
+================================================================================
+
+$X?.$Y;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (conditional_access_expression
+        (identifier)
+        (member_binding_expression
+          (identifier))))))
+
+================================================================================
+Typeof as expression statement
+================================================================================
+
+typeof($T);
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (type_of_expression
+        (identifier)))))
+
+================================================================================
+Range expression as expression statement
+================================================================================
+
+$X..$Y;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (range_expression
+        (identifier)
+        (identifier)))))
+
+================================================================================
+Element access with range as expression statement
+================================================================================
+
+$X[..$Y];
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (global_statement
+    (expression_statement
+      (element_access_expression
+        (identifier)
+        (bracketed_argument_list
+          (argument
+            (range_expression
+              (identifier))))))))
+
+================================================================================
+Init-style expression-bodied property
+================================================================================
+
+init $X => $Y;
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (property_declaration
+    (identifier)
+    (identifier)
+    (arrow_expression_clause
+      (identifier))))
+
+================================================================================
+Switch arm ellipsis
+================================================================================
+
+__SEMGREP_EXPRESSION
+$X switch { $P => $E, ... }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (semgrep_expression
+    (switch_expression
+      (identifier)
+      (switch_expression_arm
+        (constant_pattern
+          (identifier))
+        (identifier))
+      (switch_expression_arm
+        (ellipsis)))))
+
+================================================================================
+Type parameter ellipsis
+================================================================================
+
+class $C<...> { }
+
+--------------------------------------------------------------------------------
+
+(compilation_unit
+  (class_declaration
+    (identifier)
+    (type_parameter_list
+      (type_parameter
+        (ellipsis)))
+    (declaration_list)))
