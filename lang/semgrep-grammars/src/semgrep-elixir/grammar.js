@@ -10,6 +10,11 @@ module.exports = grammar(base_grammar, {
   name: 'elixir',
 
   conflicts: ($, previous) => previous.concat([
+    // '$...VAR' is valid both as an _expression (positional) and inside a
+    // pair (keyword). Either resolution yields ParamEllipsis in the
+    // Generic AST, so the choice is harmless; we just need to declare
+    // the conflict explicitly. See the comment on `semgrep_ellipsis`.
+    [$._expression, $.pair],
   ]),
 
   /*
@@ -48,6 +53,12 @@ module.exports = grammar(base_grammar, {
 
     _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
 
+    // Semgrep ellipsis-metavariable: '$...VAR' matches a variadic
+    // sequence and binds it to a metavariable (e.g. $...ARGS).
+    // Tokenized as a single unit so the leading '$' isn't separated
+    // from '...VAR'.
+    _semgrep_ellipsis_metavariable: $ => token(/\$\.\.\.[A-Z_][A-Z_0-9]*/),
+
     // Ellipsis
     // No need for extensions to _expressions for ellipsis because
     // Elixir already uses "..." as valid identifiers
@@ -62,6 +73,7 @@ module.exports = grammar(base_grammar, {
       return choice(
         previous,
         $.semgrep_ellipsis,
+        $._semgrep_ellipsis_metavariable,
       );
     },
 
@@ -79,6 +91,7 @@ module.exports = grammar(base_grammar, {
     _expression: ($, previous) => choice(
       ...previous.members,
       $.deep_ellipsis,
+      $._semgrep_ellipsis_metavariable,
     ),
 
     // The actual ellipsis rules
