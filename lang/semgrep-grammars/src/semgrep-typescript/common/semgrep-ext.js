@@ -80,6 +80,10 @@ module.exports = {
       $.finally_clause,
       $.catch_clause,
       $.assign_lambda,
+      // Allows standalone object destructuring patterns like `{$A = $B}`,
+      // which are otherwise unreachable from `expression`.
+      // See https://github.com/semgrep/semgrep/issues/2117.
+      $.object_pattern,
     ),
 
     method_pattern: $ => choice(
