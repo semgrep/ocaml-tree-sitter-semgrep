@@ -389,3 +389,172 @@ class Foo
 (source_file
   (class_declaration
     (type_identifier)))
+
+=====================================
+Single-line class body ellipsis
+=====================================
+
+class Foo { ... }
+
+---
+
+(source_file
+  (class_declaration
+    (type_identifier)
+    (class_body
+      (ellipsis))))
+
+=====================================
+Single-line interface body ellipsis
+=====================================
+
+interface I { ... }
+
+---
+
+(source_file
+  (class_declaration
+    (type_identifier)
+    (class_body
+      (ellipsis))))
+
+=====================================
+Single-line object body ellipsis with delegation
+=====================================
+
+object O : T { ... }
+
+---
+
+(source_file
+  (object_declaration
+    (type_identifier)
+    (delegation_specifier
+      (user_type
+        (type_identifier)))
+    (class_body
+      (ellipsis))))
+
+=====================================
+Annotation class single-line body ellipsis
+=====================================
+
+annotation class A { ... }
+
+---
+
+(source_file
+  (class_declaration
+    (modifiers
+      (class_modifier))
+    (type_identifier)
+    (class_body
+      (ellipsis))))
+
+=====================================
+Enum class single-line body ellipsis
+=====================================
+
+enum class E { ... }
+
+---
+
+(source_file
+  (class_declaration
+    (type_identifier)
+    (enum_class_body
+      (ellipsis))))
+
+=====================================
+Enum class multi-line entry ellipsis
+=====================================
+
+enum class E {
+  A,
+  B,
+  ...
+}
+
+---
+
+(source_file
+  (class_declaration
+    (type_identifier)
+    (enum_class_body
+      (enum_entry
+        (simple_identifier))
+      (enum_entry
+        (simple_identifier))
+      (enum_entry
+        (ellipsis)))))
+
+=====================================
+When expression single-line ellipsis
+=====================================
+
+fun foo() {
+  when (x) { ... }
+}
+
+---
+
+(source_file
+  (function_declaration
+    (simple_identifier)
+    (function_value_parameters)
+    (function_body
+      (statements
+        (when_expression
+          (when_subject
+            (simple_identifier))
+          (when_entry
+            (ellipsis)))))))
+
+=====================================
+When expression with branch and ellipsis
+=====================================
+
+fun foo() {
+  when (x) {
+    a -> b
+    ...
+  }
+}
+
+---
+
+(source_file
+  (function_declaration
+    (simple_identifier)
+    (function_value_parameters)
+    (function_body
+      (statements
+        (when_expression
+          (when_subject
+            (simple_identifier))
+          (when_entry
+            (when_condition
+              (simple_identifier))
+            (control_structure_body
+              (simple_identifier)))
+          (when_entry
+            (ellipsis)))))))
+
+=====================================
+When expression as assignment value
+=====================================
+
+val x = when (y) { ... }
+
+---
+
+(source_file
+  (property_declaration
+    (binding_pattern_kind)
+    (variable_declaration
+      (simple_identifier))
+    (when_expression
+      (when_subject
+        (simple_identifier))
+      (when_entry
+        (ellipsis)))))
