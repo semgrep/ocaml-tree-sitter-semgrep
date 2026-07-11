@@ -41,6 +41,12 @@ module.exports = grammar(base_grammar, {
 
     // this is from adding toplevel_explicit_constructor_invocation
     [$.type_parameter, $._unannotated_type],
+
+    // LANG-467: A bare `$...META` (or `...`) after `{` could be parsed as
+    // either an enum-constants list element or as the body of
+    // `enum_body_declarations`. GLR resolves this; the parses are
+    // operationally equivalent for Semgrep's purposes.
+    [$.enum_body, $.enum_body_declarations],
   ]),
 
   rules: {
@@ -65,9 +71,43 @@ module.exports = grammar(base_grammar, {
       $.toplevel_explicit_constructor_invocation,
     ),
 
+    // LANG-467: Allow `...` and `$...META` in the enum-constants list, and
+    // allow `$...META` (in addition to `...`) inside the post-`;` body region.
+    // Override `enum_body` wholesale since the constants list itself needs
+    // ellipsis support, which can't be reached via a `previous`-style
+    // augmentation.
+    enum_body: $ => seq(
+      '{',
+      commaSep(choice(
+        $.enum_constant,
+        $.semgrep_ellipsis,
+        $.semgrep_named_ellipsis,
+      )),
+      optional(','),
+      optional($.enum_body_declarations),
+      '}',
+    ),
+
     enum_body_declarations: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis,
+    ),
+
+    // LANG-466: allow `...` (and `$...META`) interleaved with arrow-rule
+    // switch entries. The colon-form arm already supports ellipsis via the
+    // `statement` augmentation; the arrow-rule arm needs explicit support.
+    switch_block: $ => seq(
+      '{',
+      choice(
+        repeat($.switch_block_statement_group),
+        repeat(choice(
+          $.switch_rule,
+          $.semgrep_ellipsis,
+          $.semgrep_named_ellipsis,
+        )),
+      ),
+      '}',
     ),
 
     // This is a copy of `explicit_constructor_invocation`,
@@ -111,10 +151,13 @@ module.exports = grammar(base_grammar, {
       '}',
     ),
 
-    // So we can put ellipses within annotation type declarations
+    // So we can put ellipses within annotation type declarations.
+    // LANG-469: also allow `$...META` so `@interface $A { $...ELEMENTS }`
+    // parses cleanly.
     annotation_type_element_declaration: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis,
     ),
 
     semgrep_ellipsis: $ => '...',
@@ -173,9 +216,12 @@ module.exports = grammar(base_grammar, {
       field('field', choice($.identifier, $._reserved_identifier, $.this, '...')),
     ),
 
+    // LANG-469: also allow `$...META` so patterns like
+    // `@$ANN(value = "...", $...PROPS)` parse cleanly.
     element_value_pair: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis,
+      $.semgrep_named_ellipsis,
     ),
 
 
