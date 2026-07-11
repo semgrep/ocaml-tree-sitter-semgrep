@@ -82,7 +82,14 @@ module.exports = grammar(standard_grammar, {
     */
     [$.keyword_pattern, $.pair],
     [$._primary, $.pair],
-    [$._primary, $.keyword_pattern]
+    [$._primary, $.keyword_pattern],
+    // _pattern_expr_basic can reduce to a bare semgrep_ellipsis (LANG-491);
+    // it overlaps with the existing pair / keyword_pattern / _primary
+    // ellipsis productions. Any reduction is fine for Generic.
+    [$.keyword_pattern, $._pattern_expr_basic],
+    [$._primary, $._pattern_expr_basic],
+    [$.keyword_pattern, $._pattern_expr_basic, $._primary],
+    [$._pattern_expr_basic, $._primary, $.pair]
   ]),
 
 
@@ -181,6 +188,34 @@ module.exports = grammar(standard_grammar, {
         choice(previous,
           $.semgrep_ellipsis
         ),
+
+    /* LANG-485: allow `@$X` and `@@$X` as instance/class variable metavars.
+       Upstream tree-sitter-ruby defines these as plain tokens (not via the
+       external scanner), so we can fuse a metavar form into each token.
+       High precedence so the metavar form wins over interpreting `@` as
+       its own thing. */
+    instance_variable: ($, previous) =>
+      choice(
+        previous,
+        token(prec(1000, /@\$[A-Z_][A-Z_0-9]*/))
+      ),
+
+    class_variable: ($, previous) =>
+      choice(
+        previous,
+        token(prec(1000, /@@\$[A-Z_][A-Z_0-9]*/))
+      ),
+
+    /* LANG-491: allow `...` as an element inside `[$A, $B, ...]` style
+       array/find patterns (and likewise inside hash patterns, alongside
+       the existing keyword_pattern ellipsis support). The ellipsis is a
+       valid pattern position by extending `_pattern_expr_basic`, which is
+       what `_array_pattern_body` ultimately reaches. */
+    _pattern_expr_basic: ($, previous) =>
+      choice(
+        previous,
+        $.semgrep_ellipsis
+      ),
 
     // This is so that when we see something like
     // foo ..., 3
