@@ -25,7 +25,7 @@ policy = jsonencode({
    ...
 })
 
-	 
+
 ---
 
 (config_file
@@ -37,3 +37,157 @@ policy = jsonencode({
 	        (object_start)
 		(object_elem (semgrep_ellipsis))
 		(object_end))))))))))
+
+=====================================
+Ellipsis-metavariable in tuple element
+=====================================
+
+x = [$...ITEMS]
+
+---
+
+(config_file
+  (body
+    (attribute
+      (identifier)
+      (expression
+        (collection_value
+          (tuple
+            (tuple_start)
+            (expression)
+            (tuple_end)))))))
+
+=====================================
+Ellipsis-metavariable in function arguments
+=====================================
+
+x = $F($...ARGS)
+
+---
+
+(config_file
+  (body
+    (attribute
+      (identifier)
+      (expression
+        (function_call
+          (identifier)
+          (function_arguments
+            (expression)))))))
+
+=====================================
+Ellipsis-metavariable as attribute value
+=====================================
+
+policy = jsonencode($...POLICY)
+
+---
+
+(config_file
+  (body
+    (attribute
+      (identifier)
+      (expression
+        (function_call
+          (identifier)
+          (function_arguments
+            (expression)))))))
+
+=====================================
+Ellipsis-metavariable as block body element
+=====================================
+
+resource "aws_s3_bucket" "$NAME" {
+  $...KEYS
+}
+
+---
+
+(config_file
+  (body
+    (block
+      (identifier)
+      (string_lit
+        (quoted_template_start)
+        (template_literal)
+        (quoted_template_end))
+      (string_lit
+        (quoted_template_start)
+        (template_literal)
+        (quoted_template_end))
+      (block_start)
+      (body)
+      (block_end))))
+
+=====================================
+Ellipsis-metavariable as attribute RHS
+=====================================
+
+resource "aws_s3_bucket" "$NAME" {
+  tags = $...TAGS
+}
+
+---
+
+(config_file
+  (body
+    (block
+      (identifier)
+      (string_lit
+        (quoted_template_start)
+        (template_literal)
+        (quoted_template_end))
+      (string_lit
+        (quoted_template_start)
+        (template_literal)
+        (quoted_template_end))
+      (block_start)
+      (body
+        (attribute
+          (identifier)
+          (expression)))
+      (block_end))))
+
+=====================================
+Namespaced metavariable function call
+=====================================
+
+x = $NS.$F($ARG)
+
+---
+
+(config_file
+  (body
+    (attribute
+      (identifier)
+      (expression
+        (variable_expr
+          (identifier))
+        (get_attr
+          (identifier))
+        (function_arguments
+          (expression
+            (variable_expr
+              (identifier))))))))
+
+=====================================
+Namespaced function call (no metavars)
+=====================================
+
+x = foo.bar(y)
+
+---
+
+(config_file
+  (body
+    (attribute
+      (identifier)
+      (expression
+        (variable_expr
+          (identifier))
+        (get_attr
+          (identifier))
+        (function_arguments
+          (expression
+            (variable_expr
+              (identifier))))))))
