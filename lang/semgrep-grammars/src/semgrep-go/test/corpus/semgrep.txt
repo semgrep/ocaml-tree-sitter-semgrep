@@ -1,0 +1,258 @@
+================================================================================
+Bare metavariable
+================================================================================
+
+$X
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_metavariable))
+
+================================================================================
+Bare ellipsis
+================================================================================
+
+...
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_ellipsis))
+
+================================================================================
+Ellipsis-metavariable
+================================================================================
+
+$...ARGS
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_ellipsis_metavar))
+
+================================================================================
+Call with ellipsis args
+================================================================================
+
+$F(...)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    function: (semgrep_metavariable)
+    arguments: (argument_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Method call on metavariable receiver
+================================================================================
+
+$OBJ.$M(...)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (call_expression
+    function: (selector_expression
+      operand: (semgrep_metavariable)
+      field: (semgrep_metavariable))
+    arguments: (argument_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Goroutine with metavariable
+================================================================================
+
+go $F(...)
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (go_statement
+    (call_expression
+      function: (semgrep_metavariable)
+      arguments: (argument_list
+        (semgrep_ellipsis)))))
+
+================================================================================
+If err with statement ellipsis
+================================================================================
+
+package p
+func f() { if err != nil { ... } }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    body: (block
+      (if_statement
+        condition: (binary_expression
+          left: (identifier)
+          right: (nil))
+        consequence: (block
+          (semgrep_ellipsis))))))
+
+================================================================================
+Deep ellipsis
+================================================================================
+
+<... $X ...>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_deep_expression
+    (semgrep_metavariable)))
+
+================================================================================
+Composite literal with keyed metavariable and ellipsis
+================================================================================
+
+package p
+var _ = Foo{a: b, ...}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (var_declaration
+    (var_spec
+      name: (identifier)
+      value: (expression_list
+        (composite_literal
+          type: (type_identifier)
+          body: (literal_value
+            (keyed_element
+              (literal_element
+                (identifier))
+              (literal_element
+                (identifier)))
+            (literal_element
+              (semgrep_ellipsis))))))))
+
+================================================================================
+Map literal with metavariable value type
+================================================================================
+
+package p
+var _ = map[string]$T{ ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (var_declaration
+    (var_spec
+      name: (identifier)
+      value: (expression_list
+        (composite_literal
+          type: (map_type
+            key: (type_identifier)
+            value: (semgrep_metavariable))
+          body: (literal_value
+            (literal_element
+              (semgrep_ellipsis))))))))
+
+================================================================================
+Slice literal with bookend metavariables
+================================================================================
+
+package p
+var _ = []$T{ $X, ..., $Y }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (var_declaration
+    (var_spec
+      name: (identifier)
+      value: (expression_list
+        (composite_literal
+          type: (slice_type
+            element: (semgrep_metavariable))
+          body: (literal_value
+            (literal_element
+              (semgrep_metavariable))
+            (literal_element
+              (semgrep_ellipsis))
+            (literal_element
+              (semgrep_metavariable))))))))
+
+================================================================================
+Struct with metavariable field plus ellipsis
+================================================================================
+
+package p
+type S struct { $F $T; ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      name: (type_identifier)
+      type: (struct_type
+        (field_declaration_list
+          (field_declaration
+            name: (semgrep_metavariable)
+            type: (semgrep_metavariable))
+          (field_declaration
+            (semgrep_ellipsis)))))))
+
+================================================================================
+Interface with metavariable method plus ellipsis
+================================================================================
+
+package p
+type I interface { $M(...) $T; ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      name: (type_identifier)
+      type: (interface_type
+        (method_spec
+          name: (semgrep_metavariable)
+          parameters: (parameter_list
+            (parameter_declaration
+              (semgrep_ellipsis)))
+          result: (semgrep_metavariable))
+        (method_spec
+          (semgrep_ellipsis))))))
+
+================================================================================
+Function with ellipsis parameter
+================================================================================
+
+package p
+func $F(...) { ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    name: (semgrep_metavariable)
+    parameters: (parameter_list
+      (parameter_declaration
+        (semgrep_ellipsis)))
+    body: (block
+      (semgrep_ellipsis))))
