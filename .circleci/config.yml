@@ -156,7 +156,6 @@ workflows:
                 - hcl
                 - html
                 - java
-                - javascript
                 - jsonnet
                 - julia
                 - kotlin
@@ -185,7 +184,7 @@ workflows:
   # We used to run this job everyday, but now we use a more expensive resource_class
   # and we don't really need those stats to be up-to-date by the day, so
   # we now run this cron twice a week.
-  # 
+  #
   # cron table memento below
   # (src: https://dev.to/anshuman_bhardwaj/free-cron-jobs-with-github-actions-31d6)
   # ┌────────── minute (0 - 59)

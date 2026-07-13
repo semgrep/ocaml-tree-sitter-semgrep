@@ -6,7 +6,7 @@ until `test-lang <lang>` passes.
 
 ## Inputs
 
-- `<lang>` — the `test-lang` argument (e.g. `javascript`).
+- `<lang>` — the `test-lang` argument (e.g. `typescript`).
 - *(optional)* `max-iterations` — caps the fix/re-run loop; default 20.
 - *(optional)* a budget hint — advisory; biases toward a minimal fix.
 
@@ -21,7 +21,7 @@ pins, or the CST→AST / OCaml codegen, and it never commits or opens PRs.
 
 Give an agent the language and the skill:
 
-    Use fix-semgrep-grammar to make test-lang javascript pass.
+    Use fix-semgrep-grammar to make test-lang typescript pass.
 
 Optionally add a tighter cap: `... pass, with max-iterations 5.` The skill
 asks for confirmation before letting `test-lang` run `git clean -dfX` over a
