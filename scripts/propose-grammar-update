@@ -1,4 +1,4 @@
-#!/usr/bin/env uv
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
@@ -720,7 +720,13 @@ def propose(root: Path, target: Target, keep: bool = False,
         result.status = STATUS_UPDATED
         if keep:
             # Run pre-commit on changed files to fix auto-fixable issues before staging.
-            run_quiet(["pre-commit", "run", "--files", "lang/"], cwd=root)
+            # pre-commit exits 1 if it made changes (non-fatal), so check=False
+            result = subprocess.run(
+                ["pre-commit", "run", "--files", "lang/"],
+                cwd=root, capture_output=True, text=True, check=False,
+            )
+            if result.returncode not in (0, 1):
+                raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
             run_quiet(["git", "add", "-A", "--", ".",
                        ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
             run_quiet(["git", "commit", "-m",
