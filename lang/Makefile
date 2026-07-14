@@ -35,7 +35,6 @@ SUPPORTED_TS_LANGUAGES = \
   hcl \
   html \
   java \
-  javascript \
   jsonnet \
   julia \
   kotlin \
