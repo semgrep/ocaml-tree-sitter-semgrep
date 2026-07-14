@@ -158,6 +158,8 @@ jobs:
         run: |
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pip 'gitpython>=3.1.0'
       - name: Propose update
         env:
           # NOTE: PRs created with GITHUB_TOKEN do not trigger other GitHub

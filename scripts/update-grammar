@@ -47,14 +47,8 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import NoReturn
 
-try:
-    import git
-    from git.exc import GitCommandError
-    HAS_GITPYTHON = True
-except ImportError:
-    HAS_GITPYTHON = False
-
-# Length used when abbreviating SHAs in branch names and commit messages.
+import git
+from git.exc import GitCommandError
 # Pinned so the script produces the same output regardless of the user's
 # local `core.abbrev` config.
 ABBREV_LEN = 8
@@ -235,15 +229,9 @@ def submodule_path(root: Path, lang: str) -> Path:
 
 def short_sha(submodule: Path, sha: str) -> str:
     """Return `sha` abbreviated to `ABBREV_LEN` chars."""
-    if HAS_GITPYTHON:
-        repo = git.Repo(submodule)
-        abbreviated = repo.git.rev_parse(f"--short={ABBREV_LEN}", sha)
-        return abbreviated.strip()
-    else:
-        return run(
-            ["git", "rev-parse", f"--short={ABBREV_LEN}", sha],
-            cwd=submodule, capture=True,
-        ).stdout.strip()
+    repo = git.Repo(submodule)
+    abbreviated = repo.git.rev_parse(f"--short={ABBREV_LEN}", sha)
+    return abbreviated.strip()
 
 
 def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
@@ -281,7 +269,7 @@ def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
         Path(tmp.name).replace(path)
     except BaseException:
         Path(tmp.name).unlink(missing_ok=True)
-        raise
+
 
 
 def sync_membership(names: list[str], version: str,
@@ -343,27 +331,14 @@ def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
 
 def require_clean_worktree(repo_path: Path) -> None:
     """Abort if `repo_path` has pre-existing changes."""
-    if HAS_GITPYTHON:
-        repo = git.Repo(repo_path)
-        if repo.is_dirty(untracked_files=True):
-            status = repo.git.status("--porcelain").strip()
-            die(
-                f"working tree at {repo_path} is not clean. Commit or stash changes "
-                f"before running update-grammar, or pass --skip-release.\n"
-                f"{status}"
-            )
-    else:
-        status = run(
-            ["git", "status", "--porcelain"], cwd=repo_path, capture=True,
-        ).stdout.strip()
-        if status:
-            die(
-                f"working tree at {repo_path} is not clean. Commit or stash changes "
-                f"before running update-grammar, or pass --skip-release.\n"
-                f"{status}"
-            )
-
-
+    repo = git.Repo(repo_path)
+    if repo.is_dirty(untracked_files=True):
+        status = repo.git.status("--porcelain").strip()
+        die(
+            f"working tree at {repo_path} is not clean. Commit or stash changes "
+            f"before running update-grammar, or pass --skip-release.\n"
+            f"{status}"
+        )
 def parse_args(version_choices: Collection[str],
                argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI args; `version_choices` constrains the `tree-sitter-version` positional."""
@@ -423,51 +398,16 @@ def is_shallow_repo(repo_path: Path) -> bool:
 def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
     """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
-    if HAS_GITPYTHON:
-        try:
-            repo = git.Repo(submodule)
-            old_sha = repo.head.commit.hexsha
-
-            if fetch:
-                if is_shallow_repo(submodule):
-                    repo.remotes.origin.fetch(unshallow=True)
-                repo.remotes.origin.fetch(tags=True)
-
-            new_sha = repo.git.rev_parse(ref).strip()
-
-            rel = submodule.relative_to(root)
-            print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
-
-            if old_sha == new_sha:
-                print("Already up to date.")
-                return old_sha, new_sha
-
-            repo.head.reference = repo.commit(new_sha)
-            repo.head.reset(index=True, working_tree=True)
-
-            # Stage the submodule reference in the parent repo using git add
-            root_repo = git.Repo(root)
-            root_repo.git.add("--", str(rel))
-            return old_sha, new_sha
-        except (GitCommandError, ValueError) as e:
-            status = e.status if isinstance(e, GitCommandError) else 1
-            cmd = e.command if isinstance(e, GitCommandError) else ["git"]
-            stdout = e.stdout if isinstance(e, GitCommandError) else str(e)
-            raise subprocess.CalledProcessError(status, cmd, stdout, "") from e
-    else:
-        # Fallback to subprocess
-        old_sha = run(
-            ["git", "rev-parse", "HEAD"], cwd=submodule, capture=True,
-        ).stdout.strip()
+    try:
+        repo = git.Repo(submodule)
+        old_sha = repo.head.commit.hexsha
 
         if fetch:
             if is_shallow_repo(submodule):
-                run(["git", "fetch", "origin", "--unshallow"], cwd=submodule)
-            run(["git", "fetch", "--tags", "origin"], cwd=submodule)
+                repo.remotes.origin.fetch(unshallow=True)
+            repo.remotes.origin.fetch(tags=True)
 
-        new_sha = run(
-            ["git", "rev-parse", ref], cwd=submodule, capture=True,
-        ).stdout.strip()
+        new_sha = repo.git.rev_parse(ref).strip()
 
         rel = submodule.relative_to(root)
         print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
@@ -476,11 +416,18 @@ def update_submodule(submodule: Path, root: Path, ref: str,
             print("Already up to date.")
             return old_sha, new_sha
 
-        run(["git", "checkout", new_sha], cwd=submodule)
-        run(["git", "add", "--", str(rel)], cwd=root)
+        repo.head.reference = repo.commit(new_sha)
+        repo.head.reset(index=True, working_tree=True)
+
+        # Stage the submodule reference in the parent repo using git add
+        root_repo = git.Repo(root)
+        root_repo.git.add("--", str(rel))
         return old_sha, new_sha
-
-
+    except (GitCommandError, ValueError) as e:
+        status = e.status if isinstance(e, GitCommandError) else 1
+        cmd = e.command if isinstance(e, GitCommandError) else ["git"]
+        stdout = e.stdout if isinstance(e, GitCommandError) else str(e)
+        raise subprocess.CalledProcessError(status, cmd, stdout, "") from e
 def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> None:
     """Switch `repo_path` to `branch`, creating it from HEAD if missing.
 
@@ -491,41 +438,20 @@ def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> 
     branch name in the outer repo and each submodule, else it fails with
     `src refspec ... must name a ref`.
     """
-    if HAS_GITPYTHON:
-        repo = git.Repo(repo_path)
-        if at is not None:
-            # Use git checkout -B to replace the branch if it exists (including current)
-            repo.git.checkout("-B", branch, at)
-            return
+    repo = git.Repo(repo_path)
+    if at is not None:
+        # Use git checkout -B to replace the branch if it exists (including current)
+        repo.git.checkout("-B", branch, at)
+        return
 
-        current = repo.active_branch.name
-        if current == branch:
-            return
+    current = repo.active_branch.name
+    if current == branch:
+        return
 
-        try:
-            repo.heads[branch].checkout()
-        except IndexError:
-            repo.create_head(branch).checkout()
-    else:
-        # Fallback to subprocess
-        if at is not None:
-            run(["git", "checkout", "-B", branch, at], cwd=repo_path)
-            return
-
-        current = run(
-            ["git", "branch", "--show-current"], cwd=repo_path, capture=True
-        ).stdout.strip()
-        if current == branch:
-            return
-
-        exists = run(
-            ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
-            cwd=repo_path, check=False,
-        ).returncode == 0
-        cmd = ["git", "checkout", branch] if exists else ["git", "checkout", "-b", branch]
-        run(cmd, cwd=repo_path)
-
-
+    try:
+        repo.heads[branch].checkout()
+    except IndexError:
+        repo.create_head(branch).checkout()
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
     """Stage and commit the update; no-op if nothing changed.
 
@@ -533,28 +459,15 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
     path (no `--skip-release`), and `main()` enforces a clean tree
     up front in that path via `require_clean_worktree`.
     """
-    if HAS_GITPYTHON:
-        repo = git.Repo(root)
-        repo.index.add("*", force=True)
+    repo = git.Repo(root)
+    repo.index.add("*", force=True)
 
-        if not repo.index.diff("HEAD"):
-            print("No changes to commit.")
-            return
+    if not repo.index.diff("HEAD"):
+        print("No changes to commit.")
+        return
 
-        message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
-        repo.index.commit(message)
-    else:
-        # Fallback to subprocess
-        run(["git", "add", "-A"], cwd=root)
-        if run(
-            ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
-        ).returncode == 0:
-            print("No changes to commit.")
-            return
-        message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
-        run(["git", "commit", "-m", message], cwd=root)
-
-
+    message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
+    repo.index.commit(message)
 def main() -> int:
     """Drive the full update flow; see module docstring for the step list."""
     root = repo_root()
@@ -634,11 +547,8 @@ def _entrypoint() -> None:
         sys.exit(130)
     except subprocess.CalledProcessError as exc:
         die(f"command failed (exit {exc.returncode}): {shlex.join(str(c) for c in exc.cmd)}")
-    except Exception as exc:
-        if HAS_GITPYTHON and isinstance(exc, GitCommandError):
-            die(f"git command failed (exit {exc.status}): {shlex.join(str(c) for c in exc.command)}")
-        raise
-
+    except GitCommandError as exc:
+        die(f"git command failed (exit {exc.status}): {shlex.join(str(c) for c in exc.command)}")
 
 if __name__ == "__main__":
     _entrypoint()
