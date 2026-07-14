@@ -91,7 +91,6 @@ SUPPORTED_DIALECTS = \
   html \
   java \
   julia \
-  javascript \
   jsonnet \
   julia \
   kotlin \
