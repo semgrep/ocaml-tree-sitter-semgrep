@@ -62,7 +62,7 @@ sublangs="$lang"
 # It could be handled in a generic fashion by declaring the list of
 # dialects for each tree-sitter-X project.
 if [[ "$lang" = typescript ]]; then
-  sublangs="typescript tsx"
+  sublangs="typescript tsx javascript"
 elif [[ "$lang" = php ]]; then
   sublangs="php php-only"
 elif [[ "$lang" = sfapex ]]; then
