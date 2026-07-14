@@ -44,6 +44,10 @@ jobs:
             chmod +x "$dir/tree-sitter"
             "$dir/tree-sitter" --version
           done
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
 
       - name: Run Python tests (make test-python)
         run: uv run pytest scripts/test_update_grammar.py
