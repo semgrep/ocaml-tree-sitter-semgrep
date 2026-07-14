@@ -28,7 +28,7 @@ cat ../tree-sitter-typescript/tsx/src/scanner.c \
 
 mkdir -p javascript/corpus
 rm -f javascript/corpus/inherited
-ln -sf ../../../tree-sitter-javascript/javascript/corpus \
+ln -sf ../../../tree-sitter-javascript/test/corpus \
    javascript/corpus/inherited
 
 mkdir -p typescript/corpus
