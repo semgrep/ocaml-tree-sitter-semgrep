@@ -32,3 +32,6 @@ bindings/
 
 # Python temps
 __pycache__
+
+# uv virtual environment
+.venv
