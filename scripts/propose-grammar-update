@@ -284,18 +284,20 @@ def resolve_target(root: Path, language: str) -> Target:
 
 
 def submodule_head(submodule: Path) -> str:
-    """Return the submodule's current HEAD SHA."""
-    return git_query(["git", "rev-parse", "HEAD"], cwd=submodule).stdout.strip()
+    """Return the submodule's current HEAD SHA using GitPython."""
+    repo = git.Repo(submodule)
+    return repo.head.commit.hexsha
 
 
 def recorded_submodule_sha(root: Path, submodule: Path) -> str | None:
-    """Return the submodule SHA recorded in the outer repo's index (HEAD).
+    """Return the submodule SHA recorded in the outer repo's index (HEAD) using GitPython.
 
-    Reads the committed gitlink via `git ls-tree` — no submodule checkout
+    Reads the committed gitlink via ls-tree — no submodule checkout
     needed, so this is cheap enough for the enumerate pre-filter.
     """
     rel = submodule.relative_to(root).as_posix()
-    out = git_query(["git", "ls-tree", "HEAD", rel], cwd=root).stdout.split()
+    repo = git.Repo(root)
+    out = repo.git.ls_tree("HEAD", rel).split()
     return out[2] if len(out) >= 3 else None
 
 
@@ -397,18 +399,21 @@ def run_test_lang(language: str, root: Path) -> subprocess.CompletedProcess:
 
 
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
-    """Undo every mutation, so a failure never leaks into the next run.
+    """Undo every mutation using GitPython, so a failure never leaks into the next run.
 
     Mirrors what `update-grammar` leaves behind on a failed run: a
     detached/bumped submodule, edited languages-* files, deleted/regenerated
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
     """
-    git_query(["git", "restore", "--staged", "."], cwd=root)
-    git_query(["git", "checkout", "--", "lang"], cwd=root)
-    git_query(["git", "checkout", old_sha], cwd=submodule)
-    git_query(["git", "checkout", "--", "."], cwd=submodule)
-    git_query(["git", "clean", "-fdq"], cwd=submodule)
+    root_repo = git.Repo(root)
+    root_repo.git.restore("--staged", ".")
+    root_repo.git.checkout("--", "lang")
+
+    sub_repo = git.Repo(submodule)
+    sub_repo.git.checkout(old_sha)
+    sub_repo.git.checkout("--", ".")
+    sub_repo.git.clean("-fdq")
 
 
 def tail(text: str, lines: int = 40) -> str:
