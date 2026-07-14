@@ -706,9 +706,8 @@ def propose(root: Path, target: Target, keep: bool = False,
 
         result.status = STATUS_UPDATED
         if keep:
-            # Commit the validated tree on the branch — this is exactly what
-            # was tested. Exclude the workflow's result artifact and `core`
-            # (a grammar bump must only move the language submodule).
+            # Run pre-commit on changed files to fix auto-fixable issues before staging.
+            run_quiet(["pre-commit", "run", "--files", "lang/"], cwd=root)
             run_quiet(["git", "add", "-A", "--", ".",
                        ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
             run_quiet(["git", "commit", "-m",
