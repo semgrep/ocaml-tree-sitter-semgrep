@@ -94,36 +94,21 @@ def sanitize_for_branch(name: str) -> str:
     return sanitized
 
 
-class ProcessResult:
-    """Mimics subprocess.CompletedProcess for backwards compatibility."""
-    def __init__(self, args: list[str], returncode: int, stdout: str = "", stderr: str = ""):
-        self.args = args
-        self.returncode = returncode
-        self.stdout = stdout
-        self.stderr = stderr
-
-
 def run(
     cmd: list[str | Path], cwd: Path,
     *, check: bool = True, capture: bool = False,
-) -> ProcessResult:
-    """Run a command in `cwd`.
+) -> subprocess.CompletedProcess:
+    """Run a subprocess in `cwd`.
 
-    For non-git commands, this runs subprocess. For git commands,
-    this prints the command and delegates to subprocess.
     `capture=True` pipes stdout (read via `.stdout`); otherwise stdout
     is inherited so the user sees output live. `check=False` returns
     on non-zero — inspect `.returncode`.
     """
     print(f"$ {shlex.join(str(c) for c in cmd)}  (in {cwd})", file=sys.stderr)
-    result = subprocess.run(
-        cmd, cwd=cwd, check=False, text=True,
+    return subprocess.run(
+        cmd, cwd=cwd, check=check, text=True,
         stdout=subprocess.PIPE if capture else None,
-        stderr=subprocess.PIPE if capture else None,
     )
-    if check and result.returncode != 0:
-        raise GitCommandError(cmd, result.returncode, result.stdout, result.stderr)
-    return ProcessResult(cmd, result.returncode, result.stdout or "", result.stderr or "")
 
 
 def repo_root() -> Path:
@@ -245,7 +230,7 @@ def submodule_path(root: Path, lang: str) -> Path:
 
 
 def short_sha(submodule: Path, sha: str) -> str:
-    """Return `sha` abbreviated to `ABBREV_LEN` chars via GitPython."""
+    """Return `sha` abbreviated to `ABBREV_LEN` chars."""
     repo = git.Repo(submodule)
     abbreviated = repo.git.rev_parse(f"--short={ABBREV_LEN}", sha)
     return abbreviated.strip()
@@ -347,10 +332,10 @@ def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
 
 
 def require_clean_worktree(repo_path: Path) -> None:
-    """Abort if `repo_path` has pre-existing changes using GitPython."""
+    """Abort if `repo_path` has pre-existing changes."""
     repo = git.Repo(repo_path)
-    status = repo.git.status("--porcelain").strip()
-    if status:
+    if repo.is_dirty(untracked_files=True):
+        status = repo.git.status("--porcelain").strip()
         die(
             f"working tree at {repo_path} is not clean. Commit or stash changes "
             f"before running update-grammar, or pass --skip-release.\n"
@@ -402,15 +387,13 @@ def parse_args(version_choices: Collection[str],
 
 
 def is_shallow_repo(repo_path: Path) -> bool:
-    """Return True if `repo_path` is a shallow clone using GitPython."""
-    repo = git.Repo(repo_path)
-    result = repo.git.rev_parse("--is-shallow-repository").strip()
-    return result == "true"
+    """Return True if `repo_path` is a shallow clone."""
+    return (repo_path / ".git" / "shallow").exists()
 
 
 def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
-    """Check out `ref` in the submodule using GitPython. Returns (old_sha, new_sha)."""
+    """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
     try:
         repo = git.Repo(submodule)
         old_sha = repo.head.commit.hexsha
@@ -437,18 +420,17 @@ def update_submodule(submodule: Path, root: Path, ref: str,
         root_repo.git.add("--", str(rel))
         return old_sha, new_sha
     except (GitCommandError, ValueError) as e:
-        if isinstance(e, GitCommandError):
-            raise subprocess.CalledProcessError(e.status, e.command, e.stdout, e.stderr) from e
-        else:
-            # ValueError from GitPython when SHA is invalid
-            raise subprocess.CalledProcessError(1, ["git"], str(e), "") from e
+        status = e.status if isinstance(e, GitCommandError) else 1
+        cmd = e.command if isinstance(e, GitCommandError) else ["git"]
+        stdout = e.stdout if isinstance(e, GitCommandError) else str(e)
+        raise subprocess.CalledProcessError(status, cmd, stdout, "") from e
 
 
 def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> None:
-    """Switch `repo_path` to `branch` using GitPython, creating it from HEAD if missing.
+    """Switch `repo_path` to `branch`, creating it from HEAD if missing.
 
-    With `at`, force-align via checkout so a stale branch from a
-    prior run can't move HEAD off the intended commit.
+    With `at`, force-align so a stale branch from a prior run can't move
+    HEAD off the intended commit.
 
     Needed because `git push --recurse-submodules` requires the same
     branch name in the outer repo and each submodule, else it fails with
@@ -456,7 +438,11 @@ def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> 
     """
     repo = git.Repo(repo_path)
     if at is not None:
-        repo.heads[branch].checkout(force=True) if branch in [h.name for h in repo.heads] else None
+        # Force-align: delete the branch if it exists, then recreate at the target
+        try:
+            repo.delete_head(branch, force=True)
+        except (IndexError, GitCommandError):
+            pass
         repo.create_head(branch, at).checkout()
         return
 
@@ -471,7 +457,7 @@ def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> 
 
 
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
-    """Stage and commit the update using GitPython; no-op if nothing changed.
+    """Stage and commit the update; no-op if nothing changed.
 
     `git add -A` is safe because this function only runs in the release
     path (no `--skip-release`), and `main()` enforces a clean tree
