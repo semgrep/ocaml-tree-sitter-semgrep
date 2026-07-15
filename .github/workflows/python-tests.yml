@@ -50,4 +50,4 @@ jobs:
           enable-cache: true
 
       - name: Run Python tests (make test-python)
-        run: uv run pytest scripts/test_update_grammar.py
+        run: make test-python

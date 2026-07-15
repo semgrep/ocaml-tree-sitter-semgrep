@@ -51,7 +51,7 @@ test: build
 PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py scripts/test_propose_grammar_update.py
 .PHONY: test-python
 test-python:
-	uv run pytest $(PYTHON_TESTS)
+	uv run --extra dev pytest $(PYTHON_TESTS)
 
 # Install every tree-sitter version the grammars are pinned to (derived from the
 # lang/languages-* files), each into its own core/tree-sitter-<version>/. Needed

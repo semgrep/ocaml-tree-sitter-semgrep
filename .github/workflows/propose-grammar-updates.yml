@@ -49,6 +49,9 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
       - id: list
         # A single dispatched language overrides the full set. The input is
         # untrusted, so it goes through an env var (never interpolated into
@@ -64,14 +67,14 @@ jobs:
           if [ -n "$INPUT_LANGUAGE" ] && [ "$INPUT_LANGUAGE" != "all" ]; then
             # Single named language: validate against the FULL set (a manual
             # run may target a language even just to re-check it — no filter).
-            valid=$(python scripts/propose-grammar-update --list-languages --json)
+            valid=$(uv run scripts/propose-grammar-update --list-languages --json)
             echo "$valid" | python -c "import json,sys; ls=json.load(sys.stdin); sys.exit(0 if sys.argv[1] in ls else 1)" "$INPUT_LANGUAGE" \
               || { echo "Unknown language: $INPUT_LANGUAGE" >&2; exit 1; }
             echo "languages=$(python -c 'import json,os; print(json.dumps([os.environ["INPUT_LANGUAGE"]]))')" >> "$GITHUB_OUTPUT"
           else
             # 'all'/blank/scheduled: only languages actually behind their latest
             # tag, so up-to-date ones never enter the expensive build matrix.
-            echo "languages=$(python scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
+            echo "languages=$(uv run scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
           fi
 
   propose:
@@ -100,6 +103,9 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
       # The org requires verified (signed) commits on all branches, so the
       # bump commit must be GPG-signed by a key registered on the authoring
       # GitHub account. Import the bot key and turn on signing globally.
@@ -149,6 +155,9 @@ jobs:
       # This step must come AFTER `make install` populates that dir.
       - name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
+      # keep-mode commits run pre-commit before staging; install it for CI.
+      - name: Install pre-commit
+        run: uv tool install pre-commit
       # The review agent (Cursor dispatch on a failing test-lang) is an
       # explicit opt-in via the run_review_agent input: without it, neither
       # the CLI nor the API key is even present on the runner, so no grammar
@@ -177,7 +186,7 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then mode="--dry-run"; fi
           flags=""
           if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
+          opam exec -- uv run scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -210,6 +219,9 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: result-${{ matrix.language }}
@@ -283,7 +295,7 @@ jobs:
           # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
           # --result: release the exact tag/branch the propose job validated
           # (from its artifact), never a live re-resolved one.
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release \
+          opam exec -- uv run scripts/propose-grammar-update "${{ matrix.language }}" --release \
             --result "result/result-${{ matrix.language }}.json"
 
   summary:
@@ -300,9 +312,12 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: results
           merge-multiple: true
       - name: Render summary
-        run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
+        run: uv run scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"

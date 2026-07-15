@@ -269,7 +269,7 @@ def write_sorted_languages_entries(path: Path, entries: set[str]) -> None:
         Path(tmp.name).replace(path)
     except BaseException:
         Path(tmp.name).unlink(missing_ok=True)
-
+        raise
 
 
 def sync_membership(names: list[str], version: str,
@@ -452,6 +452,8 @@ def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> 
         repo.heads[branch].checkout()
     except IndexError:
         repo.create_head(branch).checkout()
+
+
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
     """Stage and commit the update; no-op if nothing changed.
 
@@ -460,14 +462,17 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
     up front in that path via `require_clean_worktree`.
     """
     repo = git.Repo(root)
-    repo.index.add("*", force=True)
+    # Use CLI `git add -A` so deletions are staged (IndexFile.add does not).
+    repo.git.add(A=True)
 
-    if not repo.index.diff("HEAD"):
+    if not repo.git.diff("--cached"):
         print("No changes to commit.")
         return
 
     message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
-    repo.index.commit(message)
+    repo.git.commit("-m", message)
+
+
 def main() -> int:
     """Drive the full update flow; see module docstring for the step list."""
     root = repo_root()
