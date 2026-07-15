@@ -60,7 +60,7 @@ LANGUAGE_ALIASES = {
 # dialects it expands to in `language-variants-*` (the names passed to
 # release). Kept in sync with the hardcoded cases in lang/test-lang.
 LANGUAGE_VARIANTS = {
-    "typescript": ["typescript", "tsx"],
+    "typescript": ["javascript","typescript", "tsx"],
     "php": ["php", "php-only"],
     "sfapex": ["apex"],
 }
