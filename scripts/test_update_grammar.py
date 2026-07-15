@@ -601,6 +601,12 @@ class EnsureOnBranchTests(GitRepoTest):
         ug.ensure_on_branch(self.repo, "existing-branch")
         self.assertEqual(self.current_branch(), "existing-branch")
 
+    def test_creates_branch_from_detached_head(self):
+        _git("checkout", "--detach", self.initial_sha, cwd=self.repo)
+        ug.ensure_on_branch(self.repo, "from-detached")
+        self.assertEqual(self.current_branch(), "from-detached")
+        self.assertEqual(self.head_sha(), self.initial_sha)
+
 
 class CommitChangesTests(GitRepoTest):
     def test_commits_when_changes_exist(self):

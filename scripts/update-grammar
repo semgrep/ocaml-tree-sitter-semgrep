@@ -444,7 +444,7 @@ def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> 
         repo.git.checkout("-B", branch, at)
         return
 
-    current = repo.active_branch.name
+    current = None if repo.head.is_detached else repo.active_branch.name
     if current == branch:
         return
 

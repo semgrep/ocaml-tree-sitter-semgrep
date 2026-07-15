@@ -712,16 +712,9 @@ def propose(root: Path, target: Target, keep: bool = False,
 
         result.status = STATUS_UPDATED
         if keep:
-            # Run pre-commit on changed files to fix auto-fixable issues before staging.
-            # pre-commit exits 1 if it made changes (non-fatal), so check=False
-            precommit = subprocess.run(
-                ["pre-commit", "run", "--files", "lang/"],
-                cwd=root, capture_output=True, text=True, check=False,
-            )
-            if precommit.returncode not in (0, 1):
-                raise subprocess.CalledProcessError(
-                    precommit.returncode, precommit.args,
-                    precommit.stdout, precommit.stderr)
+            # Commit the validated tree on the branch — this is exactly what
+            # was tested. Exclude the workflow's result artifact and `core`
+            # (a grammar bump must only move the language submodule).
             commit_repo = git.Repo(root)
             commit_repo.git.add("-A", "--", ".",
                                 ":(exclude)result-*.json", ":(exclude)core")
