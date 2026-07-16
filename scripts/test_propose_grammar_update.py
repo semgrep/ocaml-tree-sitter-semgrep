@@ -9,6 +9,7 @@ by the integration run in the workflow.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 import unittest
 import unittest.mock
@@ -138,15 +139,23 @@ class TestLanguageTsVersion(unittest.TestCase):
                 "0.20.6": ["java", "ruby"],
                 "0.26.3": ["python", "php"],
             })
-            self.assertEqual(pg.language_ts_version(root, "python"), "0.26.3")
-            self.assertEqual(pg.language_ts_version(root, "java"), "0.20.6")
+            self.assertEqual(
+                pg.language_ts_version(root, pg.LangAndWrapper("python", "python")),
+                "0.26.3",
+            )
+            self.assertEqual(
+                pg.language_ts_version(root, pg.LangAndWrapper("java", "java")),
+                "0.20.6",
+            )
 
     def test_absent_returns_none(self):
         with TemporaryDirectory() as d:
             root = Path(d)
             self._repo_with_versions(root, {"0.26.3": ["python"]})
             # gomod is in no languages-* file.
-            self.assertIsNone(pg.language_ts_version(root, "go-mod"))
+            self.assertIsNone(
+                pg.language_ts_version(root, pg.LangAndWrapper("gomod", "go-mod"))
+            )
 
 
 ###############################################################################
@@ -157,7 +166,8 @@ class TestLanguageTsVersion(unittest.TestCase):
 class TestPrShaping(unittest.TestCase):
     def test_branch_name_is_tag_keyed(self):
         self.assertEqual(
-            pg.branch_name("python", "v0.25.0"), "grammar-update/python/v0.25.0"
+            pg.branch_name(pg.LangAndWrapper("python", "python"), "v0.25.0"),
+            "grammar-update/python/v0.25.0",
         )
 
     def test_compare_url_strips_dot_git(self):
@@ -199,18 +209,22 @@ class TestReleaseDialects(unittest.TestCase):
         with unittest.mock.patch.object(
             pg, "downstream_repo_exists", lambda d: d != "php-only"
         ):
-            self.assertEqual(pg.release_dialects("php", "php"), ["php"])
+            self.assertEqual(
+                pg.release_dialects(pg.LangAndWrapper("php", "php")), ["php"]
+            )
 
     def test_keeps_all_when_all_exist(self):
         with unittest.mock.patch.object(pg, "downstream_repo_exists", lambda _d: True):
             self.assertEqual(
-                pg.release_dialects("typescript", "typescript"),
+                pg.release_dialects(pg.LangAndWrapper("typescript", "typescript")),
                 ["typescript", "tsx"],
             )
 
     def test_falls_back_to_language_when_none_exist(self):
         with unittest.mock.patch.object(pg, "downstream_repo_exists", lambda _d: False):
-            self.assertEqual(pg.release_dialects("php", "php"), ["php"])
+            self.assertEqual(
+                pg.release_dialects(pg.LangAndWrapper("php", "php")), ["php"]
+            )
 
 
 class TestProposeFailurePath(unittest.TestCase):
@@ -221,7 +235,7 @@ class TestProposeFailurePath(unittest.TestCase):
     """
 
     TARGET = pg.Target(
-        language="php", wrapper="php", submodule=Path("/tmp/sub"),
+        lang=pg.LangAndWrapper(language="php", wrapper="php"), submodule=Path("/tmp/sub"),
         ts_version="0.26.3", url="https://x/y.git", tag="v0.24.2",
     )
 
@@ -340,13 +354,15 @@ class TestResultArtifact(unittest.TestCase):
 class TestUpToDateFilter(unittest.TestCase):
     """The cheap pre-filter that keeps up-to-date languages out of the build."""
 
+    LANG = pg.LangAndWrapper(language="php", wrapper="php")
+
     def _patch(self, recorded, tag_sha, tag="v1.0.0", url="https://x/y.git"):
         # is_up_to_date compares recorded gitlink SHA vs the tag's commit SHA.
         return (
             unittest.mock.patch.object(
                 pg, "resolve_target",
-                lambda root, lang: pg.Target(
-                    language=lang, wrapper=lang, submodule=Path("/tmp/sub"),
+                lambda root, lang, tree_sitter_versions=None, deep=True: pg.Target(
+                    lang=lang, submodule=Path("/tmp/sub"),
                     ts_version="0.26.3", url=url, tag=tag,
                 ),
             ),
@@ -357,27 +373,29 @@ class TestUpToDateFilter(unittest.TestCase):
     def test_up_to_date_when_shas_match(self):
         p1, p2, p3 = self._patch(recorded="abc123", tag_sha="abc123")
         with p1, p2, p3:
-            self.assertIs(pg.is_up_to_date(Path("."), "php"), True)
+            self.assertIs(pg.is_up_to_date(Path("."), self.LANG), True)
 
     def test_behind_when_shas_differ(self):
         p1, p2, p3 = self._patch(recorded="abc123", tag_sha="def456")
         with p1, p2, p3:
-            self.assertIs(pg.is_up_to_date(Path("."), "php"), False)
+            self.assertIs(pg.is_up_to_date(Path("."), self.LANG), False)
 
     def test_none_when_no_tag(self):
         with unittest.mock.patch.object(
             pg, "resolve_target",
-            lambda root, lang: pg.Target(
-                language=lang, wrapper=lang, submodule=Path("/tmp/s"),
+            lambda root, lang, tree_sitter_versions=None, deep=True: pg.Target(
+                lang=lang, submodule=Path("/tmp/s"),
                 url="u", tag=None,
             ),
         ):
-            self.assertIsNone(pg.is_up_to_date(Path("."), "php"))
+            self.assertIsNone(pg.is_up_to_date(Path("."), self.LANG))
 
 
 class TestReviewAgent(unittest.TestCase):
     def test_prompt_drives_fix_semgrep_grammar_skill(self):
-        p = pg.review_agent_prompt("php", "php", "v0.24.2", "FAIL log here")
+        p = pg.review_agent_prompt(
+            pg.LangAndWrapper("php", "php"), "v0.24.2", "FAIL log here"
+        )
         # Must invoke Marc-André's skill (not hand-rolled fix logic), pass the
         # language/tag, forbid committing, and surface the failing log.
         self.assertIn("fix-semgrep-grammar", p)
@@ -446,7 +464,7 @@ class TestTagCommitSha(unittest.TestCase):
 class TestExistingProposal(unittest.TestCase):
     """The cheap pre-build check for an already-proposed lang+tag."""
 
-    TARGET = pg.Target(language="php", wrapper="php", submodule=Path("/tmp/s"),
+    TARGET = pg.Target(pg.LangAndWrapper(language="php", wrapper="php"), submodule=Path("/tmp/s"),
                        ts_version="0.26.3", tag="v0.24.2")
 
     def test_existing_branch_short_circuits(self):
@@ -500,6 +518,322 @@ class TestTail(unittest.TestCase):
 
     def test_shorter_than_n_is_whole(self):
         self.assertEqual(pg.tail("a\nb", 10), "a\nb")
+
+
+###############################################################################
+# Smart tag+version resolution #
+###############################################################################
+
+
+class TestListStableTags(unittest.TestCase):
+    def test_sorted_newest_first(self):
+        import subprocess as sp
+        out = "a\trefs/tags/v0.20.0\nb\trefs/tags/v0.25.0\nc\trefs/tags/v0.9.0\n"
+        with unittest.mock.patch.object(
+            pg, "git_query", lambda cmd, cwd: sp.CompletedProcess(cmd, 0, out, "")
+        ):
+            self.assertEqual(pg._list_stable_tags("u"), ["v0.25.0", "v0.20.0", "v0.9.0"])
+
+    def test_passes_patterns_to_ls_remote(self):
+        import subprocess as sp
+        seen = []
+
+        def capture(cmd, cwd):
+            seen.append(cmd)
+            return sp.CompletedProcess(cmd, 0, "", "")
+
+        with unittest.mock.patch.object(pg, "git_query", capture):
+            pg._list_stable_tags("u")
+        self.assertEqual(seen[0][:4], ["git", "ls-remote", "--tags", "--refs"])
+        self.assertIn("refs/tags/v[0-9]*", seen[0])
+        self.assertIn("refs/tags/[0-9]*", seen[0])
+
+    def test_empty_on_failure(self):
+        import subprocess as sp
+        with unittest.mock.patch.object(
+            pg, "git_query", lambda cmd, cwd: sp.CompletedProcess(cmd, 1, "", "")
+        ):
+            self.assertEqual(pg._list_stable_tags("u"), [])
+
+    def test_latest_stable_tag_still_works(self):
+        with unittest.mock.patch.object(
+            pg, "_list_stable_tags", lambda url: ["v0.25.0", "v0.20.0"]
+        ):
+            self.assertEqual(pg.latest_stable_tag("u"), "v0.25.0")
+        with unittest.mock.patch.object(pg, "_list_stable_tags", lambda url: []):
+            self.assertIsNone(pg.latest_stable_tag("u"))
+
+    def test_list_newer_stable_tags_filters_and_stops(self):
+        fetched = pg.FetchedSubmodule(Path("/tmp/s"))
+        with unittest.mock.patch.object(
+            pg, "_list_stable_tags",
+            lambda url: ["v0.25.0", "v0.24.0", "v0.20.0"],
+        ), unittest.mock.patch.object(
+            pg.FetchedSubmodule, "is_newer_than",
+            lambda self, tag, old_sha: tag not in ("v0.24.0", "v0.20.0"),
+        ):
+            self.assertEqual(
+                fetched.list_newer_stable_tags("u", "OLD"),
+                ["v0.25.0"],
+            )
+
+    def test_list_newer_stable_tags_none_when_empty(self):
+        fetched = pg.FetchedSubmodule(Path("/tmp/s"))
+        with unittest.mock.patch.object(pg, "_list_stable_tags", lambda url: []):
+            self.assertIsNone(fetched.list_newer_stable_tags("u", "OLD"))
+
+
+class TestRequiresAbi15(unittest.TestCase):
+    def _fetched(self):
+        return pg.FetchedSubmodule(Path("/tmp/s"))
+
+    def test_detects_top_level_reserved_field(self):
+        text = 'module.exports = grammar({\n  name: "x",\n  reserved: {\n    global: $ => [],\n  },\n});\n'
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: text
+        ):
+            self.assertTrue(pg._requires_abi15(self._fetched(), "v1.0.0"))
+
+    def test_false_when_absent(self):
+        text = 'module.exports = grammar({\n  name: "x",\n  rules: {},\n});\n'
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: text
+        ):
+            self.assertFalse(pg._requires_abi15(self._fetched(), "v1.0.0"))
+
+    def test_false_when_file_absent(self):
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: None
+        ):
+            self.assertFalse(pg._requires_abi15(self._fetched(), "v1.0.0"))
+
+
+class TestDeclaredMinTsVersion(unittest.TestCase):
+    def _fetched(self):
+        return pg.FetchedSubmodule(Path("/tmp/s"))
+
+    def test_extracts_from_dev_dependencies(self):
+        text = '{"devDependencies": {"tree-sitter-cli": "^0.25.3"}}'
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: text
+        ):
+            self.assertEqual(pg._declared_min_ts_version(self._fetched(), "v1"), "0.25.3")
+
+    def test_extracts_from_peer_dependencies(self):
+        text = '{"peerDependencies": {"tree-sitter-cli": "~0.24.0"}}'
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: text
+        ):
+            self.assertEqual(pg._declared_min_ts_version(self._fetched(), "v1"), "0.24.0")
+
+    def test_none_when_absent(self):
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: '{"name": "x"}'
+        ):
+            self.assertIsNone(pg._declared_min_ts_version(self._fetched(), "v1"))
+
+    def test_none_when_file_missing(self):
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: None
+        ):
+            self.assertIsNone(pg._declared_min_ts_version(self._fetched(), "v1"))
+
+    def test_none_on_invalid_json(self):
+        with unittest.mock.patch.object(
+            pg.FetchedSubmodule, "read_tag_file", lambda self, t, p: "not json"
+        ):
+            self.assertIsNone(pg._declared_min_ts_version(self._fetched(), "v1"))
+
+
+class TestResolveTagAndVersion(unittest.TestCase):
+    """Orchestration tests: mock every git-touching helper, verify the
+    newer-than-current / tag-walk-back / version-capping / floor logic."""
+
+    OLD_SHA = "OLDSHA"
+    LANG = pg.LangAndWrapper(language="ruby", wrapper="ruby")
+    VERSIONS = ["0.26.3", "0.22.6", "0.20.8"]  # newest-first, as main() sorts
+
+    @contextlib.contextmanager
+    def _patch(self, tags, reserved_tags=(), cpp_scanner_tags=(), floors=None,
+              fetch_ok=True, semgrep_cpp=False):
+        floors = floors or {}
+
+        def fake_fetch(submodule):
+            if not fetch_ok:
+                return None
+            fetched = unittest.mock.MagicMock(spec=pg.FetchedSubmodule)
+            fetched.path = submodule
+            fetched.list_newer_stable_tags.side_effect = (
+                lambda url, old_sha: None if tags is None else list(tags)
+            )
+            return fetched
+
+        with unittest.mock.patch.multiple(
+            pg,
+            _requires_abi15=lambda sub, tag: tag in reserved_tags,
+            _upstream_has_cpp_scanner=lambda sub, tag: tag in cpp_scanner_tags,
+            _semgrep_has_cpp_scanner=lambda root, lang: semgrep_cpp,
+            _declared_min_ts_version=lambda sub, tag: floors.get(tag),
+        ), unittest.mock.patch.object(pg.FetchedSubmodule, "fetch", fake_fetch):
+            yield
+
+    def _resolve(self, **kwargs):
+        versions = kwargs.pop("versions", self.VERSIONS)
+        with self._patch(**kwargs):
+            return pg.resolve_tag_and_version(
+                Path("."), Path("/tmp/s"), "u", versions, self.OLD_SHA, self.LANG,
+            )
+
+    def test_picks_latest_tag_and_highest_version(self):
+        r = self._resolve(tags=["v0.26.0", "v0.25.0"])
+        self.assertEqual(r.tag, "v0.26.0")
+        self.assertEqual(r.ts_version, "0.26.3")
+        self.assertIsNone(r.error)
+
+    def test_abi15_tag_falls_back_to_older_tag(self):
+        r = self._resolve(tags=["v0.26.0", "v0.25.0"], reserved_tags=["v0.26.0"])
+        self.assertEqual(r.tag, "v0.25.0")
+        self.assertIsNone(r.error)
+
+    def test_all_tags_require_abi15_is_an_error(self):
+        r = self._resolve(tags=["v0.26.0", "v0.25.0"],
+                          reserved_tags=["v0.26.0", "v0.25.0"])
+        self.assertIsNone(r.tag)
+        self.assertIn("ABI 15", r.error)
+
+    def test_cpp_scanner_caps_below_0_24(self):
+        r = self._resolve(tags=["v1.0.0"], cpp_scanner_tags=["v1.0.0"])
+        self.assertEqual(r.ts_version, "0.22.6")
+        self.assertIn("scanner.cc", r.note)
+        self.assertIn("upstream", r.note)
+
+    def test_semgrep_only_cpp_scanner_caps_and_reports(self):
+        # Upstream has no scanner.cc, but semgrep-<wrapper> still does --
+        # same cap, and the note must call out the stale extension fork.
+        r = self._resolve(tags=["v1.0.0"], semgrep_cpp=True)
+        self.assertEqual(r.ts_version, "0.22.6")
+        self.assertIn("semgrep-ruby/src/scanner.cc", r.note)
+        self.assertIn("still C++", r.note)
+        self.assertIn("upstream", r.note)
+
+    def test_cpp_ceiling_wins_over_conflicting_floor(self):
+        # Floor >= 0.24 is incompatible with a C++ scanner; keep the newest
+        # tag and the < 0.24 pin, and mention the conflict.
+        r = self._resolve(
+            tags=["v0.23.1"], semgrep_cpp=True, floors={"v0.23.1": "0.24.4"},
+        )
+        self.assertEqual(r.tag, "v0.23.1")
+        self.assertEqual(r.ts_version, "0.22.6")
+        self.assertIn("0.24.4", r.note)
+        self.assertIn("conflicts", r.note)
+
+    def test_unmet_floor_is_an_error(self):
+        r = self._resolve(tags=["v1.0.0"], floors={"v1.0.0": "0.30.0"})
+        self.assertIsNone(r.tag)
+        self.assertIn("0.30.0", r.error)
+
+    def test_no_tags_upstream_is_an_error(self):
+        r = self._resolve(tags=None)
+        self.assertIn("no stable release tag", r.error)
+
+    def test_stops_at_first_tag_not_newer_than_current(self):
+        # list_newer_stable_tags already filtered out v0.24.0 and older; only
+        # the ABI-15 v0.25.0 remains as a candidate.
+        r = self._resolve(tags=["v0.25.0"], reserved_tags=["v0.25.0"])
+        self.assertIsNone(r.tag)
+        self.assertIn("ABI 15", r.error)
+
+    def test_no_newer_tag_is_a_distinct_error(self):
+        r = self._resolve(tags=[])
+        self.assertIsNone(r.tag)
+        self.assertIn("already at", r.error)
+
+    def test_examines_at_most_max_tags(self):
+        many_tags = [f"v0.{i}.0" for i in range(30, 0, -1)]  # 30 tags, all bad
+        examined = []
+
+        def counting_abi15(sub, tag):
+            examined.append(tag)
+            return True
+
+        with self._patch(tags=many_tags, reserved_tags=many_tags), \
+             unittest.mock.patch.object(pg, "_requires_abi15", counting_abi15):
+            r = pg.resolve_tag_and_version(
+                Path("."), Path("/tmp/s"), "u", self.VERSIONS, self.OLD_SHA, self.LANG,
+            )
+        self.assertEqual(len(examined), pg.MAX_TAGS_EXAMINED)
+        self.assertEqual(examined, many_tags[: pg.MAX_TAGS_EXAMINED])
+        self.assertIsNone(r.tag)
+
+
+class TestFetchTagsPreservesAncestry(unittest.TestCase):
+    """Regression test with a REAL git repo (no mocks): FetchedSubmodule.fetch
+    must not re-shallow the submodule, or is_newer_than's merge-base check
+    silently breaks for any tag more than one commit past old_sha -- i.e.
+    almost every real bump. A mocked test can't catch this class of bug."""
+
+    def _git(self, cwd, *args):
+        import subprocess
+        return subprocess.run(["git", *args], cwd=cwd, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def test_ancestry_survives_fetch_tags_after_unshallow(self):
+        import subprocess
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            upstream = root / "upstream"
+            upstream.mkdir()
+            self._git(upstream, "init", "-q")
+            self._git(upstream, "config", "user.email", "t@t.com")
+            self._git(upstream, "config", "user.name", "t")
+            old_sha = None
+            for i in range(3):
+                (upstream / "f.txt").write_text(str(i))
+                self._git(upstream, "add", "-A")
+                self._git(upstream, "commit", "-q", "-m", f"c{i}")
+                self._git(upstream, "tag", f"v1.{i}.0")
+                if i == 0:
+                    old_sha = self._git(upstream, "rev-parse", "HEAD")
+
+            submodule = root / "sub"
+            # --no-local: a plain local-path clone silently ignores --depth
+            # (git hardlinks the whole object store), so this is needed to
+            # get a genuinely shallow clone -- matching what CI's network
+            # clone of the real submodule produces.
+            subprocess.run(
+                ["git", "clone", "-q", "--no-local", "--depth", "1", "--branch", "v1.0.0",
+                 str(upstream), str(submodule)],
+                check=True, capture_output=True,
+            )
+            self.assertTrue(pg.ug.is_shallow_repo(submodule))
+            subprocess.run(["git", "fetch", "-q", "origin", "--unshallow"],
+                           cwd=submodule, check=True, capture_output=True)
+
+            fetched = pg.FetchedSubmodule.fetch(submodule)
+            self.assertIsNotNone(fetched)
+            self.assertTrue(
+                fetched.is_newer_than("v1.2.0", old_sha),
+                "merge-base ancestry check failed -- FetchedSubmodule.fetch "
+                "likely re-shallowed the submodule",
+            )
+
+
+class TestResolveTargetDeepFlag(unittest.TestCase):
+    def test_is_up_to_date_uses_shallow_resolution(self):
+        calls = []
+        lang = pg.LangAndWrapper(language="php", wrapper="php")
+
+        def fake_resolve(root, lang, tree_sitter_versions=None, deep=True):
+            calls.append(deep)
+            return pg.Target(
+                lang=lang, submodule=Path("/tmp/s"),
+                ts_version="0.26.3", url="u", tag="v1.0.0",
+            )
+        with unittest.mock.patch.object(pg, "resolve_target", fake_resolve), \
+             unittest.mock.patch.object(pg, "recorded_submodule_sha", lambda r, s: "x"), \
+             unittest.mock.patch.object(pg, "tag_commit_sha", lambda u, t: "x"):
+            pg.is_up_to_date(Path("."), lang)
+        self.assertEqual(calls, [False])
 
 
 if __name__ == "__main__":

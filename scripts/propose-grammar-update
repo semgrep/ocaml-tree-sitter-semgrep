@@ -73,6 +73,25 @@ def _load_update_grammar() -> Any:
 
 ug = _load_update_grammar()
 
+# `lang/ts_versions.py` resolves the tree-sitter version pinned for a given
+# grammar directory (lang/languages-*, lang/language-variants-*) -- the same
+# lookup the grammar Makefiles use via `lang/scripts/ts-version-for-grammar-dir`.
+# Reused here so regenerate_snapshots can catch a sub-dialect pinned to a
+# different tree-sitter version than the one its wrapper was just bumped to.
+_TS_VERSIONS_PATH = _SCRIPT_DIR.parent / "lang" / "ts_versions.py"
+
+
+def _load_ts_versions() -> Any:
+    """Load `lang/ts_versions.py` as an importable module."""
+    loader = SourceFileLoader("ts_versions", str(_TS_VERSIONS_PATH))
+    spec = spec_from_loader("ts_versions", loader)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ts_versions = _load_ts_versions()
+
 ###############################################################################
 # Types #
 ###############################################################################
@@ -97,15 +116,25 @@ _STABLE_TAG_RE = re.compile(r"^v?\d+(?:\.\d+)+$")
 
 
 @dataclass(frozen=True)
-class Target:
-    """Everything needed to act on a language, resolved without mutating."""
+class LangAndWrapper:
     language: str
     wrapper: str
+
+    def wrapper_dir(self, root: Path) -> Path:
+        """Return the semgrep-<wrapper> directory under semgrep-grammars/src."""
+        return root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{self.wrapper}"
+
+
+@dataclass(frozen=True)
+class Target:
+    """Everything needed to act on a language, resolved without mutating."""
+    lang: LangAndWrapper
     submodule: Path
     ts_version: str | None = None
     url: str | None = None
     tag: str | None = None
     skip_reason: str | None = None
+    resolution_note: str | None = None
 
 
 @dataclass
@@ -127,6 +156,7 @@ class Result:
     corpus_diff: str = ""
     tests_adapted: bool = False
     branch: str | None = None
+    version_note: str | None = None
 
     def to_json(self) -> str:
         return json.dumps({k: v for k, v in asdict(self).items() if v is not None})
@@ -218,61 +248,323 @@ def gitmodules_url(root: Path, submodule: Path) -> str | None:
     return url.replace("git@github.com:", "https://github.com/")
 
 
-def latest_stable_tag(url: str) -> str | None:
-    """Return the highest stable release tag at `url`, or None.
+# Cap on newer-than-current tags examined per language.
+MAX_TAGS_EXAMINED = 4
 
-    Lists remote tags, keeps only `_STABLE_TAG_RE` matches (so prereleases
-    and non-version tag schemes are ignored), and returns the highest by
-    numeric version.
+# tree-sitter >= 0.24 is known to break C++ external scanners (scanner.cc).
+_CPP_SCANNER_CEILING = version_key("0.24.0")
+_CPP_SCANNER_CEILING_STR = ".".join(str(part) for part in _CPP_SCANNER_CEILING)
+
+# ABI 15's only grammar-authoring feature that can't be expressed in ABI 14
+# (this repo ships ABI 14 only -- see lang/generate_abi_args.py).
+_RESERVED_FIELD_RE = re.compile(r"^\s*reserved\s*:", re.MULTILINE)
+
+# Semver inside a devDependencies/peerDependencies value, e.g. "^0.25.3".
+_VERSION_DIGITS_RE = re.compile(r"(\d+\.\d+\.\d+)")
+
+
+@dataclass(frozen=True)
+class FetchedSubmodule:
+    """A submodule whose tags (and full history) are available locally.
+
+    Construct only via `fetch` -- that unshallows and fetches tags, so
+    ancestry checks and `git show` against tags are valid on the result.
     """
-    result = git_query(["git", "ls-remote", "--tags", "--refs", url], cwd=Path.cwd())
+    path: Path
+
+    @classmethod
+    def fetch(cls, submodule: Path) -> FetchedSubmodule | None:
+        """Unshallow if needed, then fetch all tags. Never touches HEAD/worktree.
+
+        Mirrors update_submodule's fetch sequence so ancestry checks remain
+        valid. Returns None if the tag fetch fails.
+        """
+        if ug.is_shallow_repo(submodule):
+            git_query(["git", "fetch", "origin", "--unshallow"], cwd=submodule)
+        ok = git_query(
+            ["git", "fetch", "--tags", "origin"], cwd=submodule,
+        ).returncode == 0
+        return cls(submodule) if ok else None
+
+    def is_newer_than(self, tag: str, old_sha: str) -> bool:
+        """True if `old_sha` is an ancestor of `tag` -- i.e. `tag` is newer."""
+        tag_sha = git_query(
+            ["git", "rev-list", "-n", "1", tag], cwd=self.path,
+        ).stdout.strip()
+        return (tag_sha != old_sha and
+                git_query(
+                    ["git", "merge-base", "--is-ancestor", old_sha, tag],
+                    cwd=self.path,
+                ).returncode == 0)
+
+    def list_newer_stable_tags(
+        self, url: str, old_sha: str,
+    ) -> list[str] | None:
+        """Return stable tags at `url` strictly newer than `old_sha`, newest first.
+
+        Returns None if upstream has no stable tags at all
+        (distinct from an empty list = already current).
+        """
+        stable = _list_stable_tags(url)
+        if not stable:
+            return None
+        return [tag for tag in stable if self.is_newer_than(tag, old_sha)]
+
+    def read_tag_file(self, tag: str, path: str) -> str | None:
+        """Return the text of `path` at `tag` in this submodule, or None if absent.
+
+        `git show` reads straight from the object store -- never touches the
+        working tree.
+        """
+        result = git_query(["git", "show", f"{tag}:{path}"], cwd=self.path)
+        return result.stdout if result.returncode == 0 else None
+
+    def tag_has_path(self, tag: str, path: str) -> bool:
+        """True if `path` exists at `tag` in this submodule."""
+        return git_query(
+            ["git", "cat-file", "-e", f"{tag}:{path}"], cwd=self.path,
+        ).returncode == 0
+
+def _list_stable_tags(url: str) -> list[str]:
+    """Return every stable release tag at `url`, sorted newest first."""
+    # Patterns narrow the listing server-side; `_STABLE_TAG_RE` still drops
+    # prereleases (v1.0.0-rc1) that globs can't exclude.
+    result = git_query(
+        ["git", "ls-remote", "--tags", "--refs", url,
+         "refs/tags/v[0-9]*", "refs/tags/[0-9]*"],
+        cwd=Path.cwd(),
+    )
     if result.returncode != 0:
-        return None
+        return []
     tags = [
         line.split("refs/tags/", 1)[1]
         for line in result.stdout.splitlines()
         if "refs/tags/" in line
     ]
+    # We still need to filter here, because the above pattern
+    # does not filter pre-release tags.
     stable = [t for t in tags if _STABLE_TAG_RE.match(t)]
-    if not stable:
+    return sorted(stable, key=version_key, reverse=True)
+
+
+def latest_stable_tag(url: str) -> str | None:
+    """Return the highest stable release tag at `url`, or None."""
+    tags = _list_stable_tags(url)
+    return tags[0] if tags else None
+
+
+def _requires_abi15(fetched: FetchedSubmodule, tag: str) -> bool:
+    """True if the grammar at `tag` declares a top-level `reserved:` field.
+
+    Best-effort text check on `grammar.js` -- misses `reserved` declared
+    only in a shared/required module; test-lang is the authoritative check.
+    """
+    text = fetched.read_tag_file(tag, "grammar.js")
+    return bool(text and _RESERVED_FIELD_RE.search(text))
+
+
+def _upstream_has_cpp_scanner(fetched: FetchedSubmodule, tag: str) -> bool:
+    """True if upstream at `tag` ships a C++ external scanner (`src/scanner.cc`)."""
+    return fetched.tag_has_path(tag, "src/scanner.cc")
+
+
+def _semgrep_has_cpp_scanner(root: Path, lang: LangAndWrapper) -> bool:
+    """True if the semgrep extension grammar keeps a C++ scanner.
+
+    Checked on the working tree (`semgrep-<wrapper>/src/scanner.cc`): the
+    extension lives in this repo, not in the upstream submodule tag. A stale
+    C++ fork here (e.g. ruby) still forces tree-sitter < 0.24 even when
+    upstream has already moved to `scanner.c`.
+    """
+    return (lang.wrapper_dir(root) / "src" / "scanner.cc").is_file()
+
+
+def _declared_min_ts_version(fetched: FetchedSubmodule, tag: str) -> str | None:
+    """Return upstream's declared minimum tree-sitter-cli version at `tag`.
+
+    Parsed from package.json's devDependencies/peerDependencies. None if
+    undeclared, unparseable, or package.json is absent.
+    """
+    text = fetched.read_tag_file(tag, "package.json")
+    if not text:
         return None
-    return max(stable, key=version_key)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    for section in ("devDependencies", "peerDependencies"):
+        section_data = data.get(section)
+        if not isinstance(section_data, dict):
+            continue
+        spec = section_data.get("tree-sitter-cli")
+        if spec:
+            match = _VERSION_DIGITS_RE.search(spec)
+            if match:
+                return match.group(1)
+    return None
 
 
-def language_ts_version(root: Path, wrapper: str) -> str | None:
-    """Return the tree-sitter version `wrapper` is listed under, or None.
+@dataclass(frozen=True)
+class VersionResolution:
+    """Outcome of resolve_tag_and_version: a (tag, ts_version) pairing
+    (optionally with an advisory `note`), or an `error`."""
+    tag: str | None
+    ts_version: str | None
+    note: str | None = None
+    error: str | None = None
+
+
+def resolve_tag_and_version(root: Path, submodule: Path, url: str,
+                            tree_sitter_versions: list[str],
+                            old_sha: str, lang: LangAndWrapper) -> VersionResolution:
+    """Pick the newest tag newer than `old_sha` this repo can build at ABI
+    14, and the best pinned tree-sitter version to build it with.
+
+    Walks newer stable tags (capped at MAX_TAGS_EXAMINED), skips ABI 15,
+    and picks the highest pinned lang/languages-* version compatible with
+    C++-scanner constraints (upstream tag and/or semgrep-<wrapper>) and
+    upstream's declared tree-sitter-cli floor.
+    """
+
+    fetched = FetchedSubmodule.fetch(submodule)
+    if fetched is None:
+        return VersionResolution(None, None, error="could not fetch tags from submodule")
+
+    tags = fetched.list_newer_stable_tags(url, old_sha)
+    if tags is None:
+        return VersionResolution(None, None, error="no stable release tag upstream")
+    if not tags:
+        return VersionResolution(
+            None, None,
+            error="already at (or ahead of) the newest available upstream tag",
+        )
+
+    semgrep_cpp = _semgrep_has_cpp_scanner(root, lang)
+    reasons: list[str] = []
+    for tag in tags[:MAX_TAGS_EXAMINED]:
+        if _requires_abi15(fetched, tag):
+            reasons.append(
+                f"{tag}: requires ABI 15 (declares 'reserved:'); "
+                f"this repo builds ABI 14 only"
+            )
+            continue
+        upstream_cpp = _upstream_has_cpp_scanner(fetched, tag)
+        has_cpp = upstream_cpp or semgrep_cpp
+        floor = _declared_min_ts_version(fetched, tag)
+        fitting = [
+            v for v in tree_sitter_versions
+            if (not has_cpp or version_key(v) < _CPP_SCANNER_CEILING)
+            and (floor is None or version_key(v) >= version_key(floor))
+        ]
+        floor_relaxed = False
+        if not fitting and has_cpp and floor is not None:
+            # C++ scanners need tree-sitter < 0.24; upstream's declared
+            # floor may be >= 0.24. Prefer the hard C++ ceiling and surface
+            # the conflict in the note (e.g. ruby: semgrep scanner.cc vs
+            # upstream tree-sitter-cli ^0.24).
+            fitting = [
+                v for v in tree_sitter_versions
+                if version_key(v) < _CPP_SCANNER_CEILING
+            ]
+            floor_relaxed = bool(fitting)
+        if not fitting:
+            constraints = []
+            if has_cpp:
+                constraints.append(
+                    f"C++ scanner (needs tree-sitter < {_CPP_SCANNER_CEILING_STR})"
+                )
+            if floor:
+                constraints.append(f"upstream's declared minimum {floor}")
+            reasons.append(
+                f"{tag}: no pinned tree-sitter version satisfies "
+                + " and ".join(constraints)
+            )
+            continue
+        chosen = fitting[0]
+        note = None
+        if has_cpp:
+            if semgrep_cpp and not upstream_cpp:
+                # Upstream moved to scanner.c but our extension still has
+                # scanner.cc -- call that out so it isn't mistaken for an
+                # upstream constraint.
+                note = (
+                    f"capped to {chosen}: semgrep-{lang.wrapper}/src/scanner.cc is "
+                    f"still C++ while upstream {tag} has no scanner.cc; "
+                    f"requires tree-sitter < {_CPP_SCANNER_CEILING_STR}. "
+                    f"Port or replace the semgrep scanner (or move the "
+                    f"ellipsis feature into grammar.js) to unlock newer "
+                    f"tree-sitter."
+                )
+            else:
+                where = "upstream" if upstream_cpp else f"semgrep-{lang.wrapper}"
+                note = (
+                    f"capped to {chosen}: C++ external scanner (scanner.cc) "
+                    f"in {where} requires tree-sitter < {_CPP_SCANNER_CEILING_STR}"
+                )
+            if floor_relaxed:
+                note = (
+                    f"{note} Upstream declares tree-sitter-cli >= {floor}, "
+                    f"which conflicts with the C++ scanner ceiling; kept the "
+                    f"ceiling."
+                )
+        return VersionResolution(tag, chosen, note=note)
+
+    detail = "; ".join(reasons) or "no compatible tag/tree-sitter-version pairing found"
+    return VersionResolution(None, None, error=detail)
+
+
+def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
+    """Return the tree-sitter version `lang.wrapper` is listed under, or None.
 
     Scans each `lang/languages-<version>` file for the wrapper name. A
     language appears in exactly one; returns that version string.
     """
     version_files = ug.discover_version_files(root, "languages")
     for version, path in version_files.items():
-        if wrapper in ug.read_languages_entries(path):
+        if lang.wrapper in ug.read_languages_entries(path):
             return version
     return None
 
 
-def resolve_target(root: Path, language: str) -> Target:
-    """Resolve a `Target` for `language` without mutating anything.
+def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[str], *, deep: bool = True) -> Target:
+    """Resolve a `Target` for `lang` without mutating anything.
 
-    Dies via update-grammar's `validate_language` on an unknown language.
+    `deep=True` (default -- the real propose flow) resolves both tag and
+    tree-sitter version via `resolve_tag_and_version`. `deep=False` (the
+    cheap `is_up_to_date` pre-filter, run across every language) resolves
+    only the single latest tag via one `ls-remote`, reusing the current pin.
     """
-    valid = ug.discover_valid_languages(root)
-    wrapper = ug.validate_language(language, valid)
-    submodule = ug.submodule_path(root, language)
+    submodule = ug.submodule_path(root, lang.language)
     url = gitmodules_url(root, submodule)
     # Languages absent from every languages-* file (e.g. gomod, a "pro"
     # package handled outside the standard version scheme) aren't
     # proposable via this flow; surface that as skip_reason rather than
     # dying, so callers can record it and move on.
-    ts_version = language_ts_version(root, wrapper)
+    current_ts_version = language_ts_version(root, lang)
     skip_reason = None
-    if ts_version is None:
-        skip_reason = f"'{wrapper}' is not in any lang/languages-* file"
-    tag = latest_stable_tag(url) if url else None
+    if current_ts_version is None:
+        skip_reason = f"'{lang.wrapper}' is not in any lang/languages-* file"
+
+    tag = ts_version = resolution_note = None
+    if skip_reason is None and url:
+        if deep:
+            old_sha = submodule_head(submodule)
+            resolution = resolve_tag_and_version(
+                root, submodule, url, tree_sitter_versions, old_sha, lang
+            )
+            tag, ts_version, resolution_note = (
+                resolution.tag, resolution.ts_version, resolution.note,
+            )
+            if resolution.error:
+                skip_reason = resolution.error
+        else:
+            tag = latest_stable_tag(url)
+            ts_version = current_ts_version
+
     return Target(
-        language=language, wrapper=wrapper, submodule=submodule,
+        lang=lang, submodule=submodule,
         ts_version=ts_version, url=url, tag=tag, skip_reason=skip_reason,
+        resolution_note=resolution_note,
     )
 
 
@@ -317,14 +609,14 @@ def tag_commit_sha(url: str, tag: str) -> str | None:
     return peeled or plain
 
 
-def is_up_to_date(root: Path, language: str) -> bool | None:
-    """True if `language`'s submodule is already at its latest stable tag.
+def is_up_to_date(root: Path, lang: LangAndWrapper) -> bool | None:
+    """True if `lang`'s submodule is already at its latest stable tag.
 
     Cheap: reads the recorded gitlink + a remote ls-remote, no build/checkout.
     Returns None if it can't be determined (no tag / no url) so callers can
     fall back to attempting the bump rather than wrongly skipping.
     """
-    target = resolve_target(root, language)
+    target = resolve_target(root, lang, tree_sitter_versions=[], deep=False)
     if target.skip_reason or target.tag is None or not target.url:
         return None
     cur = recorded_submodule_sha(root, target.submodule)
@@ -332,11 +624,6 @@ def is_up_to_date(root: Path, language: str) -> bool | None:
     if cur is None or tag_sha is None:
         return None
     return cur == tag_sha
-
-
-def wrapper_dir(root: Path, wrapper: str) -> Path:
-    """Return the semgrep-<wrapper> directory under semgrep-grammars/src."""
-    return root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{wrapper}"
 
 
 @contextlib.contextmanager
@@ -358,8 +645,7 @@ def _stdout_to_stderr():
 
 
 def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
-    """Set up `ts_version`'s tree-sitter CLI and add it to PATH, ahead of everything else.
-    """
+    """Set up `ts_version`'s tree-sitter CLI and add it to PATH, ahead of everything else."""
     with _stdout_to_stderr():
         ug.ensure_tree_sitter_version(root, ts_version)
     bin_dir = root / "core" / f"tree-sitter-{ts_version}" / "bin"
@@ -368,7 +654,7 @@ def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
     os.environ["PATH"] = os.pathsep.join(path_entries)
 
 
-def run_update_grammar(language: str, ts_version: str, tag: str,
+def run_update_grammar(lang: LangAndWrapper, ts_version: str, tag: str,
                        root: Path) -> subprocess.CompletedProcess:
     """Bump `language` to `tag` via `update-grammar --skip-release`.
 
@@ -377,43 +663,55 @@ def run_update_grammar(language: str, ts_version: str, tag: str,
     --skip-release guarantees nothing is pushed to semgrep-<lang>.
     """
     return subprocess.run(
-        [str(_UPDATE_GRAMMAR_PATH), language, ts_version,
+        [str(_UPDATE_GRAMMAR_PATH), lang.language, ts_version,
          "--ref", tag, "--skip-release"],
         cwd=root, text=True, capture_output=True, check=False,
     )
 
 
-def regenerate_snapshots(root: Path, wrapper: str) -> None:
+def regenerate_snapshots(root: Path, lang: LangAndWrapper, ts_version: str) -> None:
     """Regenerate corpus snapshots for every grammar in the wrapper.
 
     A grammar bump almost always churns parse trees, so the committed
     corpus snapshots go stale. `tree-sitter test --update` rewrites them
     from the new parser. Runs in each dir containing a grammar.js (the
     base grammar plus any sub-grammars). Requires core/tree-sitter/bin on
-    PATH (the workflow guarantees this). `:error` tests are left untouched
-    by --update; if any still fail, the later test-lang re-run catches it.
+    PATH (`ensure_ts_version_on_path`, called by main(), guarantees this).
+    Every grammar.js under a wrapper is expected to be pinned to the same
+    `ts_version` the wrapper was just bumped to; a sub-dialect pinned to a
+    different one is a real inconsistency that must be reported, not
+    silently tested against the wrong tree-sitter CLI. `:error` tests are
+    left untouched by --update; if any still fail, the later test-lang
+    re-run catches it.
     """
-    wrapper_path = wrapper_dir(root, wrapper)
+    wrapper_path = lang.wrapper_dir(root)
     grammar_dirs = {p.parent for p in wrapper_path.rglob("grammar.js")}
     for gdir in sorted(grammar_dirs):
+        pinned = ts_versions.version_for_grammar_dir(gdir, root / "lang")
+        if pinned != ts_version:
+            raise ts_versions.TsVersionError(
+                f"{gdir} is pinned to tree-sitter {pinned}, but {lang.wrapper} "
+                f"was bumped to {ts_version}; a sub-dialect diverging from "
+                f"its wrapper's tree-sitter version is not supported"
+            )
         # check=False: --update exits non-zero on :error tests it can't
         # update; that's expected and handled by the authoritative
         # test-lang re-run.
         git_query(["tree-sitter", "test", "--update"], cwd=gdir)
 
 
-def corpus_diff(root: Path, wrapper: str) -> str:
+def corpus_diff(root: Path, lang: LangAndWrapper) -> str:
     """Return the working-tree diff of the wrapper's corpus snapshots."""
     return git_query(
-        ["git", "diff", "--", str(wrapper_dir(root, wrapper) / "test" / "corpus")],
+        ["git", "diff", "--", str(lang.wrapper_dir(root) / "test" / "corpus")],
         cwd=root,
     ).stdout
 
 
-def run_test_lang(language: str, root: Path) -> subprocess.CompletedProcess:
+def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProcess:
     """Run `./test-lang <language>` for the authoritative pass/fail."""
     return subprocess.run(
-        ["./test-lang", language], cwd=root / "lang",
+        ["./test-lang", lang.language], cwd=root / "lang",
         text=True, capture_output=True, check=False,
     )
 
@@ -452,13 +750,13 @@ def base_branch() -> str:
     return base
 
 
-def branch_name(language: str, tag: str) -> str:
+def branch_name(lang: LangAndWrapper, tag: str) -> str:
     """Branch for a lang+tag proposal.
 
     Keyed on the exact tag (not the CI user) so re-runs on the same
     schedule are idempotent and a new upstream tag yields a new branch.
     """
-    return f"grammar-update/{language}/{tag}"
+    return f"grammar-update/{lang.language}/{tag}"
 
 
 def proposal_exists(root: Path, branch: str) -> bool:
@@ -488,10 +786,10 @@ def existing_proposal(root: Path, target: Target) -> Result | None:
     """
     if target.tag is None:
         return None
-    branch = branch_name(target.language, target.tag)
+    branch = branch_name(target.lang, target.tag)
     if not proposal_exists(root, branch):
         return None
-    return Result(language=target.language, ts_version=target.ts_version,
+    return Result(language=target.lang.language, ts_version=target.ts_version,
                   new_tag=target.tag, status=STATUS_EXISTS, branch=branch,
                   detail=f"branch {branch} already exists")
 
@@ -523,6 +821,10 @@ def pr_body(result: Result, url: str) -> str:
         "Scrutinize the test changes in the diff.\n\n"
         if result.tests_adapted else ""
     )
+    version_note = (
+        f"> ℹ️ **Tree-sitter version note:** {result.version_note}\n\n"
+        if result.version_note else ""
+    )
     return (
         f"Automated grammar update for **{result.language}**.\n\n"
         f"- Upstream: {url}\n"
@@ -532,6 +834,7 @@ def pr_body(result: Result, url: str) -> str:
         f"Corpus snapshots were auto-regenerated. **Please review** the parse-tree "
         f"changes below — especially any `:error` (error-recovery) cases, which "
         f"`tree-sitter test --update` does not touch automatically.\n\n"
+        f"{version_note}"
         f"{adapted_note}"
         f"{diff_section}\n\n{log_section}\n\n"
         f"🤖 Generated with [Claude Code](https://claude.com/claude-code)"
@@ -549,11 +852,11 @@ def open_pr(root: Path, target: Target, result: Result,
     (created + committed by propose in keep mode) — here we only push it and
     open the PR. Idempotent: skips if a branch already exists upstream.
     """
-    language, tag = target.language, result.new_tag
+    lang, tag = target.lang, result.new_tag
     base = base_branch()
-    branch = result.branch or branch_name(language, tag)
+    branch = result.branch or branch_name(lang, tag)
     result.branch = branch
-    title = f"Update tree-sitter-{language} grammar to {tag}"
+    title = f"Update tree-sitter-{lang.language} grammar to {tag}"
     body = pr_body(result, target.url)
 
     if dry_run:
@@ -579,7 +882,7 @@ def open_pr(root: Path, target: Target, result: Result,
     return result
 
 
-def review_agent_prompt(language: str, wrapper: str, tag: str,
+def review_agent_prompt(lang: LangAndWrapper, tag: str,
                         test_log: str) -> str:
     """Prompt that drives Marc-André's `fix-semgrep-grammar` skill.
 
@@ -592,8 +895,8 @@ def review_agent_prompt(language: str, wrapper: str, tag: str,
     signal remains the test-lang RE-RUN the caller does afterward.
     """
     return (
-        f"Use the `fix-semgrep-grammar` skill to make `test-lang {language}` "
-        f"pass. Context: the tree-sitter-{language} submodule was just bumped "
+        f"Use the `fix-semgrep-grammar` skill to make `test-lang {lang.language}` "
+        f"pass. Context: the tree-sitter-{lang.language} submodule was just bumped "
         f"to {tag} and test-lang now fails. Follow the skill's edit boundaries "
         f"and exit contract exactly; do not commit, push, or open a PR — leave "
         f"the working tree changed for the outer pipeline. Print the skill's "
@@ -623,7 +926,7 @@ def agent_cmd(prompt: str) -> list[str]:
     return ["timeout", limit, *cmd]
 
 
-def run_review_agent(root: Path, language: str, wrapper: str, tag: str,
+def run_review_agent(root: Path, lang: LangAndWrapper, tag: str,
                      test_log: str) -> None:
     """Invoke the Cursor agent to review + adapt tests for a failing bump.
 
@@ -631,8 +934,8 @@ def run_review_agent(root: Path, language: str, wrapper: str, tag: str,
     Best-effort: the authoritative signal is the test-lang RE-RUN the
     caller does afterward, so we don't raise on the agent's own exit code.
     """
-    prompt = review_agent_prompt(language, wrapper, tag, test_log)
-    log(f"$ agent -p --force <review prompt for {language}>  (in {root})")
+    prompt = review_agent_prompt(lang, tag, test_log)
+    log(f"$ agent -p --force <review prompt for {lang.language}>  (in {root})")
     r = subprocess.run(agent_cmd(prompt), cwd=root, text=True,
                        capture_output=True, check=False)
     sys.stderr.write(r.stdout)
@@ -655,10 +958,11 @@ def propose(root: Path, target: Target, keep: bool = False,
     is reset before returning.
     Does NOT create a PR — that's the caller's job under --open-pr.
     """
-    language = target.language
+    lang = target.lang
     tag = target.tag
-    wrapper = target.wrapper
-    result = Result(language=language, ts_version=target.ts_version, new_tag=tag)
+    result = Result(language=lang.language, ts_version=target.ts_version, new_tag=tag)
+    if target.resolution_note:
+        result.version_note = target.resolution_note
 
     if target.skip_reason:
         result.status = STATUS_NO_TAGS
@@ -679,7 +983,7 @@ def propose(root: Path, target: Target, keep: bool = False,
     # do the work in place and reset the tree before returning. Doing it once,
     # on the final branch, avoids the old propose-resets/open_pr-redoes
     # duplication (and the second, unvalidated agent run it caused).
-    branch = branch_name(language, tag)
+    branch = branch_name(lang, tag)
     committed = False
     if keep:
         base = base_branch()
@@ -692,7 +996,7 @@ def propose(root: Path, target: Target, keep: bool = False,
         # our re-run below is the authoritative signal. But an unchanged
         # submodule is only a real no-op if the bump itself succeeded —
         # otherwise it failed before doing anything and must be surfaced.
-        bump = run_update_grammar(language, target.ts_version, tag, root)
+        bump = run_update_grammar(lang, target.ts_version, tag, root)
         new_sha = submodule_head(submodule)
         result.new_sha = new_sha
 
@@ -707,9 +1011,9 @@ def propose(root: Path, target: Target, keep: bool = False,
 
         # Snapshots are expected to churn; regenerate then test for the
         # authoritative result.
-        regenerate_snapshots(root, wrapper)
-        result.corpus_diff = corpus_diff(root, wrapper)
-        test = run_test_lang(language, root)
+        regenerate_snapshots(root, lang, target.ts_version)
+        result.corpus_diff = corpus_diff(root, lang)
+        test = run_test_lang(lang, root)
         result.test_log_tail = tail(test.stdout + test.stderr)
 
         if test.returncode != 0 and review_agent:
@@ -717,10 +1021,10 @@ def propose(root: Path, target: Target, keep: bool = False,
             # that broke existing corpus snapshots. Invoke the fix-semgrep-
             # grammar skill to adapt the tests, then re-test as the
             # authoritative signal (the skill's own status is advisory).
-            run_review_agent(root, language, wrapper, tag,
+            run_review_agent(root, lang, tag,
                              test.stdout + test.stderr)
-            result.corpus_diff = corpus_diff(root, wrapper)
-            test = run_test_lang(language, root)
+            result.corpus_diff = corpus_diff(root, lang)
+            test = run_test_lang(lang, root)
             result.test_log_tail = tail(test.stdout + test.stderr)
             if test.returncode == 0:
                 result.tests_adapted = True
@@ -742,7 +1046,7 @@ def propose(root: Path, target: Target, keep: bool = False,
             run_quiet(["git", "add", "-A", "--", ".",
                        ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
             run_quiet(["git", "commit", "-m",
-                       f"Update tree-sitter-{language} grammar to {tag}"], cwd=root)
+                       f"Update tree-sitter-{lang.language} grammar to {tag}"], cwd=root)
             committed = True
             result.branch = branch
         return result
@@ -802,7 +1106,7 @@ def ensure_label(repo: str, label: str) -> None:
     )
 
 
-def release_dialects(language: str, wrapper: str) -> list[str]:
+def release_dialects(lang: LangAndWrapper) -> list[str]:
     """Dialects to release for a language, filtered to existing repos.
 
     `lang/release` operates per dialect (typescript -> [typescript, tsx],
@@ -810,9 +1114,9 @@ def release_dialects(language: str, wrapper: str) -> list[str]:
     semgrep-<dialect> repo can be released. Falls back to the language
     itself.
     """
-    dialects = ug.LANGUAGE_VARIANTS.get(wrapper, [language])
+    dialects = ug.LANGUAGE_VARIANTS.get(lang.wrapper, [lang.language])
     existing = [d for d in dialects if downstream_repo_exists(d)]
-    return existing or [language]
+    return existing or [lang.language]
 
 
 def open_downstream_pr(dialect: str, branch: str, tag: str,
@@ -846,7 +1150,7 @@ def open_downstream_pr(dialect: str, branch: str, tag: str,
     )
 
 
-def release_downstream(root: Path, language: str, wrapper: str, branch: str,
+def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
                        tag: str, *, dry_run: bool) -> subprocess.CompletedProcess:
     """Release the generated parser to each semgrep-<dialect> repo, via PR.
 
@@ -858,7 +1162,7 @@ def release_downstream(root: Path, language: str, wrapper: str, branch: str,
     """
     lang_dir = root / "lang"
     last = None
-    for dialect in release_dialects(language, wrapper):
+    for dialect in release_dialects(lang):
         cmd = ["./release", dialect, "--branch", branch]
         if dry_run:
             cmd.append("--dry-run")
@@ -890,11 +1194,13 @@ def list_languages(root: Path, as_json: bool, updatable_only: bool = False) -> N
     Languages whose status can't be cheaply determined are INCLUDED (so the
     full flow decides, rather than wrongly skipping them).
     """
-    names = sorted(ug.discover_valid_languages(root))
+    valid = ug.discover_valid_languages(root)
+    names = sorted(valid)
     if updatable_only:
         kept = []
         for name in names:
-            up = is_up_to_date(root, name)
+            lang = LangAndWrapper(language=name, wrapper=valid[name])
+            up = is_up_to_date(root, lang)
             if up is True:
                 log(f"skip {name}: already at latest tag")
             else:
@@ -1015,14 +1321,14 @@ def run_release(root: Path, target: Target, dry_run: bool,
     live, and a stale branch name fails loudly on the fetch (no silent
     wrong-version release).
     """
-    language, wrapper = target.language, target.wrapper
+    language, wrapper = target.lang.language, target.lang.wrapper
     if result_file:
         res = Result.from_file(Path(result_file))
         tag = res.new_tag
-        branch = res.branch or (branch_name(language, tag) if tag else None)
+        branch = res.branch or (branch_name(target.lang, tag) if tag else None)
     else:
         tag = target.tag
-        branch = branch_name(language, tag) if tag else None
+        branch = branch_name(target.lang, tag) if tag else None
     if tag is None or branch is None:
         ug.die(f"{language}: no validated tag/branch; nothing to release.")
 
@@ -1036,7 +1342,7 @@ def run_release(root: Path, target: Target, dry_run: bool,
     run_quiet(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
                "--", str(target.submodule.relative_to(root))], cwd=root)
 
-    rel = release_downstream(root, language, wrapper, branch, tag, dry_run=dry_run)
+    rel = release_downstream(root, target.lang, branch, tag, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:
         ug.die(f"{language}: lang/release failed.")
 
@@ -1063,11 +1369,24 @@ def main() -> int:
     if not args.language:
         ug.die("a language is required (or use --list-languages).")
 
-    target = resolve_target(root, args.language)
+    tree_sitter_versions = sorted(
+        ug.discover_version_files(root, "languages").keys(),
+        key=version_key, reverse=True,
+    )
+    if not tree_sitter_versions:
+        ug.die("no supported tree-sitter versions found in lang/languages-* files")
+
+    # Dies if the language is unknown.
+    valid = ug.discover_valid_languages(root)
+    wrapper = ug.validate_language(args.language, valid)
+
+    # Determine what to update the language to.
+    lang = LangAndWrapper(language=args.language, wrapper=wrapper)
+    target = resolve_target(root, lang, tree_sitter_versions)
 
     if args.resolve_tag_only:
         if target.tag is None:
-            log(f"{args.language}: no stable release tag found.")
+            log(f"{lang.language}: no stable release tag found.")
             return 1
         print(target.tag)
         return 0
