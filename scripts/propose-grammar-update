@@ -39,6 +39,7 @@ Modes:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -336,6 +337,41 @@ def is_up_to_date(root: Path, language: str) -> bool | None:
 def wrapper_dir(root: Path, wrapper: str) -> Path:
     """Return the semgrep-<wrapper> directory under semgrep-grammars/src."""
     return root / "lang" / "semgrep-grammars" / "src" / f"semgrep-{wrapper}"
+
+
+@contextlib.contextmanager
+def _stdout_to_stderr():
+    """Redirect fd 1 to fd 2 temporarily.
+
+    update-grammar's `run()` inherits stdout for subprocesses it doesn't
+    capture; this script's stdout must stay a single JSON line.
+    """
+    sys.stdout.flush()
+    saved_fd = os.dup(1)
+    try:
+        os.dup2(2, 1)
+        yield
+    finally:
+        sys.stdout.flush()
+        os.dup2(saved_fd, 1)
+        os.close(saved_fd)
+
+
+def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
+    """Put `ts_version`'s tree-sitter CLI on PATH, ahead of everything else.
+
+    test-lang, release, and update-grammar's own re-run all shell out to a
+    bare `tree-sitter`; CI sets this up via GITHUB_PATH, a local run
+    doesn't. Reuses update-grammar's self-healing `ensure_tree_sitter_version`
+    and targets `core/tree-sitter-<ts_version>/bin` directly -- not the
+    `core/tree-sitter` symlink, which later per-directory calls can repoint.
+    """
+    with _stdout_to_stderr():
+        ug.ensure_tree_sitter_version(root, ts_version)
+    bin_dir = root / "core" / f"tree-sitter-{ts_version}" / "bin"
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    path_entries.insert(0, str(bin_dir))
+    os.environ["PATH"] = os.pathsep.join(path_entries)
 
 
 def run_update_grammar(language: str, ts_version: str, tag: str,
@@ -1041,6 +1077,12 @@ def main() -> int:
             return 1
         print(target.tag)
         return 0
+
+    # Every path below this point can shell out to test-lang/release/
+    # update-grammar, each of which invokes a bare `tree-sitter`. Put the
+    # right one on PATH once, globally, before any of them run.
+    if target.ts_version:
+        ensure_ts_version_on_path(root, target.ts_version)
 
     if args.release:
         return run_release(root, target, args.dry_run, result_file=args.result)
