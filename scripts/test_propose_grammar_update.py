@@ -422,11 +422,7 @@ class TestTagCommitSha(unittest.TestCase):
     """
 
     def _with_ls_remote(self, stdout):
-        import subprocess as sp
-        return unittest.mock.patch.object(
-            pg, "git_query",
-            lambda cmd, cwd: sp.CompletedProcess(cmd, 0, stdout, ""),
-        )
+        return unittest.mock.patch.object(pg, "ls_remote", lambda *a: stdout)
 
     def test_annotated_tag_prefers_peeled_sha(self):
         out = ("tagobj111\trefs/tags/v1.0.0\n"

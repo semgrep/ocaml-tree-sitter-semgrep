@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "gitpython>=3.1.0",
+# ]
+# ///
 """Propose an upstream grammar update for a single language.
 
 This is the per-language driver behind the scheduled "propose grammar
@@ -50,6 +56,8 @@ from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from typing import Any
+
+import git
 
 ###############################################################################
 # update-grammar import #
@@ -149,11 +157,11 @@ def log(msg: str) -> None:
 
 
 def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
-    """Run a read-only git query quietly (no command echo, never raises).
+    """Run a read-only, non-git query quietly (no command echo, never raises).
 
-    `update-grammar`'s `run` echoes every command to stderr, which is
-    noise for the many read-only probes here. Use this for queries;
-    reserve `ug.run` for mutating steps where live output is wanted.
+    All actual git operations go through GitPython; this remains for the
+    non-git read-only probes here (`gh`, `tree-sitter`) where a bare
+    CompletedProcess is the simplest fit.
     """
     return subprocess.run(
         cmd, cwd=cwd, text=True, capture_output=True, check=False,
@@ -161,13 +169,13 @@ def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
 
 
 def run_quiet(cmd: list[str], cwd: Path) -> None:
-    """Run a mutating command, mirroring its output to STDERR, raising on error.
+    """Run a mutating `gh` command, mirroring its output to STDERR, raising on error.
 
-    stdout is reserved for the single JSON result line, so git/gh output
+    stdout is reserved for the single JSON result line, so gh output
     must never go there (it would corrupt the contract and the workflow's
     `tee`'d artifact). The child's stderr is merged into its stdout at
     capture time (stderr=STDOUT) so the re-emitted log keeps the original
-    interleaving.
+    interleaving. Git operations go through GitPython instead.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
     r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
@@ -197,25 +205,28 @@ def gitmodules_url(root: Path, submodule: Path) -> str | None:
     keys in CI.
     """
     rel = submodule.relative_to(root).as_posix()
-    result = git_query(
-        ["git", "config", "-f", ".gitmodules", "--get-regexp", r"\.path$"],
-        cwd=root,
-    )
-    section = None
-    for line in result.stdout.splitlines():
-        key, _, path = line.partition(" ")
-        if path == rel:
-            section = key[: -len(".path")]
-            break
-    if section is None:
-        return None
-    url = git_query(
-        ["git", "config", "-f", ".gitmodules", "--get", f"{section}.url"],
-        cwd=root,
-    ).stdout.strip()
-    if not url:
-        return None
+    with git.GitConfigParser(str(root / ".gitmodules"), read_only=True) as cfg:
+        section = next(
+            (s for s in cfg.sections()
+             if cfg.has_option(s, "path") and cfg.get(s, "path") == rel),
+            None,
+        )
+        if section is None or not cfg.has_option(section, "url"):
+            return None
+        url = cfg.get(section, "url")
     return url.replace("git@github.com:", "https://github.com/")
+
+
+def ls_remote(*args: str, cwd: Path | None = None) -> str:
+    """Run `git ls-remote` via GitPython, returning "" if it fails.
+
+    `cwd` matters when `args` names a configured remote (e.g. "origin")
+    rather than a bare URL, so it resolves against the right repo.
+    """
+    try:
+        return git.Git(cwd).ls_remote(*args)
+    except git.GitCommandError:
+        return ""
 
 
 def latest_stable_tag(url: str) -> str | None:
@@ -225,12 +236,10 @@ def latest_stable_tag(url: str) -> str | None:
     and non-version tag schemes are ignored), and returns the highest by
     numeric version.
     """
-    result = git_query(["git", "ls-remote", "--tags", "--refs", url], cwd=Path.cwd())
-    if result.returncode != 0:
-        return None
+    out = ls_remote("--tags", "--refs", url)
     tags = [
         line.split("refs/tags/", 1)[1]
-        for line in result.stdout.splitlines()
+        for line in out.splitlines()
         if "refs/tags/" in line
     ]
     stable = [t for t in tags if _STABLE_TAG_RE.match(t)]
@@ -277,18 +286,20 @@ def resolve_target(root: Path, language: str) -> Target:
 
 
 def submodule_head(submodule: Path) -> str:
-    """Return the submodule's current HEAD SHA."""
-    return git_query(["git", "rev-parse", "HEAD"], cwd=submodule).stdout.strip()
+    """Return the submodule's current HEAD SHA using GitPython."""
+    repo = git.Repo(submodule)
+    return repo.head.commit.hexsha
 
 
 def recorded_submodule_sha(root: Path, submodule: Path) -> str | None:
-    """Return the submodule SHA recorded in the outer repo's index (HEAD).
+    """Return the submodule SHA recorded in the outer repo's index (HEAD) using GitPython.
 
-    Reads the committed gitlink via `git ls-tree` — no submodule checkout
+    Reads the committed gitlink via ls-tree — no submodule checkout
     needed, so this is cheap enough for the enumerate pre-filter.
     """
     rel = submodule.relative_to(root).as_posix()
-    out = git_query(["git", "ls-tree", "HEAD", rel], cwd=root).stdout.split()
+    repo = git.Repo(root)
+    out = repo.git.ls_tree("HEAD", rel).split()
     return out[2] if len(out) >= 3 else None
 
 
@@ -300,10 +311,7 @@ def tag_commit_sha(url: str, tag: str) -> str | None:
     tag OBJECT, which would never match a gitlink commit SHA. Prefer the
     peeled line; lightweight tags have no peeled line, so fall back.
     """
-    out = git_query(
-        ["git", "ls-remote", url, f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}"],
-        cwd=Path.cwd(),
-    ).stdout
+    out = ls_remote(url, f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}")
     peeled = plain = None
     for line in out.splitlines():
         parts = line.split()
@@ -404,10 +412,8 @@ def regenerate_snapshots(root: Path, wrapper: str) -> None:
 
 def corpus_diff(root: Path, wrapper: str) -> str:
     """Return the working-tree diff of the wrapper's corpus snapshots."""
-    return git_query(
-        ["git", "diff", "--", str(wrapper_dir(root, wrapper) / "test" / "corpus")],
-        cwd=root,
-    ).stdout
+    return git.Repo(root).git.diff(
+        "--", str(wrapper_dir(root, wrapper) / "test" / "corpus"))
 
 
 def run_test_lang(language: str, root: Path) -> subprocess.CompletedProcess:
@@ -419,18 +425,21 @@ def run_test_lang(language: str, root: Path) -> subprocess.CompletedProcess:
 
 
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
-    """Undo every mutation, so a failure never leaks into the next run.
+    """Undo every mutation using GitPython, so a failure never leaks into the next run.
 
     Mirrors what `update-grammar` leaves behind on a failed run: a
     detached/bumped submodule, edited languages-* files, deleted/regenerated
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
     """
-    git_query(["git", "restore", "--staged", "."], cwd=root)
-    git_query(["git", "checkout", "--", "lang"], cwd=root)
-    git_query(["git", "checkout", old_sha], cwd=submodule)
-    git_query(["git", "checkout", "--", "."], cwd=submodule)
-    git_query(["git", "clean", "-fdq"], cwd=submodule)
+    root_repo = git.Repo(root)
+    root_repo.git.restore("--staged", ".")
+    root_repo.git.checkout("--", "lang")
+
+    sub_repo = git.Repo(submodule)
+    sub_repo.git.checkout(old_sha)
+    sub_repo.git.checkout("--", ".")
+    sub_repo.git.clean("-fdq")
 
 
 def tail(text: str, lines: int = 40) -> str:
@@ -467,16 +476,9 @@ def proposal_exists(root: Path, branch: str) -> bool:
     Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
     Checks origin (the durable signal) and any local branch.
     """
-    remote = git_query(
-        ["git", "ls-remote", "--heads", "origin", branch], cwd=root,
-    ).stdout.strip()
-    if remote:
+    if ls_remote("--heads", "origin", branch, cwd=root).strip():
         return True
-    local = git_query(
-        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
-        cwd=root,
-    )
-    return local.returncode == 0
+    return branch in git.Repo(root).heads
 
 
 def existing_proposal(root: Path, target: Target) -> Result | None:
@@ -568,7 +570,8 @@ def open_pr(root: Path, target: Target, result: Result,
         result.detail = f"branch {branch} already exists"
         return result
 
-    run_quiet(["git", "push", "origin", branch], cwd=root)
+    log(f"$ git push origin {branch}  (in {root})")
+    git.Repo(root).remotes.origin.push(branch)
     create = ["gh", "pr", "create", "--title", title, "--body", body,
               "--base", base, "--head", branch]
     # Flag PRs where the skill adapted test expectations so reviewers look closely.
@@ -683,8 +686,11 @@ def propose(root: Path, target: Target, keep: bool = False,
     committed = False
     if keep:
         base = base_branch()
-        run_quiet(["git", "fetch", "origin", base], cwd=root)
-        run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
+        repo = git.Repo(root)
+        log(f"$ git fetch origin {base}  (in {root})")
+        repo.remotes.origin.fetch(base)
+        log(f"$ git checkout -B {branch} origin/{base}  (in {root})")
+        repo.git.checkout("-B", branch, f"origin/{base}")
 
     try:
         # A non-zero bump with a MOVED submodule is expected (update-grammar's
@@ -739,10 +745,11 @@ def propose(root: Path, target: Target, keep: bool = False,
             # Commit the validated tree on the branch — this is exactly what
             # was tested. Exclude the workflow's result artifact and `core`
             # (a grammar bump must only move the language submodule).
-            run_quiet(["git", "add", "-A", "--", ".",
-                       ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
-            run_quiet(["git", "commit", "-m",
-                       f"Update tree-sitter-{language} grammar to {tag}"], cwd=root)
+            commit_repo = git.Repo(root)
+            commit_repo.git.add("-A", "--", ".",
+                                ":(exclude)result-*.json", ":(exclude)core")
+            commit_repo.git.commit(
+                "-m", f"Update tree-sitter-{language} grammar to {tag}")
             committed = True
             result.branch = branch
         return result
@@ -1031,10 +1038,15 @@ def run_release(root: Path, target: Target, dry_run: bool,
     # that could pull different content than what test-lang actually
     # validated. `lang/release` regenerates the OCaml sources from this tree
     # via its own `make gen`.
-    run_quiet(["git", "fetch", "origin", branch], cwd=root)
-    run_quiet(["git", "checkout", branch], cwd=root)
-    run_quiet(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
-               "--", str(target.submodule.relative_to(root))], cwd=root)
+    repo = git.Repo(root)
+    log(f"$ git fetch origin {branch}  (in {root})")
+    repo.remotes.origin.fetch(branch)
+    log(f"$ git checkout {branch}  (in {root})")
+    repo.git.checkout(branch)
+    sub_rel = str(target.submodule.relative_to(root))
+    log(f"$ git submodule update --init --recursive --depth 1 -- {sub_rel}  (in {root})")
+    repo.git.submodule("update", "--init", "--recursive", "--depth", "1",
+                       "--", sub_rel)
 
     rel = release_downstream(root, language, wrapper, branch, tag, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:

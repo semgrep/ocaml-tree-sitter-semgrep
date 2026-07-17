@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "gitpython>=3.1.0",
+# ]
+# ///
 """Update the upstream tree-sitter grammar submodule for a given language.
 
 Steps performed by `main()` in order:
@@ -41,7 +47,8 @@ from collections.abc import Collection
 from pathlib import Path
 from typing import NoReturn
 
-# Length used when abbreviating SHAs in branch names and commit messages.
+import git
+from git.exc import GitCommandError
 # Pinned so the script produces the same output regardless of the user's
 # local `core.abbrev` config.
 ABBREV_LEN = 8
@@ -221,11 +228,10 @@ def submodule_path(root: Path, lang: str) -> Path:
 
 
 def short_sha(submodule: Path, sha: str) -> str:
-    """Return `sha` abbreviated to `ABBREV_LEN` chars via `git rev-parse`."""
-    return run(
-        ["git", "rev-parse", f"--short={ABBREV_LEN}", sha],
-        cwd=submodule, capture=True,
-    ).stdout.strip()
+    """Return `sha` abbreviated to `ABBREV_LEN` chars."""
+    repo = git.Repo(submodule)
+    abbreviated = repo.git.rev_parse(f"--short={ABBREV_LEN}", sha)
+    return abbreviated.strip()
 
 
 def discover_version_files(root: Path, prefix: str) -> dict[str, Path]:
@@ -323,24 +329,16 @@ def remove_stale_parsers(root: Path, lang: str, list_name: str) -> None:
         path.unlink()
 
 
-def require_clean_worktree(repo: Path) -> None:
-    """Abort if `repo` has pre-existing changes.
-
-    `commit_changes` later does `git add -A`; a dirty tree would sweep
-    in unrelated WIP. `lang/release` enforces this too — failing here
-    is just earlier and clearer.
-    """
-    status = run(
-        ["git", "status", "--porcelain"], cwd=repo, capture=True,
-    ).stdout.strip()
-    if status:
+def require_clean_worktree(repo_path: Path) -> None:
+    """Abort if `repo_path` has pre-existing changes."""
+    repo = git.Repo(repo_path)
+    if repo.is_dirty(untracked_files=True):
+        status = repo.git.status("--porcelain").strip()
         die(
-            f"working tree at {repo} is not clean. Commit or stash changes "
+            f"working tree at {repo_path} is not clean. Commit or stash changes "
             f"before running update-grammar, or pass --skip-release.\n"
             f"{status}"
         )
-
-
 def parse_args(version_choices: Collection[str],
                argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI args; `version_choices` constrains the `tree-sitter-version` positional."""
@@ -384,74 +382,76 @@ def parse_args(version_choices: Collection[str],
     return parser.parse_args(argv)
 
 
-def is_shallow_repo(repo: Path) -> bool:
-    """Return True if `repo` is a shallow clone.
-
-    Submodules are usually cloned shallow, which leaves arbitrary historical
-    refs unresolvable. `git rev-parse --is-shallow-repository` prints
-    'true'/'false' (available since git 2.15).
-    """
-    return run(
-        ["git", "rev-parse", "--is-shallow-repository"],
-        cwd=repo, capture=True,
-    ).stdout.strip() == "true"
+def is_shallow_repo(repo_path: Path) -> bool:
+    """Return True if `repo_path` is a shallow clone."""
+    git_dir = repo_path / ".git"
+    # Handle submodules where .git is a gitfile, not a directory
+    if git_dir.is_file():
+        # Parse gitfile to find the actual git directory
+        gitfile_content = git_dir.read_text().strip()
+        if gitfile_content.startswith("gitdir: "):
+            git_path = gitfile_content[8:].strip()
+            git_dir = (repo_path / git_path).resolve()
+    return (git_dir / "shallow").exists()
 
 
 def update_submodule(submodule: Path, root: Path, ref: str,
                      fetch: bool) -> tuple[str, str]:
     """Check out `ref` in the submodule. Returns (old_sha, new_sha)."""
-    old_sha = run(
-        ["git", "rev-parse", "HEAD"], cwd=submodule, capture=True,
-    ).stdout.strip()
+    try:
+        repo = git.Repo(submodule)
+        old_sha = repo.head.commit.hexsha
 
-    if fetch:
-        # Convert a shallow submodule clone to a full one so any historical
-        # `ref` (old tags, distant commits) resolves. `--unshallow` errors on
-        # an already-complete repo, so only run it when actually shallow.
-        if is_shallow_repo(submodule):
-            run(["git", "fetch", "origin", "--unshallow"], cwd=submodule)
-        run(["git", "fetch", "--tags", "origin"], cwd=submodule)
+        if fetch:
+            if is_shallow_repo(submodule):
+                repo.remotes.origin.fetch(unshallow=True)
+            repo.remotes.origin.fetch(tags=True)
 
-    new_sha = run(
-        ["git", "rev-parse", ref], cwd=submodule, capture=True,
-    ).stdout.strip()
+        new_sha = repo.git.rev_parse(ref).strip()
 
-    rel = submodule.relative_to(root)
-    print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
+        rel = submodule.relative_to(root)
+        print(f"Submodule {rel}: {old_sha} -> {new_sha} ({ref})")
 
-    if old_sha == new_sha:
-        print("Already up to date.")
+        if old_sha == new_sha:
+            print("Already up to date.")
+            return old_sha, new_sha
+
+        repo.head.reference = repo.commit(new_sha)
+        repo.head.reset(index=True, working_tree=True)
+
+        # Stage the submodule reference in the parent repo using git add
+        root_repo = git.Repo(root)
+        root_repo.git.add("--", str(rel))
         return old_sha, new_sha
+    except (GitCommandError, ValueError) as e:
+        status = e.status if isinstance(e, GitCommandError) else 1
+        cmd = e.command if isinstance(e, GitCommandError) else ["git"]
+        stdout = e.stdout if isinstance(e, GitCommandError) else str(e)
+        raise subprocess.CalledProcessError(status, cmd, stdout, "") from e
+def ensure_on_branch(repo_path: Path, branch: str, *, at: str | None = None) -> None:
+    """Switch `repo_path` to `branch`, creating it from HEAD if missing.
 
-    run(["git", "checkout", new_sha], cwd=submodule)
-    run(["git", "add", "--", rel], cwd=root)
-    return old_sha, new_sha
-
-
-def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
-    """Switch `repo` to `branch`, creating it from HEAD if missing.
-
-    With `at`, force-align via `checkout -B` so a stale branch from a
-    prior run can't move HEAD off the intended commit.
+    With `at`, force-align so a stale branch from a prior run can't move
+    HEAD off the intended commit.
 
     Needed because `git push --recurse-submodules` requires the same
     branch name in the outer repo and each submodule, else it fails with
     `src refspec ... must name a ref`.
     """
+    repo = git.Repo(repo_path)
     if at is not None:
-        run(["git", "checkout", "-B", branch, at], cwd=repo)
+        # Use git checkout -B to replace the branch if it exists (including current)
+        repo.git.checkout("-B", branch, at)
         return
-    current = run(
-        ["git", "branch", "--show-current"], cwd=repo, capture=True,
-    ).stdout.strip()
+
+    current = None if repo.head.is_detached else repo.active_branch.name
     if current == branch:
         return
-    exists = run(
-        ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
-        cwd=repo, check=False,
-    ).returncode == 0
-    cmd = ["git", "checkout", branch] if exists else ["git", "checkout", "-b", branch]
-    run(cmd, cwd=repo)
+
+    try:
+        repo.heads[branch].checkout()
+    except IndexError:
+        repo.create_head(branch).checkout()
 
 
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
@@ -461,14 +461,16 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
     path (no `--skip-release`), and `main()` enforces a clean tree
     up front in that path via `require_clean_worktree`.
     """
-    run(["git", "add", "-A"], cwd=root)
-    if run(
-        ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
-    ).returncode == 0:
+    repo = git.Repo(root)
+    # Use CLI `git add -A` so deletions are staged (IndexFile.add does not).
+    repo.git.add(A=True)
+
+    if not repo.git.diff("--cached"):
         print("No changes to commit.")
         return
+
     message = f"Update tree-sitter-{lang} grammar from {old_short} to {new_short}"
-    run(["git", "commit", "-m", message], cwd=root)
+    repo.git.commit("-m", message)
 
 
 def main() -> int:
@@ -523,9 +525,8 @@ def main() -> int:
 
     if args.skip_release:
         print("Skipping release: would have run " + shlex.join(release_args))
-        dirty = run(
-            ["git", "status", "--porcelain"], cwd=root, capture=True,
-        ).stdout.strip()
+        repo = git.Repo(root)
+        dirty = repo.git.status("--porcelain").strip()
         if dirty:
             print(
                 "\nThe outer repo now has uncommitted changes (submodule "
@@ -551,7 +552,8 @@ def _entrypoint() -> None:
         sys.exit(130)
     except subprocess.CalledProcessError as exc:
         die(f"command failed (exit {exc.returncode}): {shlex.join(str(c) for c in exc.cmd)}")
-
+    except GitCommandError as exc:
+        die(f"git command failed (exit {exc.status}): {shlex.join(str(c) for c in exc.command)}")
 
 if __name__ == "__main__":
     _entrypoint()

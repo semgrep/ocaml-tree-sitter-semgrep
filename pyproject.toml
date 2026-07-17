@@ -1,0 +1,15 @@
+[tool.uv]
+exclude-newer = "1 week"
+
+[project]
+name = "ocaml-tree-sitter-semgrep"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "gitpython>=3.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+]
