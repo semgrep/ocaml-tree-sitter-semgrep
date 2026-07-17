@@ -358,13 +358,7 @@ def _stdout_to_stderr():
 
 
 def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
-    """Put `ts_version`'s tree-sitter CLI on PATH, ahead of everything else.
-
-    test-lang, release, and update-grammar's own re-run all shell out to a
-    bare `tree-sitter`; CI sets this up via GITHUB_PATH, a local run
-    doesn't. Reuses update-grammar's self-healing `ensure_tree_sitter_version`
-    and targets `core/tree-sitter-<ts_version>/bin` directly -- not the
-    `core/tree-sitter` symlink, which later per-directory calls can repoint.
+    """Set up `ts_version`'s tree-sitter CLI and add it to PATH, ahead of everything else.
     """
     with _stdout_to_stderr():
         ug.ensure_tree_sitter_version(root, ts_version)
