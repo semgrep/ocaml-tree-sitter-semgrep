@@ -45,6 +45,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, fields
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -795,6 +796,28 @@ def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProce
     )
 
 
+def _git_reset_step(cmd: list[str], cwd: Path,
+                    attempts: int = 5, delay: float = 0.3) -> None:
+    """Run a reset_language_state step, retrying past a transient index.lock.
+
+    A concurrent git process (e.g. an IDE's or Conductor's background
+    status polling on this same working tree) can hold `index.lock` for a
+    moment, making an otherwise-correct git command fail outright.
+    reset_language_state is the safety net that must not silently no-op on
+    that kind of transient contention -- unlike git_query's other callers,
+    where a failed read-only probe is harmless, here it would leak a bumped
+    submodule/edited files into the next run. Only retries the specific
+    `index.lock` symptom; any other failure returns immediately (still
+    non-raising, matching git_query).
+    """
+    result = git_query(cmd, cwd)
+    for _ in range(attempts - 1):
+        if result.returncode == 0 or "index.lock" not in result.stderr:
+            return
+        time.sleep(delay)
+        result = git_query(cmd, cwd)
+
+
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     """Undo every mutation, so a failure never leaks into the next run.
 
@@ -802,12 +825,27 @@ def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     detached/bumped submodule, edited languages-* files, deleted/regenerated
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
+
+    The outer-repo calls pass `-c submodule.recurse=false`: with
+    `submodule.recurse` on (set repo-wide here), a plain `checkout -- lang`
+    also revisits every OTHER submodule nested under `lang/` -- not just
+    `submodule` -- e.g. tree-sitter-bash's own nested `examples/bash-it`.
+    That's unrelated to this reset, and if one of those unrelated
+    submodules has a transient lock, the whole checkout aborts, leaving the
+    languages-*/language-variants-* edits unrestored and the submodule
+    gitlink staged at the bumped SHA. `submodule` itself is still reset
+    correctly below via the explicit submodule-scoped commands. Each step
+    also goes through `_git_reset_step` since the *outer* repo's own
+    index.lock (unrelated to submodule recursion) can transiently collide
+    too.
     """
-    git_query(["git", "restore", "--staged", "."], cwd=root)
-    git_query(["git", "checkout", "--", "lang"], cwd=root)
-    git_query(["git", "checkout", old_sha], cwd=submodule)
-    git_query(["git", "checkout", "--", "."], cwd=submodule)
-    git_query(["git", "clean", "-fdq"], cwd=submodule)
+    _git_reset_step(["git", "-c", "submodule.recurse=false",
+                     "restore", "--staged", "."], root)
+    _git_reset_step(["git", "-c", "submodule.recurse=false",
+                     "checkout", "--", "lang"], root)
+    _git_reset_step(["git", "checkout", old_sha], submodule)
+    _git_reset_step(["git", "checkout", "--", "."], submodule)
+    _git_reset_step(["git", "clean", "-fdq"], submodule)
 
 
 def tail(text: str, lines: int = 40) -> str:
