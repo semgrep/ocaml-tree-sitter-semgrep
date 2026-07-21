@@ -349,6 +349,22 @@ jobs:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+      # Checkout + artifacts only so the alert can embed the same per-language
+      # status table the summary job renders (regenerated here — the Actions
+      # API doesn't expose another job's step summary). No submodules: this
+      # job must never run upstream grammar code, it holds the Slack token.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        # A crash before any propose leg wrote its result (e.g. enumerate
+        # failed) leaves no artifacts; the alert then falls back to
+        # job statuses + run link.
+        continue-on-error: true
+        with:
+          path: results
+          merge-multiple: true
       - name: Post Slack alert
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -364,11 +380,20 @@ jobs:
           prefix=""
           if [ "$TEST_MODE" = "true" ]; then prefix=":test_tube: [test mode] "; fi
           text="${prefix}:rotating_light: *Grammar update workflow failed* (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
+          # Append the per-language status table (same renderer as the run
+          # summary), as a code block since Slack doesn't render md tables.
+          # Row count is bounded by the language set (~47), well under
+          # Slack's 40k text limit.
+          mkdir -p results
+          if find results -name '*.json' | grep -q .; then
+            summary=$(python scripts/propose-grammar-update --summarize results || true)
+            text="${text}"$'\n```\n'"${summary}"$'\n```'
+          fi
           payload=$(jq -n --arg channel "$CHANNEL" --arg text "$text" '{channel: $channel, text: $text}')
           resp=$(curl -fsS -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
             -H 'Content-Type: application/json; charset=utf-8' \
             --data "$payload")
           # chat.postMessage returns HTTP 200 even on error; check the ok field.
-          echo "$resp" | jq -e '.ok' >/dev/null \
-            || { echo "::error::Slack API error: $(echo "$resp" | jq -r '.error')"; exit 1; }
+          printf '%s\n' "$resp" | jq -e '.ok' >/dev/null \
+            || { echo "::error::Slack API error: $(printf '%s\n' "$resp" | jq -r '.error')"; exit 1; }
