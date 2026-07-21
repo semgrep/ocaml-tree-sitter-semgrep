@@ -10,8 +10,8 @@ name: Propose grammar updates
 #
 # The `notify` job (needs the SLACK_BOT_TOKEN secret) posts to
 # #team-languages: an alert when any job fails, a success note with PR links
-# when updates were proposed, silence when nothing happened. Test the alert
-# path end-to-end with the inject_failure + notify_channel inputs.
+# when updates were proposed, a "nothing to do" heartbeat otherwise. Test the
+# alert path end-to-end with the inject_failure + notify_channel inputs.
 #
 # See scripts/propose-grammar-update for the per-language logic.
 
@@ -336,8 +336,8 @@ jobs:
         run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
   # Slack notification (LANG-604): pages #team-languages when any job fails,
-  # and posts a success note (with PR links) when update PRs were opened.
-  # Runs where nothing happened (all no-op) stay silent. Job-level results
+  # posts a success note (with PR links) when update PRs were opened, and a
+  # quiet "nothing to do" heartbeat otherwise. Job-level results
   # are the authoritative failure signal: propose-grammar-update exits
   # non-zero on a failed bump/test, and this also catches failures the
   # script can't see from inside (build breakage, timeouts, crashes). The
@@ -395,10 +395,8 @@ jobs:
           elif [ -n "$prs" ]; then
             text=":white_check_mark: *Grammar update PRs opened* — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
           else
-            # Nothing failed, nothing proposed (all no-op/up to date): stay
-            # silent rather than posting a weekly "nothing happened".
-            echo "post=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            # Nothing failed, nothing proposed (all no-op/up to date).
+            text=":zzz: *Grammar update run: nothing to do* — no failures, no updates proposed (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
           fi
           if [ -n "$prs" ]; then
             text="${text}"$'\n'"${prs}"
@@ -413,9 +411,7 @@ jobs:
           fi
           if [ "$TEST_MODE" = "true" ]; then text=":test_tube: [test mode] ${text}"; fi
           { echo "text<<SLACK_MSG_EOF"; printf '%s\n' "$text"; echo "SLACK_MSG_EOF"; } >> "$GITHUB_OUTPUT"
-          echo "post=true" >> "$GITHUB_OUTPUT"
       - name: Post to Slack
-        if: steps.compose.outputs.post == 'true'
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
         with:
           method: chat.postMessage
