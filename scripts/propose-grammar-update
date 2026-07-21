@@ -564,11 +564,7 @@ def open_pr(root: Path, target: Target, result: Result,
         result.status = "dry-run"
         return result
 
-    # Remote-only re-check: propose(keep=True) has already created the local
-    # branch by now, so proposal_exists() (which also counts local branches)
-    # would always say "exists" and no PR would ever be opened.
-    if git_query(["git", "ls-remote", "--heads", "origin", branch],
-                 cwd=root).stdout.strip():
+    if proposal_exists(root, branch):
         result.status = STATUS_EXISTS
         result.detail = f"branch {branch} already exists"
         return result

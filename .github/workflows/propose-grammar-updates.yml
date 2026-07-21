@@ -10,8 +10,8 @@ name: Propose grammar updates
 #
 # The `notify` job (needs the SLACK_BOT_TOKEN secret) posts to
 # #team-languages: an alert when any job fails, a success note with PR links
-# when updates were proposed, silence when nothing happened. Test the alert
-# path end-to-end with the inject_failure + notify_channel inputs.
+# when updates were proposed, a "nothing to do" heartbeat otherwise. Test the
+# alert path end-to-end with the inject_failure + notify_channel inputs.
 #
 # See scripts/propose-grammar-update for the per-language logic.
 
@@ -336,8 +336,8 @@ jobs:
         run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
   # Slack notification (LANG-604): pages #team-languages when any job fails,
-  # and posts a success note (with PR links) when update PRs were opened.
-  # Runs where nothing happened (all no-op) stay silent. Job-level results
+  # posts a success note (with PR links) when update PRs were opened, and a
+  # quiet "nothing to do" heartbeat otherwise. Job-level results
   # are the authoritative failure signal: propose-grammar-update exits
   # non-zero on a failed bump/test, and this also catches failures the
   # script can't see from inside (build breakage, timeouts, crashes). The
