@@ -74,10 +74,7 @@ def _load_update_grammar() -> Any:
 ug = _load_update_grammar()
 
 # `lang/ts_versions.py` resolves the tree-sitter version pinned for a given
-# grammar directory (lang/languages-*, lang/language-variants-*) -- the same
-# lookup the grammar Makefiles use via `lang/scripts/ts-version-for-grammar-dir`.
-# Reused here so regenerate_snapshots can catch a sub-dialect pinned to a
-# different tree-sitter version than the one its wrapper was just bumped to.
+# grammar directory (lang/languages-*, lang/language-variants-*).
 _TS_VERSIONS_PATH = _SCRIPT_DIR.parent / "lang" / "ts_versions.py"
 
 
