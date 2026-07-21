@@ -18,6 +18,8 @@ from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from packaging.version import Version
+
 SCRIPT_PATH = Path(__file__).resolve().parent / "propose-grammar-update"
 
 
@@ -572,15 +574,96 @@ class TestListStableTags(unittest.TestCase):
             pg.FetchedSubmodule, "is_newer_than",
             lambda self, tag, old_sha: tag not in ("v0.24.0", "v0.20.0"),
         ):
-            self.assertEqual(
-                fetched.list_newer_stable_tags("u", "OLD"),
-                ["v0.25.0"],
-            )
+            result = fetched.list_newer_stable_tags("u", "OLD")
+            self.assertIsInstance(result, pg.NewerStableTags)
+            self.assertEqual(result.tags, ["v0.25.0"])
 
-    def test_list_newer_stable_tags_none_when_empty(self):
+    def test_list_newer_stable_tags_no_stable_tags(self):
         fetched = pg.FetchedSubmodule(Path("/tmp/s"))
         with unittest.mock.patch.object(pg, "_list_stable_tags", lambda url: []):
-            self.assertIsNone(fetched.list_newer_stable_tags("u", "OLD"))
+            self.assertIsInstance(
+                fetched.list_newer_stable_tags("u", "OLD"), pg.NoStableTags,
+            )
+
+
+class TestPickTsVersion(unittest.TestCase):
+    VERSIONS = [Version("0.26.3"), Version("0.22.6"), Version("0.20.8")]
+
+    def test_no_constraints_picks_newest(self):
+        self.assertEqual(
+            pg._pick_ts_version(self.VERSIONS, floor=None, ceiling=None),
+            Version("0.26.3"),
+        )
+
+    def test_cpp_caps_below_0_24(self):
+        self.assertEqual(
+            pg._pick_ts_version(
+                self.VERSIONS, floor=None, ceiling=pg._CPP_SCANNER_CEILING,
+            ),
+            Version("0.22.6"),
+        )
+
+    def test_floor_filters_low_versions(self):
+        self.assertEqual(
+            pg._pick_ts_version(
+                self.VERSIONS, floor=Version("0.22.0"), ceiling=None,
+            ),
+            Version("0.26.3"),
+        )
+
+    def test_pick_none_when_floor_conflicts_with_cpp(self):
+        # Picker itself does not relax; _evaluate_tag clears the floor for
+        # the semgrep-only-C++ case before calling.
+        self.assertIsNone(pg._pick_ts_version(
+            self.VERSIONS,
+            floor=Version("0.24.4"),
+            ceiling=pg._CPP_SCANNER_CEILING,
+        ))
+
+    def test_pick_none_when_unmet_floor(self):
+        self.assertIsNone(
+            pg._pick_ts_version(
+                self.VERSIONS, floor=Version("0.30.0"), ceiling=None,
+            )
+        )
+
+
+class TestVersionNote(unittest.TestCase):
+    LANG = pg.LangAndWrapper(language="ruby", wrapper="ruby")
+
+    def test_none_without_cpp(self):
+        self.assertIsNone(pg._version_note(
+            self.LANG, "v1", Version("0.26.3"),
+            upstream_cpp=False, semgrep_cpp=False,
+            floor=None,
+        ))
+
+    def test_semgrep_only_cpp(self):
+        note = pg._version_note(
+            self.LANG, "v1", Version("0.22.6"),
+            upstream_cpp=False, semgrep_cpp=True,
+            floor=None,
+        )
+        self.assertIn("semgrep-ruby/src/scanner.cc", note)
+        self.assertIn("still C++", note)
+
+    def test_floor_conflict_appended_when_chosen_below_floor(self):
+        note = pg._version_note(
+            self.LANG, "v1", Version("0.22.6"),
+            upstream_cpp=False, semgrep_cpp=True,
+            floor=Version("0.24.4"),
+        )
+        self.assertIn("0.24.4", note)
+        self.assertIn("conflicts", note)
+
+    def test_compatible_floor_not_mentioned(self):
+        note = pg._version_note(
+            self.LANG, "v1", Version("0.22.6"),
+            upstream_cpp=False, semgrep_cpp=True,
+            floor=Version("0.20.0"),
+        )
+        self.assertNotIn("conflicts", note)
+        self.assertNotIn("0.20.0", note)
 
 
 class TestRequiresAbi15(unittest.TestCase):
@@ -651,7 +734,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     OLD_SHA = "OLDSHA"
     LANG = pg.LangAndWrapper(language="ruby", wrapper="ruby")
-    VERSIONS = ["0.26.3", "0.22.6", "0.20.8"]  # newest-first, as main() sorts
+    VERSIONS = [Version("0.26.3"), Version("0.22.6"), Version("0.20.8")]  # newest-first, as main() sorts
 
     @contextlib.contextmanager
     def _patch(self, tags, reserved_tags=(), cpp_scanner_tags=(), floors=None,
@@ -663,9 +746,13 @@ class TestResolveTagAndVersion(unittest.TestCase):
                 return None
             fetched = unittest.mock.MagicMock(spec=pg.FetchedSubmodule)
             fetched.path = submodule
-            fetched.list_newer_stable_tags.side_effect = (
-                lambda url, old_sha: None if tags is None else list(tags)
-            )
+
+            def list_newer(url, old_sha):
+                if tags is None:
+                    return pg.NoStableTags()
+                return pg.NewerStableTags(list(tags))
+
+            fetched.list_newer_stable_tags.side_effect = list_newer
             return fetched
 
         with unittest.mock.patch.multiple(
@@ -686,23 +773,25 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     def test_picks_latest_tag_and_highest_version(self):
         r = self._resolve(tags=["v0.26.0", "v0.25.0"])
+        self.assertIsInstance(r, pg.VersionOk)
         self.assertEqual(r.tag, "v0.26.0")
         self.assertEqual(r.ts_version, "0.26.3")
-        self.assertIsNone(r.error)
+        self.assertIsNone(r.note)
 
     def test_abi15_tag_falls_back_to_older_tag(self):
         r = self._resolve(tags=["v0.26.0", "v0.25.0"], reserved_tags=["v0.26.0"])
+        self.assertIsInstance(r, pg.VersionOk)
         self.assertEqual(r.tag, "v0.25.0")
-        self.assertIsNone(r.error)
 
     def test_all_tags_require_abi15_is_an_error(self):
         r = self._resolve(tags=["v0.26.0", "v0.25.0"],
                           reserved_tags=["v0.26.0", "v0.25.0"])
-        self.assertIsNone(r.tag)
+        self.assertIsInstance(r, pg.VersionErr)
         self.assertIn("ABI 15", r.error)
 
     def test_cpp_scanner_caps_below_0_24(self):
         r = self._resolve(tags=["v1.0.0"], cpp_scanner_tags=["v1.0.0"])
+        self.assertIsInstance(r, pg.VersionOk)
         self.assertEqual(r.ts_version, "0.22.6")
         self.assertIn("scanner.cc", r.note)
         self.assertIn("upstream", r.note)
@@ -711,6 +800,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
         # Upstream has no scanner.cc, but semgrep-<wrapper> still does --
         # same cap, and the note must call out the stale extension fork.
         r = self._resolve(tags=["v1.0.0"], semgrep_cpp=True)
+        self.assertIsInstance(r, pg.VersionOk)
         self.assertEqual(r.ts_version, "0.22.6")
         self.assertIn("semgrep-ruby/src/scanner.cc", r.note)
         self.assertIn("still C++", r.note)
@@ -722,6 +812,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
         r = self._resolve(
             tags=["v0.23.1"], semgrep_cpp=True, floors={"v0.23.1": "0.24.4"},
         )
+        self.assertIsInstance(r, pg.VersionOk)
         self.assertEqual(r.tag, "v0.23.1")
         self.assertEqual(r.ts_version, "0.22.6")
         self.assertIn("0.24.4", r.note)
@@ -729,23 +820,24 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     def test_unmet_floor_is_an_error(self):
         r = self._resolve(tags=["v1.0.0"], floors={"v1.0.0": "0.30.0"})
-        self.assertIsNone(r.tag)
+        self.assertIsInstance(r, pg.VersionErr)
         self.assertIn("0.30.0", r.error)
 
     def test_no_tags_upstream_is_an_error(self):
         r = self._resolve(tags=None)
+        self.assertIsInstance(r, pg.VersionErr)
         self.assertIn("no stable release tag", r.error)
 
     def test_stops_at_first_tag_not_newer_than_current(self):
         # list_newer_stable_tags already filtered out v0.24.0 and older; only
         # the ABI-15 v0.25.0 remains as a candidate.
         r = self._resolve(tags=["v0.25.0"], reserved_tags=["v0.25.0"])
-        self.assertIsNone(r.tag)
+        self.assertIsInstance(r, pg.VersionErr)
         self.assertIn("ABI 15", r.error)
 
     def test_no_newer_tag_is_a_distinct_error(self):
         r = self._resolve(tags=[])
-        self.assertIsNone(r.tag)
+        self.assertIsInstance(r, pg.VersionErr)
         self.assertIn("already at", r.error)
 
     def test_examines_at_most_max_tags(self):
@@ -763,7 +855,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
             )
         self.assertEqual(len(examined), pg.MAX_TAGS_EXAMINED)
         self.assertEqual(examined, many_tags[: pg.MAX_TAGS_EXAMINED])
-        self.assertIsNone(r.tag)
+        self.assertIsInstance(r, pg.VersionErr)
 
 
 class TestFetchTagsPreservesAncestry(unittest.TestCase):

@@ -51,6 +51,8 @@ from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from typing import Any
 
+from packaging.version import Version
+
 ###############################################################################
 # update-grammar import #
 ###############################################################################
@@ -252,8 +254,8 @@ def gitmodules_url(root: Path, submodule: Path) -> str | None:
 MAX_TAGS_EXAMINED = 4
 
 # tree-sitter >= 0.24 is known to break C++ external scanners (scanner.cc).
-_CPP_SCANNER_CEILING = version_key("0.24.0")
-_CPP_SCANNER_CEILING_STR = ".".join(str(part) for part in _CPP_SCANNER_CEILING)
+_CPP_SCANNER_CEILING = Version("0.24.0")
+_CPP_SCANNER_CEILING_STR = str(_CPP_SCANNER_CEILING)
 
 # ABI 15's only grammar-authoring feature that can't be expressed in ABI 14
 # (this repo ships ABI 14 only -- see lang/generate_abi_args.py).
@@ -261,6 +263,20 @@ _RESERVED_FIELD_RE = re.compile(r"^\s*reserved\s*:", re.MULTILINE)
 
 # Semver inside a devDependencies/peerDependencies value, e.g. "^0.25.3".
 _VERSION_DIGITS_RE = re.compile(r"(\d+\.\d+\.\d+)")
+
+
+@dataclass(frozen=True)
+class NoStableTags:
+    """Upstream has no stable release tags at all."""
+
+
+@dataclass(frozen=True)
+class NewerStableTags:
+    """Stable tags strictly newer than the current SHA, newest first.
+
+    An empty `tags` list means already at (or ahead of) the newest stable tag.
+    """
+    tags: list[str]
 
 
 @dataclass(frozen=True)
@@ -299,16 +315,18 @@ class FetchedSubmodule:
 
     def list_newer_stable_tags(
         self, url: str, old_sha: str,
-    ) -> list[str] | None:
+    ) -> NoStableTags | NewerStableTags:
         """Return stable tags at `url` strictly newer than `old_sha`, newest first.
 
-        Returns None if upstream has no stable tags at all
-        (distinct from an empty list = already current).
+        `NoStableTags` if upstream has no stable tags at all;
+        `NewerStableTags` with an empty list means already current.
         """
         stable = _list_stable_tags(url)
         if not stable:
-            return None
-        return [tag for tag in stable if self.is_newer_than(tag, old_sha)]
+            return NoStableTags()
+        return NewerStableTags(
+            [tag for tag in stable if self.is_newer_than(tag, old_sha)]
+        )
 
     def read_tag_file(self, tag: str, path: str) -> str | None:
         """Return the text of `path` at `tag` in this submodule, or None if absent.
@@ -324,6 +342,7 @@ class FetchedSubmodule:
         return git_query(
             ["git", "cat-file", "-e", f"{tag}:{path}"], cwd=self.path,
         ).returncode == 0
+
 
 def _list_stable_tags(url: str) -> list[str]:
     """Return every stable release tag at `url`, sorted newest first."""
@@ -405,17 +424,125 @@ def _declared_min_ts_version(fetched: FetchedSubmodule, tag: str) -> str | None:
 
 
 @dataclass(frozen=True)
-class VersionResolution:
-    """Outcome of resolve_tag_and_version: a (tag, ts_version) pairing
-    (optionally with an advisory `note`), or an `error`."""
-    tag: str | None
-    ts_version: str | None
+class VersionOk:
+    """Successful resolve_tag_and_version outcome."""
+    tag: str
+    ts_version: str
     note: str | None = None
-    error: str | None = None
+
+
+@dataclass(frozen=True)
+class VersionErr:
+    """Failed resolve_tag_and_version outcome."""
+    error: str
+
+
+VersionResolution = VersionOk | VersionErr
+
+
+def _pick_ts_version(
+    versions: list[Version], *, floor: Version | None, ceiling: Version | None,
+) -> Version | None:
+    """Return the newest fitting pinned version, or None if nothing fits.
+
+    `versions` must already be parsed `Version`s, newest-first.
+    """
+    for v in versions:
+        if ceiling is not None and not v < ceiling:
+            continue
+        if floor is not None and not v >= floor:
+            continue
+        return v
+    return None
+
+
+def _version_note(
+    lang: LangAndWrapper, tag: str, chosen: Version, *,
+    upstream_cpp: bool, semgrep_cpp: bool,
+    floor: Version | None,
+) -> str | None:
+    """Advisory note when the chosen pin is constrained (C++ scanner, etc.)."""
+    has_cpp = upstream_cpp or semgrep_cpp
+    if not has_cpp:
+        return None
+    if semgrep_cpp and not upstream_cpp:
+        # Upstream moved to scanner.c but our extension still has
+        # scanner.cc -- call that out so it isn't mistaken for an
+        # upstream constraint.
+        note = (
+            f"capped to {chosen}: semgrep-{lang.wrapper}/src/scanner.cc is "
+            f"still C++ while upstream {tag} has no scanner.cc; "
+            f"requires tree-sitter < {_CPP_SCANNER_CEILING_STR}. "
+            f"Port or replace the semgrep scanner (or move the "
+            f"ellipsis feature into grammar.js) to unlock newer "
+            f"tree-sitter."
+        )
+    else:
+        where = "upstream" if upstream_cpp else f"semgrep-{lang.wrapper}"
+        note = (
+            f"capped to {chosen}: C++ external scanner (scanner.cc) "
+            f"in {where} requires tree-sitter < {_CPP_SCANNER_CEILING_STR}"
+        )
+    # Stale semgrep .cc forces < 0.24 while upstream may declare >= 0.24;
+    # we ignored that floor when picking -- surface the conflict here.
+    if (
+        semgrep_cpp and not upstream_cpp and floor is not None
+        and chosen < floor
+    ):
+        note = (
+            f"{note} Upstream declares tree-sitter-cli >= {floor}, "
+            f"which conflicts with the C++ scanner ceiling; kept the "
+            f"ceiling."
+        )
+    return note
+
+
+def _evaluate_tag(
+    fetched: FetchedSubmodule, tag: str, tree_sitter_versions: list[Version],
+    *, semgrep_cpp: bool, lang: LangAndWrapper,
+) -> VersionOk | str:
+    """Try one tag: return VersionOk on success, or a skip-reason string."""
+    if _requires_abi15(fetched, tag):
+        return (
+            f"{tag}: requires ABI 15 (declares 'reserved:'); "
+            f"this repo builds ABI 14 only"
+        )
+    upstream_cpp = _upstream_has_cpp_scanner(fetched, tag)
+    has_cpp = upstream_cpp or semgrep_cpp
+    floor_str = _declared_min_ts_version(fetched, tag)
+    floor = Version(floor_str) if floor_str else None
+    # Only a stale semgrep .cc can force < 0.24 while upstream declares
+    # >= 0.24 (upstream cannot ship .cc at that floor). Ignore the floor
+    # so we can still propose under the C++ ceiling.
+    effective_floor = None if (semgrep_cpp and not upstream_cpp) else floor
+    effective_ceiling = _CPP_SCANNER_CEILING if has_cpp else None
+    chosen = _pick_ts_version(
+        tree_sitter_versions, floor=effective_floor, ceiling=effective_ceiling,
+    )
+    if chosen is None:
+        constraints = []
+        if has_cpp:
+            constraints.append(
+                f"C++ scanner (needs tree-sitter < {_CPP_SCANNER_CEILING_STR})"
+            )
+        if effective_floor is not None:
+            constraints.append(
+                f"upstream's declared minimum {effective_floor}"
+            )
+        return (
+            f"{tag}: no pinned tree-sitter version satisfies "
+            + " and ".join(constraints)
+        )
+    note = _version_note(
+        lang, tag, chosen,
+        upstream_cpp=upstream_cpp, semgrep_cpp=semgrep_cpp,
+        floor=floor,
+    )
+    return VersionOk(tag, str(chosen), note=note)
 
 
 def resolve_tag_and_version(root: Path, submodule: Path, url: str,
-                            tree_sitter_versions: list[str],
+                            tree_sitter_versions: list[Version],
                             old_sha: str, lang: LangAndWrapper) -> VersionResolution:
     """Pick the newest tag newer than `old_sha` this repo can build at ABI
     14, and the best pinned tree-sitter version to build it with.
@@ -425,92 +552,31 @@ def resolve_tag_and_version(root: Path, submodule: Path, url: str,
     C++-scanner constraints (upstream tag and/or semgrep-<wrapper>) and
     upstream's declared tree-sitter-cli floor.
     """
-
     fetched = FetchedSubmodule.fetch(submodule)
     if fetched is None:
-        return VersionResolution(None, None, error="could not fetch tags from submodule")
+        return VersionErr("could not fetch tags from submodule")
 
-    tags = fetched.list_newer_stable_tags(url, old_sha)
-    if tags is None:
-        return VersionResolution(None, None, error="no stable release tag upstream")
-    if not tags:
-        return VersionResolution(
-            None, None,
-            error="already at (or ahead of) the newest available upstream tag",
+    newer = fetched.list_newer_stable_tags(url, old_sha)
+    if isinstance(newer, NoStableTags):
+        return VersionErr("no stable release tag upstream")
+    if not newer.tags:
+        return VersionErr(
+            "already at (or ahead of) the newest available upstream tag",
         )
 
     semgrep_cpp = _semgrep_has_cpp_scanner(root, lang)
     reasons: list[str] = []
-    for tag in tags[:MAX_TAGS_EXAMINED]:
-        if _requires_abi15(fetched, tag):
-            reasons.append(
-                f"{tag}: requires ABI 15 (declares 'reserved:'); "
-                f"this repo builds ABI 14 only"
-            )
-            continue
-        upstream_cpp = _upstream_has_cpp_scanner(fetched, tag)
-        has_cpp = upstream_cpp or semgrep_cpp
-        floor = _declared_min_ts_version(fetched, tag)
-        fitting = [
-            v for v in tree_sitter_versions
-            if (not has_cpp or version_key(v) < _CPP_SCANNER_CEILING)
-            and (floor is None or version_key(v) >= version_key(floor))
-        ]
-        floor_relaxed = False
-        if not fitting and has_cpp and floor is not None:
-            # C++ scanners need tree-sitter < 0.24; upstream's declared
-            # floor may be >= 0.24. Prefer the hard C++ ceiling and surface
-            # the conflict in the note (e.g. ruby: semgrep scanner.cc vs
-            # upstream tree-sitter-cli ^0.24).
-            fitting = [
-                v for v in tree_sitter_versions
-                if version_key(v) < _CPP_SCANNER_CEILING
-            ]
-            floor_relaxed = bool(fitting)
-        if not fitting:
-            constraints = []
-            if has_cpp:
-                constraints.append(
-                    f"C++ scanner (needs tree-sitter < {_CPP_SCANNER_CEILING_STR})"
-                )
-            if floor:
-                constraints.append(f"upstream's declared minimum {floor}")
-            reasons.append(
-                f"{tag}: no pinned tree-sitter version satisfies "
-                + " and ".join(constraints)
-            )
-            continue
-        chosen = fitting[0]
-        note = None
-        if has_cpp:
-            if semgrep_cpp and not upstream_cpp:
-                # Upstream moved to scanner.c but our extension still has
-                # scanner.cc -- call that out so it isn't mistaken for an
-                # upstream constraint.
-                note = (
-                    f"capped to {chosen}: semgrep-{lang.wrapper}/src/scanner.cc is "
-                    f"still C++ while upstream {tag} has no scanner.cc; "
-                    f"requires tree-sitter < {_CPP_SCANNER_CEILING_STR}. "
-                    f"Port or replace the semgrep scanner (or move the "
-                    f"ellipsis feature into grammar.js) to unlock newer "
-                    f"tree-sitter."
-                )
-            else:
-                where = "upstream" if upstream_cpp else f"semgrep-{lang.wrapper}"
-                note = (
-                    f"capped to {chosen}: C++ external scanner (scanner.cc) "
-                    f"in {where} requires tree-sitter < {_CPP_SCANNER_CEILING_STR}"
-                )
-            if floor_relaxed:
-                note = (
-                    f"{note} Upstream declares tree-sitter-cli >= {floor}, "
-                    f"which conflicts with the C++ scanner ceiling; kept the "
-                    f"ceiling."
-                )
-        return VersionResolution(tag, chosen, note=note)
+    for tag in newer.tags[:MAX_TAGS_EXAMINED]:
+        outcome = _evaluate_tag(
+            fetched, tag, tree_sitter_versions,
+            semgrep_cpp=semgrep_cpp, lang=lang,
+        )
+        if isinstance(outcome, VersionOk):
+            return outcome
+        reasons.append(outcome)
 
     detail = "; ".join(reasons) or "no compatible tag/tree-sitter-version pairing found"
-    return VersionResolution(None, None, error=detail)
+    return VersionErr(detail)
 
 
 def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
@@ -526,7 +592,7 @@ def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
     return None
 
 
-def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[str], *, deep: bool = True) -> Target:
+def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[Version], *, deep: bool = True) -> Target:
     """Resolve a `Target` for `lang` without mutating anything.
 
     `deep=True` (default -- the real propose flow) resolves both tag and
@@ -552,11 +618,12 @@ def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[
             resolution = resolve_tag_and_version(
                 root, submodule, url, tree_sitter_versions, old_sha, lang
             )
-            tag, ts_version, resolution_note = (
-                resolution.tag, resolution.ts_version, resolution.note,
-            )
-            if resolution.error:
+            if isinstance(resolution, VersionErr):
                 skip_reason = resolution.error
+            else:
+                tag, ts_version, resolution_note = (
+                    resolution.tag, resolution.ts_version, resolution.note,
+                )
         else:
             tag = latest_stable_tag(url)
             ts_version = current_ts_version
@@ -1369,9 +1436,10 @@ def main() -> int:
     if not args.language:
         ug.die("a language is required (or use --list-languages).")
 
+    # Parse once here; _pick_ts_version compares these directly.
     tree_sitter_versions = sorted(
-        ug.discover_version_files(root, "languages").keys(),
-        key=version_key, reverse=True,
+        (Version(v) for v in ug.discover_version_files(root, "languages")),
+        reverse=True,
     )
     if not tree_sitter_versions:
         ug.die("no supported tree-sitter versions found in lang/languages-* files")
