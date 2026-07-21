@@ -294,3 +294,95 @@ int x = (x * $Y);
             (type_identifier)
             (abstract_pointer_declarator))
           (semgrep_metavar))))))
+
+================================================================================
+Class body ellipsis
+================================================================================
+
+class $C { ... };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    (type_identifier)
+    (field_declaration_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Struct body ellipsis
+================================================================================
+
+struct $S { ... };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Struct body metavar
+================================================================================
+
+struct $S { $X };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (struct_specifier
+    (type_identifier)
+    (field_declaration_list
+      (semgrep_metavar))))
+
+================================================================================
+Enum body ellipsis
+================================================================================
+
+enum $E { ... };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    (type_identifier)
+    (enumerator_list
+      (semgrep_ellipsis))))
+
+================================================================================
+Enum body metavar
+================================================================================
+
+enum $E { $X };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (enum_specifier
+    (type_identifier)
+    (enumerator_list
+      (semgrep_metavar))))
+
+================================================================================
+Operator name metavar
+================================================================================
+
+class C { T operator $OP(T x); };
+
+--------------------------------------------------------------------------------
+
+(translation_unit
+  (class_specifier
+    (type_identifier)
+    (field_declaration_list
+      (field_declaration
+        (type_identifier)
+        (function_declarator
+          (operator_name
+            (semgrep_metavar))
+          (parameter_list
+            (parameter_declaration
+              (type_identifier)
+              (identifier))))))))
