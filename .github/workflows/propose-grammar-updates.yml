@@ -8,9 +8,10 @@ name: Propose grammar updates
 # separate integrate job then releases each green bump to semgrep-<lang> via
 # PR. semgrep-proprietary integration is deliberately out of scope.
 #
-# Any failed job triggers a Slack alert to #team-languages (see the `notify`
-# job; needs the SLACK_BOT_TOKEN secret). Test the alert path end-to-end with
-# the inject_failure + notify_channel inputs.
+# The `notify` job (needs the SLACK_BOT_TOKEN secret) posts to
+# #team-languages: an alert when any job fails, a success note with PR links
+# when updates were proposed, silence when nothing happened. Test the alert
+# path end-to-end with the inject_failure + notify_channel inputs.
 #
 # See scripts/propose-grammar-update for the per-language logic.
 
@@ -38,7 +39,7 @@ on:
         options: [none, enumerate, propose, integrate]
         default: none
       notify_channel:
-        description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send the failure alert to instead of #team-languages."
+        description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send notifications to instead of #team-languages."
         required: false
 
 permissions:
@@ -334,15 +335,18 @@ jobs:
       - name: Render summary
         run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
-  # Slack alert on any failed job (LANG-604). Job-level results are the
-  # authoritative failure signal: propose-grammar-update exits non-zero on a
-  # failed bump/test, and this also catches failures the script can't see
-  # from inside (build breakage, timeouts, crashes). The message carries only
-  # job statuses + a run link — never grammar source or logs.
+  # Slack notification (LANG-604): pages #team-languages when any job fails,
+  # and posts a success note (with PR links) when update PRs were opened.
+  # Runs where nothing happened (all no-op) stay silent. Job-level results
+  # are the authoritative failure signal: propose-grammar-update exits
+  # non-zero on a failed bump/test, and this also catches failures the
+  # script can't see from inside (build breakage, timeouts, crashes). The
+  # message carries only job statuses, PR links and the status table + a run
+  # link — never grammar source or logs.
   notify:
-    name: Alert on failure
+    name: Notify Slack
     needs: [enumerate, propose, integrate]
-    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -365,35 +369,61 @@ jobs:
         with:
           path: results
           merge-multiple: true
-      - name: Post Slack alert
+      - name: Compose message
+        id: compose
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          # Test mode (notify_channel set) redirects the alert to the
-          # engineer running the test instead of paging #team-languages.
-          CHANNEL: ${{ inputs.notify_channel || '#team-languages' }}
           TEST_MODE: ${{ inputs.notify_channel != '' || (inputs.inject_failure != '' && inputs.inject_failure != 'none') }}
+          FAILED: ${{ contains(needs.*.result, 'failure') }}
           RESULTS: "enumerate: ${{ needs.enumerate.result }}, propose: ${{ needs.propose.result }}, integrate: ${{ needs.integrate.result }}"
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           ACTOR: ${{ github.actor }}
           EVENT: ${{ github.event_name }}
         run: |
-          prefix=""
-          if [ "$TEST_MODE" = "true" ]; then prefix=":test_tube: [test mode] "; fi
-          text="${prefix}:rotating_light: *Grammar update workflow failed* (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
+          mkdir -p results
+          have_results=false
+          if find results -name '*.json' | grep -q .; then have_results=true; fi
+          # PR links come from the result JSONs (pr_url is recorded by
+          # propose-grammar-update when gh creates the PR).
+          prs=""
+          if [ "$have_results" = true ]; then
+            prs=$(jq -r 'select(.status == "updated" and .pr_url != null)
+                         | "• \(.language) \(.new_tag): \(.pr_url)"' results/*.json)
+          fi
+          if [ "$FAILED" = "true" ]; then
+            # The run link is the entry point to the failed job's log.
+            text=":rotating_light: *Grammar update workflow failed* (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run and logs>"
+          elif [ -n "$prs" ]; then
+            text=":white_check_mark: *Grammar update PRs opened* — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
+          else
+            # Nothing failed, nothing proposed (all no-op/up to date): stay
+            # silent rather than posting a weekly "nothing happened".
+            echo "post=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$prs" ]; then
+            text="${text}"$'\n'"${prs}"
+          fi
           # Append the per-language status table (same renderer as the run
           # summary), as a code block since Slack doesn't render md tables.
           # Row count is bounded by the language set (~47), well under
           # Slack's 40k text limit.
-          mkdir -p results
-          if find results -name '*.json' | grep -q .; then
+          if [ "$have_results" = true ]; then
             summary=$(python scripts/propose-grammar-update --summarize results || true)
             text="${text}"$'\n```\n'"${summary}"$'\n```'
           fi
-          payload=$(jq -n --arg channel "$CHANNEL" --arg text "$text" '{channel: $channel, text: $text}')
-          resp=$(curl -fsS -X POST https://slack.com/api/chat.postMessage \
-            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" \
-            -H 'Content-Type: application/json; charset=utf-8' \
-            --data "$payload")
-          # chat.postMessage returns HTTP 200 even on error; check the ok field.
-          printf '%s\n' "$resp" | jq -e '.ok' >/dev/null \
-            || { echo "::error::Slack API error: $(printf '%s\n' "$resp" | jq -r '.error')"; exit 1; }
+          if [ "$TEST_MODE" = "true" ]; then text=":test_tube: [test mode] ${text}"; fi
+          { echo "text<<SLACK_MSG_EOF"; printf '%s\n' "$text"; echo "SLACK_MSG_EOF"; } >> "$GITHUB_OUTPUT"
+          echo "post=true" >> "$GITHUB_OUTPUT"
+      - name: Post to Slack
+        if: steps.compose.outputs.post == 'true'
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          # Fail the step on a Slack API error (default is to continue).
+          errors: true
+          payload: |
+            {
+              "channel": ${{ toJSON(inputs.notify_channel || '#team-languages') }},
+              "text": ${{ toJSON(steps.compose.outputs.text) }}
+            }
