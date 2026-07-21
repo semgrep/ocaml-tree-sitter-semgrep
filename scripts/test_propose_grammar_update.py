@@ -18,8 +18,6 @@ from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from packaging.version import Version
-
 SCRIPT_PATH = Path(__file__).resolve().parent / "propose-grammar-update"
 
 
@@ -54,18 +52,19 @@ class TestStableTagFilter(unittest.TestCase):
             self.assertNotRegex(tag, pg._STABLE_TAG_RE)
 
 
-class TestVersionKey(unittest.TestCase):
-    def test_v_prefix_stripped_and_numeric(self):
-        self.assertEqual(pg.version_key("v0.25.0"), (0, 25, 0))
-        self.assertEqual(pg.version_key("2.3"), (2, 3))
+class TestVersion(unittest.TestCase):
+    def test_v_prefix_stripped(self):
+        self.assertEqual(pg.Version.parse("v0.25.0"), pg.Version.parse("0.25.0"))
+        self.assertEqual(str(pg.Version.parse("v0.25.0")), "0.25.0")
+        self.assertEqual(pg.Version.parse("2.3").parts, (2, 3))
 
     def test_orders_correctly(self):
         # The classic sort -V trap: 0.25.0 must beat 0.5.0.
         tags = ["v0.5.0", "v0.25.0", "v0.9.0", "v0.10.0"]
-        self.assertEqual(max(tags, key=pg.version_key), "v0.25.0")
+        self.assertEqual(max(tags, key=pg.Version.parse), "v0.25.0")
 
     def test_bare_and_v_mix(self):
-        self.assertEqual(max(["1.2.13", "v1.10.0"], key=pg.version_key), "v1.10.0")
+        self.assertEqual(max(["1.2.13", "v1.10.0"], key=pg.Version.parse), "v1.10.0")
 
 
 ###############################################################################
@@ -587,12 +586,12 @@ class TestListStableTags(unittest.TestCase):
 
 
 class TestPickTsVersion(unittest.TestCase):
-    VERSIONS = [Version("0.26.3"), Version("0.22.6"), Version("0.20.8")]
+    VERSIONS = [pg.Version.parse("0.26.3"), pg.Version.parse("0.22.6"), pg.Version.parse("0.20.8")]
 
     def test_no_constraints_picks_newest(self):
         self.assertEqual(
             pg._pick_ts_version(self.VERSIONS, floor=None, ceiling=None),
-            Version("0.26.3"),
+            pg.Version.parse("0.26.3"),
         )
 
     def test_cpp_caps_below_0_24(self):
@@ -600,15 +599,15 @@ class TestPickTsVersion(unittest.TestCase):
             pg._pick_ts_version(
                 self.VERSIONS, floor=None, ceiling=pg._CPP_SCANNER_CEILING,
             ),
-            Version("0.22.6"),
+            pg.Version.parse("0.22.6"),
         )
 
     def test_floor_filters_low_versions(self):
         self.assertEqual(
             pg._pick_ts_version(
-                self.VERSIONS, floor=Version("0.22.0"), ceiling=None,
+                self.VERSIONS, floor=pg.Version.parse("0.22.0"), ceiling=None,
             ),
-            Version("0.26.3"),
+            pg.Version.parse("0.26.3"),
         )
 
     def test_pick_none_when_floor_conflicts_with_cpp(self):
@@ -616,14 +615,14 @@ class TestPickTsVersion(unittest.TestCase):
         # the semgrep-only-C++ case before calling.
         self.assertIsNone(pg._pick_ts_version(
             self.VERSIONS,
-            floor=Version("0.24.4"),
+            floor=pg.Version.parse("0.24.4"),
             ceiling=pg._CPP_SCANNER_CEILING,
         ))
 
     def test_pick_none_when_unmet_floor(self):
         self.assertIsNone(
             pg._pick_ts_version(
-                self.VERSIONS, floor=Version("0.30.0"), ceiling=None,
+                self.VERSIONS, floor=pg.Version.parse("0.30.0"), ceiling=None,
             )
         )
 
@@ -633,14 +632,14 @@ class TestVersionNote(unittest.TestCase):
 
     def test_none_without_cpp(self):
         self.assertIsNone(pg._version_note(
-            self.LANG, "v1", Version("0.26.3"),
+            self.LANG, "v1", pg.Version.parse("0.26.3"),
             upstream_cpp=False, semgrep_cpp=False,
             floor=None,
         ))
 
     def test_semgrep_only_cpp(self):
         note = pg._version_note(
-            self.LANG, "v1", Version("0.22.6"),
+            self.LANG, "v1", pg.Version.parse("0.22.6"),
             upstream_cpp=False, semgrep_cpp=True,
             floor=None,
         )
@@ -649,18 +648,18 @@ class TestVersionNote(unittest.TestCase):
 
     def test_floor_conflict_appended_when_chosen_below_floor(self):
         note = pg._version_note(
-            self.LANG, "v1", Version("0.22.6"),
+            self.LANG, "v1", pg.Version.parse("0.22.6"),
             upstream_cpp=False, semgrep_cpp=True,
-            floor=Version("0.24.4"),
+            floor=pg.Version.parse("0.24.4"),
         )
         self.assertIn("0.24.4", note)
         self.assertIn("conflicts", note)
 
     def test_compatible_floor_not_mentioned(self):
         note = pg._version_note(
-            self.LANG, "v1", Version("0.22.6"),
+            self.LANG, "v1", pg.Version.parse("0.22.6"),
             upstream_cpp=False, semgrep_cpp=True,
-            floor=Version("0.20.0"),
+            floor=pg.Version.parse("0.20.0"),
         )
         self.assertNotIn("conflicts", note)
         self.assertNotIn("0.20.0", note)
@@ -734,7 +733,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     OLD_SHA = "OLDSHA"
     LANG = pg.LangAndWrapper(language="ruby", wrapper="ruby")
-    VERSIONS = [Version("0.26.3"), Version("0.22.6"), Version("0.20.8")]  # newest-first, as main() sorts
+    VERSIONS = [pg.Version.parse("0.26.3"), pg.Version.parse("0.22.6"), pg.Version.parse("0.20.8")]  # newest-first, as main() sorts
 
     @contextlib.contextmanager
     def _patch(self, tags, reserved_tags=(), cpp_scanner_tags=(), floors=None,

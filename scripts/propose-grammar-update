@@ -51,8 +51,6 @@ from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from typing import Any
 
-from packaging.version import Version
-
 ###############################################################################
 # update-grammar import #
 ###############################################################################
@@ -209,13 +207,29 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
         raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
 
 
-def version_key(tag: str) -> tuple[int, ...]:
-    """Sort key for a stable tag: the numeric components as an int tuple.
+@dataclass(frozen=True, order=True, init=False)
+class Version:
+    """Comparable dotted version (optional leading ``v``).
 
-    `v0.25.0` -> (0, 25, 0). Used to pick the highest tag. Assumes the
-    caller already filtered to `_STABLE_TAG_RE`-matching tags.
+    Enough for tree-sitter pins and stable release tags — not a PEP 440
+    implementation. ``Version.parse("v0.25.0")`` compares equal to
+    ``Version.parse("0.25.0")``; ``str`` always drops a leading ``v``.
     """
-    return tuple(int(part) for part in tag.lstrip("vV").split("."))
+    parts: tuple[int, ...]
+
+    def __init__(self, parts: tuple[int, ...]) -> None:
+        object.__setattr__(self, "parts", parts)
+
+    @classmethod
+    def parse(cls, text: str) -> Version:
+        """Parse a dotted version string (optional leading ``v``)."""
+        return cls(tuple(int(part) for part in text.lstrip("vV").split(".")))
+
+    def __str__(self) -> str:
+        return ".".join(map(str, self.parts))
+
+    def __repr__(self) -> str:
+        return f"Version.parse({str(self)!r})"
 
 
 def gitmodules_url(root: Path, submodule: Path) -> str | None:
@@ -254,7 +268,7 @@ def gitmodules_url(root: Path, submodule: Path) -> str | None:
 MAX_TAGS_EXAMINED = 4
 
 # tree-sitter >= 0.24 is known to break C++ external scanners (scanner.cc).
-_CPP_SCANNER_CEILING = Version("0.24.0")
+_CPP_SCANNER_CEILING = Version.parse("0.24.0")
 _CPP_SCANNER_CEILING_STR = str(_CPP_SCANNER_CEILING)
 
 # ABI 15's only grammar-authoring feature that can't be expressed in ABI 14
@@ -363,7 +377,7 @@ def _list_stable_tags(url: str) -> list[str]:
     # We still need to filter here, because the above pattern
     # does not filter pre-release tags.
     stable = [t for t in tags if _STABLE_TAG_RE.match(t)]
-    return sorted(stable, key=version_key, reverse=True)
+    return sorted(stable, key=Version.parse, reverse=True)
 
 
 def latest_stable_tag(url: str) -> str | None:
@@ -510,7 +524,7 @@ def _evaluate_tag(
     upstream_cpp = _upstream_has_cpp_scanner(fetched, tag)
     has_cpp = upstream_cpp or semgrep_cpp
     floor_str = _declared_min_ts_version(fetched, tag)
-    floor = Version(floor_str) if floor_str else None
+    floor = Version.parse(floor_str) if floor_str else None
     # Only a stale semgrep .cc can force < 0.24 while upstream declares
     # >= 0.24 (upstream cannot ship .cc at that floor). Ignore the floor
     # so we can still propose under the C++ ceiling.
@@ -1438,7 +1452,7 @@ def main() -> int:
 
     # Parse once here; _pick_ts_version compares these directly.
     tree_sitter_versions = sorted(
-        (Version(v) for v in ug.discover_version_files(root, "languages")),
+        (Version.parse(v) for v in ug.discover_version_files(root, "languages")),
         reverse=True,
     )
     if not tree_sitter_versions:
