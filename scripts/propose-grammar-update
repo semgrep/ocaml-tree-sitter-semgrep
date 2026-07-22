@@ -153,6 +153,7 @@ class Result:
     corpus_diff: str = ""
     tests_adapted: bool = False
     branch: str | None = None
+    pr_url: str | None = None
     version_note: str | None = None
 
     def to_json(self) -> str:
@@ -956,7 +957,20 @@ def open_pr(root: Path, target: Target, result: Result,
     if result.tests_adapted:
         ensure_label(origin_repo(), AGENT_ADAPTED_LABEL)
         create += ["--label", AGENT_ADAPTED_LABEL]
-    run_quiet(create, cwd=root)
+    # Captured (not run_quiet) so the new PR's URL — gh prints it as the last
+    # stdout line — lands in the result JSON for the Slack success message.
+    # Output is still mirrored to stderr to keep stdout JSON-pure.
+    log(f"$ {' '.join(create)}  (in {root})")
+    created = subprocess.run(create, cwd=root, text=True,
+                             capture_output=True, check=False)
+    sys.stderr.write(created.stdout)
+    sys.stderr.write(created.stderr)
+    if created.returncode != 0:
+        raise subprocess.CalledProcessError(created.returncode, create,
+                                            created.stdout)
+    url = created.stdout.strip().splitlines()[-1] if created.stdout.strip() else ""
+    if url.startswith("https://"):
+        result.pr_url = url
     return result
 
 

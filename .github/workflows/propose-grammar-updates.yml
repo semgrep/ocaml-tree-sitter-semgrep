@@ -8,6 +8,11 @@ name: Propose grammar updates
 # separate integrate job then releases each green bump to semgrep-<lang> via
 # PR. semgrep-proprietary integration is deliberately out of scope.
 #
+# The `notify` job (needs the SLACK_BOT_TOKEN secret) posts to
+# #team-languages: an alert when any job fails, a success note with PR links
+# when updates were proposed, a "nothing to do" heartbeat otherwise. Test the
+# alert path end-to-end with the inject_failure + notify_channel inputs.
+#
 # See scripts/propose-grammar-update for the per-language logic.
 
 on:
@@ -28,6 +33,14 @@ on:
         description: "Full pipeline (build, bump, snapshot regen, test-lang) but push nothing: no PR here, integrate job skipped."
         type: boolean
         default: false
+      inject_failure:
+        description: "Test mode: force this job to fail, to exercise the Slack alert end-to-end (pair with notify_channel so the alert goes to you, not #team-languages)."
+        type: choice
+        options: [none, enumerate, propose, integrate]
+        default: none
+      notify_channel:
+        description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send notifications to instead of #team-languages."
+        required: false
 
 permissions:
   contents: write         # push grammar-update/* branches in THIS repo
@@ -42,6 +55,11 @@ jobs:
     outputs:
       languages: ${{ steps.list.outputs.languages }}
     steps:
+      - name: Inject failure (test mode)
+        if: inputs.inject_failure == 'enumerate'
+        run: |
+          echo "::error::Failure injected via the inject_failure input (test mode)"
+          exit 1
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
@@ -85,6 +103,11 @@ jobs:
       matrix:
         language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
     steps:
+      - name: Inject failure (test mode)
+        if: inputs.inject_failure == 'propose'
+        run: |
+          echo "::error::Failure injected via the inject_failure input (test mode)"
+          exit 1
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
@@ -204,6 +227,11 @@ jobs:
       matrix:
         language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
     steps:
+      - name: Inject failure (test mode)
+        if: inputs.inject_failure == 'integrate'
+        run: |
+          echo "::error::Failure injected via the inject_failure input (test mode)"
+          exit 1
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
@@ -306,3 +334,92 @@ jobs:
           merge-multiple: true
       - name: Render summary
         run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
+
+  # Slack notification (LANG-604): pages #team-languages when any job fails,
+  # posts a success note (with PR links) when update PRs were opened, and a
+  # quiet "nothing to do" heartbeat otherwise. Job-level results
+  # are the authoritative failure signal: propose-grammar-update exits
+  # non-zero on a failed bump/test, and this also catches failures the
+  # script can't see from inside (build breakage, timeouts, crashes). The
+  # message carries only job statuses, PR links and the status table + a run
+  # link — never grammar source or logs.
+  notify:
+    name: Notify Slack
+    needs: [enumerate, propose, integrate]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      # Checkout + artifacts only so the alert can embed the same per-language
+      # status table the summary job renders (regenerated here — the Actions
+      # API doesn't expose another job's step summary). No submodules: this
+      # job must never run upstream grammar code, it holds the Slack token.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        # A crash before any propose leg wrote its result (e.g. enumerate
+        # failed) leaves no artifacts; the alert then falls back to
+        # job statuses + run link.
+        continue-on-error: true
+        with:
+          path: results
+          merge-multiple: true
+      - name: Compose message
+        id: compose
+        env:
+          TEST_MODE: ${{ inputs.notify_channel != '' || (inputs.inject_failure != '' && inputs.inject_failure != 'none') }}
+          FAILED: ${{ contains(needs.*.result, 'failure') }}
+          RESULTS: "enumerate: ${{ needs.enumerate.result }}, propose: ${{ needs.propose.result }}, integrate: ${{ needs.integrate.result }}"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          mkdir -p results
+          have_results=false
+          if find results -name '*.json' | grep -q .; then have_results=true; fi
+          # PR links come from the result JSONs (pr_url is recorded by
+          # propose-grammar-update when gh creates the PR).
+          prs=""
+          if [ "$have_results" = true ]; then
+            prs=$(jq -r 'select(.status == "updated" and .pr_url != null)
+                         | "• \(.language) \(.new_tag): \(.pr_url)"' results/*.json)
+          fi
+          if [ "$FAILED" = "true" ]; then
+            # The run link is the entry point to the failed job's log.
+            text=":rotating_light: *Grammar update workflow failed* (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run and logs>"
+          elif [ -n "$prs" ]; then
+            text=":white_check_mark: *Grammar update PRs opened* — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
+          else
+            # Nothing failed, nothing proposed (all no-op/up to date).
+            text=":zzz: *Grammar update run: nothing to do* — no failures, no updates proposed (${RESULTS}) — triggered by ${ACTOR} via ${EVENT}. <${RUN_URL}|View run>"
+          fi
+          if [ -n "$prs" ]; then
+            text="${text}"$'\n'"${prs}"
+          fi
+          # Append the per-language status table (same renderer as the run
+          # summary), as a code block since Slack doesn't render md tables.
+          # Row count is bounded by the language set (~47), well under
+          # Slack's 40k text limit.
+          if [ "$have_results" = true ]; then
+            summary=$(python scripts/propose-grammar-update --summarize results || true)
+            text="${text}"$'\n```\n'"${summary}"$'\n```'
+          fi
+          if [ "$TEST_MODE" = "true" ]; then text=":test_tube: [test mode] ${text}"; fi
+          { echo "text<<SLACK_MSG_EOF"; printf '%s\n' "$text"; echo "SLACK_MSG_EOF"; } >> "$GITHUB_OUTPUT"
+      - name: Post to Slack
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          # Fail the step on a Slack API error (default is to continue).
+          errors: true
+          payload: |
+            {
+              "channel": ${{ toJSON(inputs.notify_channel || '#team-languages') }},
+              "text": ${{ toJSON(steps.compose.outputs.text) }}
+            }
