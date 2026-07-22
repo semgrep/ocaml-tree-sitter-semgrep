@@ -839,21 +839,18 @@ def branch_name(lang: LangAndWrapper, tag: str) -> str:
 
 
 def proposal_exists(root: Path, branch: str) -> bool:
-    """True if a branch (local or on origin) already exists for this proposal.
+    """True if a branch already exists on origin for this proposal.
 
     Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
-    Checks origin (the durable signal) and any local branch.
+    Only origin counts: it's the durable, cross-run signal. A local branch
+    is NOT checked — propose(keep=True) creates the local grammar-update
+    branch before open_pr's re-check runs, so a local check would always
+    fire and make open_pr skip its own push/PR.
     """
     remote = git_query(
         ["git", "ls-remote", "--heads", "origin", branch], cwd=root,
     ).stdout.strip()
-    if remote:
-        return True
-    local = git_query(
-        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
-        cwd=root,
-    )
-    return local.returncode == 0
+    return bool(remote)
 
 
 def existing_proposal(root: Path, target: Target) -> Result | None:
