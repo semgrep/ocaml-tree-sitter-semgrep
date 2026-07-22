@@ -23,7 +23,7 @@ extension grammar and its tests.**
 
 ## Inputs
 
-- **`<lang>`** — the `test-lang` argument (e.g. `javascript`, `solidity`). The
+- **`<lang>`** — the `test-lang` argument (e.g. `typescript`, `solidity`). The
   sublanguage set it builds is hardcoded in the `sublangs=` block of
   `lang/test-lang` — read it there; usually it's just the lang itself. Steps
   1, 3, and 5 act on whichever directories it builds.
@@ -263,7 +263,7 @@ auto-merge.
 ## Running by hand
 
 From the repo, give the agent the language and this skill, e.g.
-`Use fix-semgrep-grammar to make test-lang javascript pass.` — optionally with
+`Use fix-semgrep-grammar to make test-lang typescript pass.` — optionally with
 a tighter cap, e.g. `... pass, with max-iterations 5.` Under the Claude Agent
 SDK (e.g. a Python GitHub Action), keep the hard limits (`max_turns`, budget,
 an outer `timeout`) at the harness level — `max-iterations` bounds only the fix
