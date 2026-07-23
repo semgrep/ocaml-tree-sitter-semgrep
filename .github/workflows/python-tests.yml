@@ -45,6 +45,10 @@ jobs:
             "$dir/tree-sitter" --version
           done
 
+      # scripts/test_propose_grammar_update.py is a uv script (see make test-python).
+      - name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
+
       - name: Run Python tests (make test-python)
         run: |
           python -m pip install --upgrade pip

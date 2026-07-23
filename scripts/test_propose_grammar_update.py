@@ -1,3 +1,16 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     # Keep in sync with scripts/propose-grammar-update.
+#     "cursor-sdk==1.0.24",
+# ]
+#
+# [tool.uv]
+# # Keep in sync with scripts/propose-grammar-update.
+# exclude-newer = "1 week"
+# exclude-newer-package = { cursor-sdk = false }
+# ///
 """Unit tests for scripts/propose-grammar-update.
 
 Mirrors scripts/test_update_grammar.py: load the extensionless driver via
@@ -10,6 +23,7 @@ by the integration run in the workflow.
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import sys
 import unittest
@@ -18,6 +32,8 @@ from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+import cursor_agent_runner as car
 
 SCRIPT_PATH = Path(__file__).resolve().parent / "propose-grammar-update"
 
@@ -199,6 +215,28 @@ class TestPrShaping(unittest.TestCase):
         body = pg.pr_body(result, "https://github.com/tree-sitter/tree-sitter-php.git")
         self.assertIn("_No corpus snapshot changes._", body)
 
+    def test_open_pr_captures_created_pr_url(self):
+        import subprocess as sp
+
+        target = pg.Target(
+            lang=pg.LangAndWrapper("python", "python"), submodule=Path("/tmp/s"),
+            tag="v0.25.0", url="https://github.com/tree-sitter/tree-sitter-python.git",
+        )
+        result = pg.Result(language="python", new_tag="v0.25.0",
+                           branch="grammar-update/python/v0.25.0")
+        created = sp.CompletedProcess(
+            [], 0,
+            stdout="Creating pull request...\n"
+                   "https://github.com/semgrep/ocaml-tree-sitter-semgrep/pull/123\n",
+            stderr="",
+        )
+        with unittest.mock.patch.object(pg, "run_quiet"), \
+             unittest.mock.patch.object(pg, "base_branch", return_value="main"), \
+             unittest.mock.patch("subprocess.run", return_value=created):
+            out = pg.open_pr(Path("/tmp"), target, result, dry_run=False)
+        self.assertEqual(
+            out.pr_url, "https://github.com/semgrep/ocaml-tree-sitter-semgrep/pull/123")
+
 
 ###############################################################################
 # Downstream: release dialects + agent prompt #
@@ -241,18 +279,18 @@ class TestProposeFailurePath(unittest.TestCase):
         ts_version="0.26.3", url="https://x/y.git", tag="v0.24.2",
     )
 
-    def _run(self, test_returncodes, review_agent=True, bump_rc=0,
+    def _run(self, test_returncodes, language_agent=True, bump_rc=0,
              shas=("OLD", "NEW")):
         """Run propose() with mocked internals; test_returncodes drives the
         test-lang result(s) in sequence (first run, then post-agent re-run).
-        Returns (result, review_agent_mock)."""
+        Returns (result, language_agent_mock)."""
         import subprocess as sp
         calls = iter(test_returncodes)
 
         def fake_test(_lang, _root):
             return sp.CompletedProcess([], next(calls), stdout="log", stderr="")
 
-        agent = unittest.mock.Mock(return_value=None)
+        agent = unittest.mock.Mock(return_value=car.LanguageAgentResult())
         with unittest.mock.patch.multiple(
             pg,
             run_update_grammar=lambda *a, **k: sp.CompletedProcess(
@@ -261,11 +299,11 @@ class TestProposeFailurePath(unittest.TestCase):
             regenerate_snapshots=lambda *a, **k: None,
             corpus_diff=lambda *a, **k: "",
             run_test_lang=fake_test,
-            run_review_agent=agent,
+            run_language_agent=agent,
             reset_language_state=lambda *a, **k: None,
         ):
             result = pg.propose(Path("."), self.TARGET, keep=False,
-                                review_agent=review_agent)
+                                language_agent=language_agent)
         return result, agent
 
     def test_failure_returns_failed_not_nameerror(self):
@@ -275,6 +313,15 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_FAILED)
         self.assertFalse(r.tests_adapted)
         agent.assert_called_once()
+
+    def test_agent_called_with_grammar_specific_prompt_and_label(self):
+        # cursor_agent_runner knows nothing about languages/tags: propose()
+        # must build the prompt itself and pass the language as `label`.
+        _r, agent = self._run([1, 1])
+        _root, prompt = agent.call_args.args
+        self.assertIn("test-lang php", prompt)
+        self.assertIn("v0.24.2", prompt)
+        self.assertEqual(agent.call_args.kwargs["label"], "php")
 
     def test_agent_recovers_sets_tests_adapted(self):
         # test-lang fails, agent adapts, re-test passes -> updated + flag.
@@ -289,9 +336,9 @@ class TestProposeFailurePath(unittest.TestCase):
         agent.assert_not_called()
 
     def test_agent_not_dispatched_unless_opted_in(self):
-        # The Cursor dispatch is an explicit opt-in: with review_agent=False
+        # The Cursor dispatch is an explicit opt-in: with language_agent=False
         # a failing bump is reported failed and the agent is NEVER invoked.
-        r, agent = self._run([1], review_agent=False)
+        r, agent = self._run([1], language_agent=False)
         self.assertEqual(r.status, pg.STATUS_FAILED)
         self.assertIn("not enabled", r.detail)
         agent.assert_not_called()
@@ -323,7 +370,7 @@ class TestProposeFailurePath(unittest.TestCase):
             submodule_head=unittest.mock.Mock(return_value="OLD"),
             reset_language_state=lambda *a, **k: None,
         ):
-            r = pg.propose(Path("."), self.TARGET, keep=False, review_agent=False)
+            r = pg.propose(Path("."), self.TARGET, keep=False, language_agent=False)
         self.assertEqual(r.status, pg.STATUS_FAILED)
         self.assertIn("CalledProcessError", r.detail)
 
@@ -412,7 +459,7 @@ class TestMainFailedJson(unittest.TestCase):
         args = SimpleNamespace(
             list_languages=False, summarize=None, language="php",
             resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
-            review_agent=False, result=None, json=False, updatable_only=False,
+            language_agent=False, result=None, json=False, updatable_only=False,
         )
         cms = [
             unittest.mock.patch.object(pg, "parse_args", return_value=args),
@@ -497,9 +544,9 @@ class TestUpToDateFilter(unittest.TestCase):
             self.assertIsNone(pg.is_up_to_date(Path("."), self.LANG))
 
 
-class TestReviewAgent(unittest.TestCase):
+class TestLanguageAgent(unittest.TestCase):
     def test_prompt_drives_fix_semgrep_grammar_skill(self):
-        p = pg.review_agent_prompt(
+        p = pg.language_agent_prompt(
             pg.LangAndWrapper("php", "php"), "v0.24.2", "FAIL log here"
         )
         # Must invoke Marc-André's skill (not hand-rolled fix logic), pass the
@@ -531,6 +578,38 @@ class TestReviewAgent(unittest.TestCase):
         self.assertNotIn("agent adapted", pg.pr_body(base, url).lower())
         adapted = dataclasses.replace(base, tests_adapted=True)
         self.assertIn("agent adapted", pg.pr_body(adapted, url).lower())
+
+class TestAgentCliArgs(unittest.TestCase):
+    """--agent-timeout/--agent-token-cap/--agent-turn-cap: the CLI surface a
+    manual GitHub Actions dispatch can set (see propose-grammar-updates.yml).
+    """
+
+    def test_defaults_match_module_defaults(self):
+        args = pg.parse_args(["php", "--open-pr"])
+        self.assertEqual(args.agent_timeout, car.parse_duration_seconds(car.DEFAULT_AGENT_TIMEOUT))
+        self.assertEqual(args.agent_token_cap, car.DEFAULT_AGENT_TOKEN_CAP)
+        self.assertEqual(args.agent_turn_cap, car.DEFAULT_AGENT_TURN_CAP)
+
+    def test_overrides_are_parsed(self):
+        args = pg.parse_args([
+            "php", "--open-pr", "--agent-timeout", "5m",
+            "--agent-token-cap", "1000", "--agent-turn-cap", "3",
+        ])
+        self.assertEqual(args.agent_timeout, 300)
+        self.assertEqual(args.agent_token_cap, 1000)
+        self.assertEqual(args.agent_turn_cap, 3)
+
+    def test_zero_caps_disable_via_cap_or_none(self):
+        args = pg.parse_args([
+            "php", "--open-pr", "--agent-token-cap", "0", "--agent-turn-cap", "0",
+        ])
+        self.assertIsNone(car.cap_or_none(args.agent_token_cap))
+        self.assertIsNone(car.cap_or_none(args.agent_turn_cap))
+
+    def test_invalid_timeout_is_a_clean_cli_error(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                pg.parse_args(["php", "--open-pr", "--agent-timeout", "banana"])
 
 
 ###############################################################################
