@@ -177,6 +177,11 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+# Transient index.lock from concurrent status polling (IDE/Conductor).
+_LOCK_ATTEMPTS = 5
+_LOCK_DELAY = 0.3
+
+
 def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Run a read-only git query quietly (no command echo, never raises).
 
@@ -196,14 +201,18 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
     must never go there (it would corrupt the contract and the workflow's
     `tee`'d artifact). The child's stderr is merged into its stdout at
     capture time (stderr=STDOUT) so the re-emitted log keeps the original
-    interleaving.
+    interleaving. Retries on transient index.lock; other failures raise.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
-    r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    sys.stderr.write(r.stdout)
-    if r.returncode != 0:
-        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
+    for i in range(_LOCK_ATTEMPTS):
+        r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        sys.stderr.write(r.stdout)
+        if r.returncode == 0:
+            return
+        if "index.lock" not in r.stdout or i == _LOCK_ATTEMPTS - 1:
+            raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
+        time.sleep(_LOCK_DELAY)
 
 
 @dataclass(frozen=True, order=True, init=False)
@@ -796,26 +805,14 @@ def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProce
     )
 
 
-def _git_reset_step(cmd: list[str], cwd: Path,
-                    attempts: int = 5, delay: float = 0.3) -> None:
-    """Run a reset_language_state step, retrying past a transient index.lock.
-
-    A concurrent git process (e.g. an IDE's or Conductor's background
-    status polling on this same working tree) can hold `index.lock` for a
-    moment, making an otherwise-correct git command fail outright.
-    reset_language_state is the safety net that must not silently no-op on
-    that kind of transient contention -- unlike git_query's other callers,
-    where a failed read-only probe is harmless, here it would leak a bumped
-    submodule/edited files into the next run. Only retries the specific
-    `index.lock` symptom; any other failure returns immediately (still
-    non-raising, matching git_query).
-    """
-    result = git_query(cmd, cwd)
-    for _ in range(attempts - 1):
+def _git_reset_step(cmd: list[str], cwd: Path) -> None:
+    """Best-effort reset step: retry index.lock, else no-op like git_query."""
+    for i in range(_LOCK_ATTEMPTS):
+        result = git_query(cmd, cwd)
         if result.returncode == 0 or "index.lock" not in result.stderr:
             return
-        time.sleep(delay)
-        result = git_query(cmd, cwd)
+        if i < _LOCK_ATTEMPTS - 1:
+            time.sleep(_LOCK_DELAY)
 
 
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
@@ -826,23 +823,12 @@ def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
 
-    The outer-repo calls pass `-c submodule.recurse=false`: with
-    `submodule.recurse` on (set repo-wide here), a plain `checkout -- lang`
-    also revisits every OTHER submodule nested under `lang/` -- not just
-    `submodule` -- e.g. tree-sitter-bash's own nested `examples/bash-it`.
-    That's unrelated to this reset, and if one of those unrelated
-    submodules has a transient lock, the whole checkout aborts, leaving the
-    languages-*/language-variants-* edits unrestored and the submodule
-    gitlink staged at the bumped SHA. `submodule` itself is still reset
-    correctly below via the explicit submodule-scoped commands. Each step
-    also goes through `_git_reset_step` since the *outer* repo's own
-    index.lock (unrelated to submodule recursion) can transiently collide
-    too.
+    Outer calls disable submodule.recurse so checkout/restore don't touch
+    unrelated nested submodules under lang/ (locks there abort the reset).
     """
-    _git_reset_step(["git", "-c", "submodule.recurse=false",
-                     "restore", "--staged", "."], root)
-    _git_reset_step(["git", "-c", "submodule.recurse=false",
-                     "checkout", "--", "lang"], root)
+    no_recurse = ["git", "-c", "submodule.recurse=false"]
+    _git_reset_step([*no_recurse, "restore", "--staged", "."], root)
+    _git_reset_step([*no_recurse, "checkout", "--", "lang"], root)
     _git_reset_step(["git", "checkout", old_sha], submodule)
     _git_reset_step(["git", "checkout", "--", "."], submodule)
     _git_reset_step(["git", "clean", "-fdq"], submodule)
