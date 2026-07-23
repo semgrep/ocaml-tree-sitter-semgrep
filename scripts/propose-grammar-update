@@ -50,7 +50,7 @@ from dataclasses import asdict, dataclass, fields
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ###############################################################################
 # update-grammar import #
@@ -182,6 +182,20 @@ _LOCK_ATTEMPTS = 5
 _LOCK_DELAY = 0.3
 
 
+def _retry_index_lock(
+    run_once: Callable[[], subprocess.CompletedProcess],
+    output: Callable[[subprocess.CompletedProcess], str],
+) -> subprocess.CompletedProcess:
+    """Run `run_once` up to `_LOCK_ATTEMPTS`, retrying only on index.lock."""
+    for i in range(_LOCK_ATTEMPTS):
+        r = run_once()
+        if r.returncode == 0 or "index.lock" not in output(r):
+            return r
+        if i < _LOCK_ATTEMPTS - 1:
+            time.sleep(_LOCK_DELAY)
+    return r
+
+
 def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Run a read-only git query quietly (no command echo, never raises).
 
@@ -204,15 +218,16 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
     interleaving. Retries on transient index.lock; other failures raise.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
-    for i in range(_LOCK_ATTEMPTS):
+
+    def once() -> subprocess.CompletedProcess:
         r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         sys.stderr.write(r.stdout)
-        if r.returncode == 0:
-            return
-        if "index.lock" not in r.stdout or i == _LOCK_ATTEMPTS - 1:
-            raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
-        time.sleep(_LOCK_DELAY)
+        return r
+
+    r = _retry_index_lock(once, lambda r: r.stdout)
+    if r.returncode != 0:
+        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
 
 
 @dataclass(frozen=True, order=True, init=False)
@@ -807,12 +822,7 @@ def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProce
 
 def _git_reset_step(cmd: list[str], cwd: Path) -> None:
     """Best-effort reset step: retry index.lock, else no-op like git_query."""
-    for i in range(_LOCK_ATTEMPTS):
-        result = git_query(cmd, cwd)
-        if result.returncode == 0 or "index.lock" not in result.stderr:
-            return
-        if i < _LOCK_ATTEMPTS - 1:
-            time.sleep(_LOCK_DELAY)
+    _retry_index_lock(lambda: git_query(cmd, cwd), lambda r: r.stderr)
 
 
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
@@ -822,13 +832,9 @@ def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     detached/bumped submodule, edited languages-* files, deleted/regenerated
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
-
-    Outer calls disable submodule.recurse so checkout/restore don't touch
-    unrelated nested submodules under lang/ (locks there abort the reset).
     """
-    no_recurse = ["git", "-c", "submodule.recurse=false"]
-    _git_reset_step([*no_recurse, "restore", "--staged", "."], root)
-    _git_reset_step([*no_recurse, "checkout", "--", "lang"], root)
+    _git_reset_step(["git", "restore", "--staged", "."], root)
+    _git_reset_step(["git", "checkout", "--", "lang"], root)
     _git_reset_step(["git", "checkout", old_sha], submodule)
     _git_reset_step(["git", "checkout", "--", "."], submodule)
     _git_reset_step(["git", "clean", "-fdq"], submodule)
