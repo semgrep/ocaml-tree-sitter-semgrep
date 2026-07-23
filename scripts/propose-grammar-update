@@ -838,23 +838,28 @@ def branch_name(lang: LangAndWrapper, tag: str) -> str:
     return f"grammar-update/{lang.language}/{tag}"
 
 
-def proposal_exists(root: Path, branch: str) -> bool:
-    """True if a branch (local or on origin) already exists for this proposal.
+def proposal_exists_upstream(root: Path, branch: str) -> bool:
+    """True if a branch already exists upstream for this proposal.
 
     Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
-    Checks origin (the durable signal) and any local branch.
+    Checks origin (the durable signal) only.
     """
     remote = git_query(
         ["git", "ls-remote", "--heads", "origin", branch], cwd=root,
     ).stdout.strip()
-    if remote:
-        return True
+    return bool(remote)
+
+def proposal_exists_locally(root: Path, branch: str) -> bool:
+    """True if a branch already exists locally for this proposal.
+
+    Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
+    Checks any local branch only.
+    """
     local = git_query(
         ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"],
         cwd=root,
     )
     return local.returncode == 0
-
 
 def existing_proposal(root: Path, target: Target) -> Result | None:
     """Result for an already-proposed lang+tag, or None if there is none.
@@ -866,7 +871,8 @@ def existing_proposal(root: Path, target: Target) -> Result | None:
     if target.tag is None:
         return None
     branch = branch_name(target.lang, target.tag)
-    if not proposal_exists(root, branch):
+    if not proposal_exists_upstream(root, branch) and \
+            not proposal_exists_locally(root, branch):
         return None
     return Result(language=target.lang.language, ts_version=target.ts_version,
                   new_tag=target.tag, status=STATUS_EXISTS, branch=branch,
@@ -945,7 +951,7 @@ def open_pr(root: Path, target: Target, result: Result,
         result.status = "dry-run"
         return result
 
-    if proposal_exists(root, branch):
+    if proposal_exists_upstream(root, branch):
         result.status = STATUS_EXISTS
         result.detail = f"branch {branch} already exists"
         return result
