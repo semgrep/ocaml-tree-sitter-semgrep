@@ -945,11 +945,6 @@ def open_pr(root: Path, target: Target, result: Result,
         result.status = "dry-run"
         return result
 
-    if proposal_exists(root, branch):
-        result.status = STATUS_EXISTS
-        result.detail = f"branch {branch} already exists"
-        return result
-
     run_quiet(["git", "push", "origin", branch], cwd=root)
     create = ["gh", "pr", "create", "--title", title, "--body", body,
               "--base", base, "--head", branch]
