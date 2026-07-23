@@ -1045,8 +1045,9 @@ def propose(root: Path, target: Target, keep: bool = False,
     Does NOT create a PR — that's the caller's job under --open-pr.
     """
     lang = target.lang
+    language = lang.language
     tag = target.tag
-    result = Result(language=lang.language, ts_version=target.ts_version, new_tag=tag)
+    result = Result(language=language, ts_version=target.ts_version, new_tag=tag)
     if target.resolution_note:
         result.version_note = target.resolution_note
 
@@ -1062,6 +1063,7 @@ def propose(root: Path, target: Target, keep: bool = False,
     submodule = target.submodule
     old_sha = submodule_head(submodule)
     result.old_sha = old_sha
+    log(f"[{language}] {old_sha[:8]} -> {tag}")
 
     # In `keep` (PR) mode, do all the work directly on the grammar-update
     # branch forked from origin/main, and DON'T reset — the validated tree
@@ -1073,6 +1075,7 @@ def propose(root: Path, target: Target, keep: bool = False,
     committed = False
     if keep:
         base = base_branch()
+        log(f"[{language}] checking out {branch} from origin/{base}")
         run_quiet(["git", "fetch", "origin", base], cwd=root)
         run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
 
@@ -1082,6 +1085,7 @@ def propose(root: Path, target: Target, keep: bool = False,
         # our re-run below is the authoritative signal. But an unchanged
         # submodule is only a real no-op if the bump itself succeeded —
         # otherwise it failed before doing anything and must be surfaced.
+        log(f"[{language}] bumping submodule to {tag}")
         bump = run_update_grammar(lang, target.ts_version, tag, root)
         new_sha = submodule_head(submodule)
         result.new_sha = new_sha
@@ -1091,14 +1095,18 @@ def propose(root: Path, target: Target, keep: bool = False,
                 result.status = STATUS_FAILED
                 result.detail = "update-grammar failed"
                 result.test_log_tail = tail(bump.stdout + bump.stderr)
+                log(f"[{language}] update-grammar failed; nothing moved")
                 return result
             result.status = STATUS_NO_OP
+            log(f"[{language}] already at {tag}; no-op")
             return result
 
         # Snapshots are expected to churn; regenerate then test for the
         # authoritative result.
+        log(f"[{language}] regenerating corpus snapshots")
         regenerate_snapshots(root, lang, target.ts_version)
         result.corpus_diff = corpus_diff(root, lang)
+        log(f"[{language}] running test-lang")
         test = run_test_lang(lang, root)
         result.test_log_tail = tail(test.stdout + test.stderr)
 
@@ -1107,9 +1115,11 @@ def propose(root: Path, target: Target, keep: bool = False,
             # that broke existing corpus snapshots. Invoke the fix-semgrep-
             # grammar skill to adapt the tests, then re-test as the
             # authoritative signal (the skill's own status is advisory).
+            log(f"[{language}] test-lang failed; dispatching review agent")
             run_review_agent(root, lang, tag,
                              test.stdout + test.stderr)
             result.corpus_diff = corpus_diff(root, lang)
+            log(f"[{language}] re-running test-lang after review agent")
             test = run_test_lang(lang, root)
             result.test_log_tail = tail(test.stdout + test.stderr)
             if test.returncode == 0:
@@ -1122,6 +1132,7 @@ def propose(root: Path, target: Target, keep: bool = False,
                              "test-lang failed (review agent not enabled)")
             if not result.test_log_tail:
                 result.test_log_tail = tail(bump.stdout + bump.stderr)
+            log(f"[{language}] {result.detail}")
             return result
 
         result.status = STATUS_UPDATED
@@ -1129,12 +1140,14 @@ def propose(root: Path, target: Target, keep: bool = False,
             # Commit the validated tree on the branch — this is exactly what
             # was tested. Exclude the workflow's result artifact and `core`
             # (a grammar bump must only move the language submodule).
+            log(f"[{language}] committing validated tree on {branch}")
             run_quiet(["git", "add", "-A", "--", ".",
                        ":(exclude)result-*.json", ":(exclude)core"], cwd=root)
             run_quiet(["git", "commit", "-m",
                        f"Update tree-sitter-{lang.language} grammar to {tag}"], cwd=root)
             committed = True
             result.branch = branch
+        log(f"[{language}] updated: {tag}")
         return result
     finally:
         # Classify-only mode always resets. keep mode resets only if we did
