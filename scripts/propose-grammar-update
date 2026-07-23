@@ -860,8 +860,7 @@ def existing_proposal(root: Path, target: Target) -> Result | None:
     """Result for an already-proposed lang+tag, or None if there is none.
 
     Runs before the expensive build so a re-run on an in-flight proposal
-    costs seconds, not a full bump/test cycle. open_pr() re-checks right
-    before pushing, so the small race window stays covered.
+    costs seconds, not a full bump/test cycle.
     """
     if target.tag is None:
         return None
@@ -929,7 +928,7 @@ def open_pr(root: Path, target: Target, result: Result,
 
     The validated commit already exists on `grammar-update/<lang>/<tag>`
     (created + committed by propose in keep mode) — here we only push it and
-    open the PR. Idempotent: skips if a branch already exists upstream.
+    open the PR.
     """
     lang, tag = target.lang, result.new_tag
     base = base_branch()
