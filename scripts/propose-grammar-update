@@ -45,11 +45,12 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, fields
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ###############################################################################
 # update-grammar import #
@@ -176,6 +177,25 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+# Transient index.lock from concurrent status polling (IDE/Conductor).
+_LOCK_ATTEMPTS = 5
+_LOCK_DELAY = 0.3
+
+
+def _retry_index_lock(
+    run_once: Callable[[], subprocess.CompletedProcess],
+    output: Callable[[subprocess.CompletedProcess], str],
+) -> subprocess.CompletedProcess:
+    """Run `run_once` up to `_LOCK_ATTEMPTS`, retrying only on index.lock."""
+    for i in range(_LOCK_ATTEMPTS):
+        r = run_once()
+        if r.returncode == 0 or "index.lock" not in output(r):
+            return r
+        if i < _LOCK_ATTEMPTS - 1:
+            time.sleep(_LOCK_DELAY)
+    return r
+
+
 def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Run a read-only git query quietly (no command echo, never raises).
 
@@ -195,12 +215,17 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
     must never go there (it would corrupt the contract and the workflow's
     `tee`'d artifact). The child's stderr is merged into its stdout at
     capture time (stderr=STDOUT) so the re-emitted log keeps the original
-    interleaving.
+    interleaving. Retries on transient index.lock; other failures raise.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
-    r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
-                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    sys.stderr.write(r.stdout)
+
+    def once() -> subprocess.CompletedProcess:
+        r = subprocess.run(cmd, cwd=cwd, text=True, check=False,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        sys.stderr.write(r.stdout)
+        return r
+
+    r = _retry_index_lock(once, lambda r: r.stdout)
     if r.returncode != 0:
         raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout)
 
@@ -795,6 +820,11 @@ def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProce
     )
 
 
+def _git_reset_step(cmd: list[str], cwd: Path) -> None:
+    """Best-effort reset step: retry index.lock, else no-op like git_query."""
+    _retry_index_lock(lambda: git_query(cmd, cwd), lambda r: r.stderr)
+
+
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     """Undo every mutation, so a failure never leaks into the next run.
 
@@ -803,11 +833,11 @@ def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
     parser.c, and regenerated snapshots. Restores the submodule to
     `old_sha` and the outer tree to HEAD.
     """
-    git_query(["git", "restore", "--staged", "."], cwd=root)
-    git_query(["git", "checkout", "--", "lang"], cwd=root)
-    git_query(["git", "checkout", old_sha], cwd=submodule)
-    git_query(["git", "checkout", "--", "."], cwd=submodule)
-    git_query(["git", "clean", "-fdq"], cwd=submodule)
+    _git_reset_step(["git", "restore", "--staged", "."], root)
+    _git_reset_step(["git", "checkout", "--", "lang"], root)
+    _git_reset_step(["git", "checkout", old_sha], submodule)
+    _git_reset_step(["git", "checkout", "--", "."], submodule)
+    _git_reset_step(["git", "clean", "-fdq"], submodule)
 
 
 def tail(text: str, lines: int = 40) -> str:
