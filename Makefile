@@ -48,7 +48,10 @@ test: build
 # Run the Python test suites (not run by 'make test'). For full coverage, the
 # pinned tree-sitter versions must be installed ('make setup-tree-sitter-versions').
 # Uses the 'pytest' on PATH if present, otherwise falls back to 'python3 -m pytest'.
-PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py scripts/test_propose_grammar_update.py
+# scripts/test_propose_grammar_update.py MUST run as a separate invocation (via
+# 'uv run'): it's a uv script with its own pinned deps (cursor-sdk, see its inline
+# metadata) that a bare pytest/python3 invocation can't install.
+PYTHON_TESTS = lang/test_grammar_ts_version.py lang/test_ts_versions.py lang/test_abi15_gating.py scripts/test_update_grammar.py scripts/test_cursor_agent_runner.py
 .PHONY: test-python
 test-python:
 	@if command -v pytest >/dev/null 2>&1; then \
@@ -56,6 +59,7 @@ test-python:
 	else \
 	  python3 -m pytest $(PYTHON_TESTS); \
 	fi
+	uv run scripts/test_propose_grammar_update.py
 
 # Install every tree-sitter version the grammars are pinned to (derived from the
 # lang/languages-* files), each into its own core/tree-sitter-<version>/. Needed

@@ -1,0 +1,6 @@
+name: Install uv
+description: Install the pinned version of uv (single source of truth for the SHA).
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
