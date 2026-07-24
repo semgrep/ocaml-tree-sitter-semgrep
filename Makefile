@@ -95,6 +95,7 @@ stat2:
 # so this step is required before 'make lang'.
 .PHONY: install
 install:
+	cd core && dune build @install
 	cd core && dune install tree-sitter
 
 # Used by Conductor at setup time
