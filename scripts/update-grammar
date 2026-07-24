@@ -6,9 +6,9 @@ Steps performed by `main()` in order:
 1. Discover the set of valid `<language>` arguments from the on-disk
    wrapper / submodule directories and validate the user's input
    against that set (fails fast on typos and path-traversal attempts).
-2. Switch the local tree-sitter CLI to the version pinned for this
-   language (`core/scripts/switch-tree-sitter-version` + install
-   scripts). No-op when already aligned.
+2. Ensure the tree-sitter CLI/runtime for the version pinned for this
+   language is provisioned under `core/tree-sitter-<version>/`
+   (`core/scripts/provision-tree-sitter`). No-op when already present.
 3. Verify the outer repo and the target submodule have clean working
    trees (skipped under `--skip-release`).
 4. Resolve the submodule at lang/semgrep-grammars/src/tree-sitter-<sub>,
@@ -161,52 +161,51 @@ def validate_language(lang: str, valid: dict[str, str]) -> str:
     )
 
 
-CORE_SCRIPTS = (
-    "switch-tree-sitter-version",
-    "install-tree-sitter-cli",
-    "install-tree-sitter-lib",
-)
+# Provisions a single version into core/tree-sitter-<version>/{bin,include,lib}.
+# Replaces the old switch-tree-sitter-version + install-tree-sitter-{cli,lib}
+# trio that existed when core/ was a separate submodule.
+PROVISION_TREE_SITTER = "provision-tree-sitter"
 
 
-def installed_tree_sitter_version(core: Path) -> str | None:
-    """Return the version reported by `core/tree-sitter/bin/tree-sitter`, or None."""
-    binary = core / "tree-sitter" / "bin" / "tree-sitter"
+def installed_tree_sitter_version(core: Path, version: str) -> str | None:
+    """Return `version` if `core/tree-sitter-<version>/bin/tree-sitter` reports it.
+
+    Versions live side by side under `core/tree-sitter-<version>/` (see
+    `core/scripts/provision-tree-sitter`); there is no single shared
+    `core/tree-sitter` install for grammar builds.
+    """
+    binary = core / f"tree-sitter-{version}" / "bin" / "tree-sitter"
     if not binary.exists():
         return None
     result = run([str(binary), "--version"], cwd=core, check=False, capture=True)
     if result.returncode != 0:
         return None
     parts = result.stdout.split()
-    return parts[1] if len(parts) >= 2 and parts[0] == "tree-sitter" else None
+    reported = parts[1] if len(parts) >= 2 and parts[0] == "tree-sitter" else None
+    return reported if reported == version else None
 
 
 def ensure_tree_sitter_version(root: Path, version: str) -> None:
-    """Switch the local tree-sitter install to `version` if not already.
+    """Provision `core/tree-sitter-<version>/` if not already present.
 
-    Idempotency comes from probing the actual installed binary
-    (`installed_tree_sitter_version`) rather than the `tree-sitter-version`
-    file. A previous run interrupted between the file write and the CLI
-    install would leave the file looking aligned while the binary was
-    stale; this approach re-runs the install in that case.
+    Idempotency comes from probing the versioned binary
+    (`installed_tree_sitter_version`) and from `provision-tree-sitter`
+    itself, which skips a fully-installed prefix. Grammar builds point
+    at the versioned path directly (lang/Makefile.common); this never
+    touches core's own `tree-sitter-version` pin.
     """
     core = root / "core"
-    missing = [s for s in CORE_SCRIPTS if not (core / "scripts" / s).exists()]
-    if missing:
+    script = core / "scripts" / PROVISION_TREE_SITTER
+    if not script.exists():
         die(
-            f"missing required core scripts: {', '.join(missing)}. "
+            f"missing required core script: scripts/{PROVISION_TREE_SITTER}. "
             f"Was core/ restructured?"
         )
-    current = installed_tree_sitter_version(core)
-    if current == version:
-        print(f"tree-sitter {version} already installed.", file=sys.stderr)
+    if installed_tree_sitter_version(core, version) == version:
+        print(f"tree-sitter {version} already provisioned.", file=sys.stderr)
         return
-    print(
-        f"Aligning tree-sitter: {current or '(none)'} -> {version}",
-        file=sys.stderr,
-    )
-    run(["./scripts/switch-tree-sitter-version", version], cwd=core)
-    run(["./scripts/install-tree-sitter-cli"], cwd=core)
-    run(["./scripts/install-tree-sitter-lib"], cwd=core)
+    print(f"Provisioning tree-sitter {version}", file=sys.stderr)
+    run([f"./scripts/{PROVISION_TREE_SITTER}", version], cwd=core)
 
 
 def submodule_path(root: Path, lang: str) -> Path:
@@ -456,11 +455,15 @@ def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
     """Stage and commit the update; no-op if nothing changed.
 
-    `git add -A` is safe because this function only runs in the release
-    path (no `--skip-release`), and `main()` enforces a clean tree
-    up front in that path via `require_clean_worktree`.
+    Stages everything except `core/` — a grammar bump must only move the
+    language submodule and lang/ files. Provisioning writes under
+    gitignored `core/tree-sitter-*` trees, but excluding `core/` also
+    guards against incidental dirtiness of tracked core files. Safe
+    because this only runs in the release path (no `--skip-release`),
+    where `main()` already enforced a clean tree via
+    `require_clean_worktree`.
     """
-    run(["git", "add", "-A"], cwd=root)
+    run(["git", "add", "-A", "--", ".", ":(exclude)core"], cwd=root)
     if run(
         ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
     ).returncode == 0:

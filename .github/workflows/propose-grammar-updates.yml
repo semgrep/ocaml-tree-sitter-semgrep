@@ -169,8 +169,9 @@ jobs:
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - run: git submodule update --init --recursive --depth 1
       - run: ./core/scripts/setup-node
-      # Cache the opam/dune + tree-sitter build, keyed on the core submodule
-      # SHA so it only rebuilds when core changes.
+      # Cache the opam/dune + tree-sitter build, keyed on the core/ tree
+      # SHA so it only rebuilds when core changes (core/ is in-repo, not a
+      # submodule).
       - id: core-sha
         run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
