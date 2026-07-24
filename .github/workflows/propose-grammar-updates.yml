@@ -207,6 +207,19 @@ jobs:
           if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
           opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
+      # tee creates the file even when the driver crashes before printing
+      # JSON (empty artifact → header-only Slack table). Always leave a
+      # parseable failed row so summarize/notify can name the language.
+      - name: Ensure result JSON
+        if: always()
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          f="result-${LANGUAGE}.json"
+          if python -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,dict) and d.get('language') and d.get('status')" "$f" 2>/dev/null; then
+            exit 0
+          fi
+          python -c "import json,os; print(json.dumps({'language': os.environ['LANGUAGE'], 'status': 'failed', 'detail': 'no result JSON (propose crashed before emitting status)'}))" > "$f"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -389,10 +402,16 @@ jobs:
           if find results -name '*.json' | grep -q .; then have_results=true; fi
           # PR links come from the result JSONs (pr_url is recorded by
           # propose-grammar-update when gh creates the PR).
+          # Per-file jq: an empty/corrupt artifact must not abort compose
+          # (that used to hide the failure alert behind a step error).
           prs=""
           if [ "$have_results" = true ]; then
-            prs=$(jq -r 'select(.status == "updated" and .pr_url != null)
-                         | "• \(.language) \(.new_tag): \(.pr_url)"' results/*.json)
+            for f in results/*.json; do
+              [ -f "$f" ] || continue
+              line=$(jq -r 'select(.status == "updated" and .pr_url != null)
+                            | "• \(.language) \(.new_tag): \(.pr_url)"' "$f" 2>/dev/null) || true
+              [ -n "$line" ] && prs="${prs}${prs:+$'\n'}${line}"
+            done
           fi
           if [ "$FAILED" = "true" ]; then
             # The run link is the entry point to the failed job's log.
