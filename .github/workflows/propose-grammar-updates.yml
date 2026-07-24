@@ -25,10 +25,23 @@ on:
       language:
         description: "Language to propose (a name like 'php', or 'all'/blank for every language)"
         required: false
-      run_review_agent:
+      run_language_agent:
         description: "On test-lang failure, dispatch a Cursor agent (fix-semgrep-grammar skill) to adapt the extension grammar/tests. Off = failing bumps are just reported as failed; no Cursor dispatch ever happens."
         type: boolean
         default: false
+      verbose_language_agent:
+        description: "With run_language_agent: log full event stream instead of heartbeat (noisy; debug only)."
+        type: boolean
+        default: false
+      agent_timeout:
+        description: "With run_language_agent: wall-clock cap per language, e.g. '25m', '90s', '1h'. Blank = 25m."
+        required: false
+      agent_token_cap:
+        description: "With run_language_agent: best-effort token cap; 0 disables. Blank = 5762100."
+        required: false
+      agent_turn_cap:
+        description: "With run_language_agent: completed-turn cap; 0 disables. Blank = 20."
+        required: false
       dry_run:
         description: "Full pipeline (build, bump, snapshot regen, test-lang) but push nothing: no PR here, integrate job skipped."
         type: boolean
@@ -67,6 +80,9 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      # scripts/propose-grammar-update is a uv script
+      - name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
       - id: list
         # A single dispatched language overrides the full set. The input is
         # untrusted, so it goes through an env var (never interpolated into
@@ -82,21 +98,21 @@ jobs:
           if [ -n "$INPUT_LANGUAGE" ] && [ "$INPUT_LANGUAGE" != "all" ]; then
             # Single named language: validate against the FULL set (a manual
             # run may target a language even just to re-check it — no filter).
-            valid=$(python scripts/propose-grammar-update --list-languages --json)
+            valid=$(uv run --script scripts/propose-grammar-update --list-languages --json)
             echo "$valid" | python -c "import json,sys; ls=json.load(sys.stdin); sys.exit(0 if sys.argv[1] in ls else 1)" "$INPUT_LANGUAGE" \
               || { echo "Unknown language: $INPUT_LANGUAGE" >&2; exit 1; }
             echo "languages=$(python -c 'import json,os; print(json.dumps([os.environ["INPUT_LANGUAGE"]]))')" >> "$GITHUB_OUTPUT"
           else
             # 'all'/blank/scheduled: only languages actually behind their latest
             # tag, so up-to-date ones never enter the expensive build matrix.
-            echo "languages=$(python scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
+            echo "languages=$(uv run --script scripts/propose-grammar-update --list-languages --updatable-only --json)" >> "$GITHUB_OUTPUT"
           fi
 
   propose:
     name: Propose ${{ matrix.language }}
     needs: enumerate
     runs-on: ubuntu-latest
-    timeout-minutes: 45   # OCaml build (~15m) + test-lang + possible review agent
+    timeout-minutes: 45   # OCaml build (~15m) + test-lang + possible language agent
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -172,15 +188,10 @@ jobs:
       # This step must come AFTER `make install` populates that dir.
       - name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
-      # The review agent (Cursor dispatch on a failing test-lang) is an
-      # explicit opt-in via the run_review_agent input: without it, neither
-      # the CLI nor the API key is even present on the runner, so no grammar
-      # source or test logs can ever leave it.
-      - name: Install Cursor agent CLI
-        if: inputs.run_review_agent
-        run: |
-          curl https://cursor.com/install -fsS | bash
-          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+      # uv script: PEP 723 pulls cursor-sdk; language agent still needs
+      # run_language_agent + CURSOR_API_KEY to actually dispatch.
+      - name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
       - name: Propose update
         env:
           # NOTE: PRs created with GITHUB_TOKEN do not trigger other GitHub
@@ -189,8 +200,12 @@ jobs:
           # triggers via its own webhook integration. If Actions CI on these
           # PRs is wanted later, swap in a PAT / GitHub App token here.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURSOR_API_KEY: ${{ inputs.run_review_agent && secrets.CURSOR_API_KEY || '' }}
-          RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
+          CURSOR_API_KEY: ${{ inputs.run_language_agent && secrets.CURSOR_API_KEY || '' }}
+          RUN_LANGUAGE_AGENT: ${{ inputs.run_language_agent }}
+          VERBOSE_LANGUAGE_AGENT: ${{ inputs.verbose_language_agent }}
+          AGENT_TIMEOUT: ${{ inputs.agent_timeout }}
+          AGENT_TOKEN_CAP: ${{ inputs.agent_token_cap }}
+          AGENT_TURN_CAP: ${{ inputs.agent_turn_cap }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           # opam exec puts the switch bin on PATH so the nested test-lang ->
@@ -199,8 +214,14 @@ jobs:
           mode="--open-pr"
           if [ "$DRY_RUN" = "true" ]; then mode="--dry-run"; fi
           flags=""
-          if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
+          if [ "$RUN_LANGUAGE_AGENT" = "true" ]; then flags="--language-agent"; fi
+          if [ "$VERBOSE_LANGUAGE_AGENT" = "true" ]; then flags="$flags --verbose"; fi
+          # Blank inputs (the default) omit the flag so the script's own
+          # default applies — see propose-grammar-update --help.
+          if [ -n "$AGENT_TIMEOUT" ]; then flags="$flags --agent-timeout $AGENT_TIMEOUT"; fi
+          if [ -n "$AGENT_TOKEN_CAP" ]; then flags="$flags --agent-token-cap $AGENT_TOKEN_CAP"; fi
+          if [ -n "$AGENT_TURN_CAP" ]; then flags="$flags --agent-turn-cap $AGENT_TURN_CAP"; fi
+          opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -295,7 +316,10 @@ jobs:
         name: Put pinned tree-sitter CLI on PATH
         run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
       - if: steps.gate.outputs.go == 'true'
-        name: Release to semgrep-${{ matrix.language }}
+        name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
+      - if: steps.gate.outputs.go == 'true'
+        name: Release to semgrep-${ matrix.language }
         env:
           # Pushing to the downstream semgrep-<lang> repos needs broader
           # creds than GITHUB_TOKEN.
@@ -311,7 +335,7 @@ jobs:
           # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
           # --result: release the exact tag/branch the propose job validated
           # (from its artifact), never a live re-resolved one.
-          opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" --release \
+          opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" --release \
             --result "result/result-${{ matrix.language }}.json"
 
   summary:
@@ -332,8 +356,10 @@ jobs:
         with:
           path: results
           merge-multiple: true
+      - name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
       - name: Render summary
-        run: python scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
+        run: uv run --script scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
   # Slack notification (LANG-604): pages #team-languages when any job fails,
   # posts a success note (with PR links) when update PRs were opened, and a
@@ -361,6 +387,8 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      - name: Install the latest version of uv
+        uses: ./.github/actions/setup-uv
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         # A crash before any propose leg wrote its result (e.g. enumerate
         # failed) leaves no artifacts; the alert then falls back to
@@ -406,7 +434,7 @@ jobs:
           # Row count is bounded by the language set (~47), well under
           # Slack's 40k text limit.
           if [ "$have_results" = true ]; then
-            summary=$(python scripts/propose-grammar-update --summarize results || true)
+            summary=$(uv run --script scripts/propose-grammar-update --summarize results || true)
             text="${text}"$'\n```\n'"${summary}"$'\n```'
           fi
           if [ "$TEST_MODE" = "true" ]; then text=":test_tube: [test mode] ${text}"; fi
