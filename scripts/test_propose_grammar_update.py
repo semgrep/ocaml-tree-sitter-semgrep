@@ -10,6 +10,7 @@ by the integration run in the workflow.
 from __future__ import annotations
 
 import contextlib
+import json
 import sys
 import unittest
 import unittest.mock
@@ -348,7 +349,6 @@ class TestResultArtifact(unittest.TestCase):
         self.assertEqual(back.status, "updated")
 
     def test_to_json_drops_nones_keeps_falsy(self):
-        import json
         d = json.loads(pg.Result(language="php").to_json())
         self.assertNotIn("status", d)           # None dropped
         self.assertEqual(d["tests_adapted"], False)  # real bool kept
@@ -403,6 +403,32 @@ class TestSummarize(unittest.TestCase):
         self.assertEqual(pg.language_from_result_path(Path("result-c-sharp.json")),
                          "c-sharp")
         self.assertIsNone(pg.language_from_result_path(Path("other.json")))
+
+
+class TestEnsureResultFile(unittest.TestCase):
+    """The --ensure-result CI fallback: rewrite only empty/invalid artifacts."""
+
+    def test_leaves_valid_file_alone(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-php.json"
+            path.write_text('{"language":"php","status":"updated"}\n')
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["status"], "updated")
+
+    def test_rewrites_empty_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-apex.json"
+            path.write_text("")
+            pg.ensure_result_file(path)
+            data = json.loads(path.read_text())
+            self.assertEqual(data["language"], "apex")
+            self.assertEqual(data["status"], pg.STATUS_FAILED)
+
+    def test_rewrites_missing_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-ruby.json"
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["language"], "ruby")
 
 
 ###############################################################################

@@ -1382,6 +1382,24 @@ def load_result_row(path: Path) -> dict[str, Any]:
     return r
 
 
+def _is_valid_result_file(path: Path) -> bool:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(data, dict) and bool(data.get("language")) and bool(data.get("status"))
+
+
+def ensure_result_file(path: Path) -> None:
+    """CI fallback: if `path` isn't a valid result-<lang>.json (missing or
+    corrupt because propose crashed before writing it), replace it with a
+    failed row via `load_result_row` so summarize/Slack still see the
+    language instead of a silently dropped artifact.
+    """
+    if not _is_valid_result_file(path):
+        path.write_text(json.dumps(load_result_row(path)) + "\n")
+
+
 def summarize(results_dir: Path) -> None:
     """Render a markdown table from per-language result JSON files.
 
@@ -1431,6 +1449,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--summarize", metavar="DIR",
         help="Render a markdown summary from result JSON files under DIR.",
+    )
+    parser.add_argument(
+        "--ensure-result", metavar="FILE",
+        help="CI fallback: rewrite FILE as a failed-status row if it's "
+             "missing/empty/invalid (propose crashed before writing it).",
     )
     parser.add_argument(
         "--json", action="store_true",
@@ -1530,6 +1553,10 @@ def main() -> int:
 
     if args.summarize:
         summarize(Path(args.summarize))
+        return 0
+
+    if args.ensure_result:
+        ensure_result_file(Path(args.ensure_result))
         return 0
 
     if not args.language:
