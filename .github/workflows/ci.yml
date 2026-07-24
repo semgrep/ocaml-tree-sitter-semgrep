@@ -1,0 +1,48 @@
+name: Build and test core
+
+# Builds the ocaml-tree-sitter code generator (core/) and runs its OCaml test
+# suite. Surfaced from core/.github (GitHub only runs workflows under the
+# repository-root .github/). This covers core only; the per-language grammar
+# builds are exercised separately.
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+
+      - uses: semgrep/setup-ocaml@c2ac55606cc5210616c16d57ce5b4ce80a957dde # v3.4.3
+        with:
+          cache-prefix: v5
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
+          opam-pin: false
+          save-opam-post-run: true
+
+      # tree-sitter's CLI is built from source with cargo; libclang is needed
+      # for its Rust bindgen step. m4 and pkg-config are needed to build the
+      # OCaml dependencies and to locate the tree-sitter runtime.
+      - name: Set up build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev m4 pkg-config
+          rustup default stable
+          rustup update
+
+      - name: Install OCaml dependencies
+        run: opam install --deps-only -y ./core
+
+      - name: Build
+        run: opam exec -- make
+
+      - name: Install
+        run: opam exec -- make install
+
+      - name: Test
+        run: opam exec -- make test

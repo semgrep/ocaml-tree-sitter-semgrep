@@ -1,0 +1,51 @@
+name: pre-commit (core)
+
+# Runs the repo's pre-commit hooks, but only over core/ and only when core/
+# changes. This is deliberately scoped: the hooks (end-of-file-fixer,
+# trailing-whitespace, ocp-indent) would otherwise flag the vendored grammars
+# and generated parser files under lang/, which we don't want to reformat.
+# Surfaced from core/.github (GitHub only runs workflows under the
+# repository-root .github/).
+
+on:
+  push:
+    paths:
+      - 'core/**'
+      - '.pre-commit-config.yaml'
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ocp-indent (used by the pre-commit-ocaml hook) comes from opam.
+      - uses: semgrep/setup-ocaml@c2ac55606cc5210616c16d57ce5b4ce80a957dde # v3.4.3
+        with:
+          cache-prefix: v5
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
+          opam-pin: false
+          save-opam-post-run: true
+
+      - name: Install ocp-indent and add to PATH
+        run: |
+          opam install -y ocp-indent
+          opam var bin >> "$GITHUB_PATH"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      # Restrict the run to tracked files under core/ so the vendored grammars
+      # and generated files elsewhere are left untouched.
+      - name: Run pre-commit on core/
+        run: |
+          files=$(git ls-files -- 'core/*')
+          if [ -n "$files" ]; then
+            # Intentional word-splitting: one --files argument per tracked file.
+            # shellcheck disable=SC2086
+            pre-commit run --color=always --show-diff-on-failure --files $files
+          fi

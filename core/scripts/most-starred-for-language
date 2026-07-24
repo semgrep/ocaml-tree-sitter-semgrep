@@ -32,7 +32,7 @@ if __name__ == "__main__":
                urllib.parse.quote('language:' + args.lang)
            )
     )
-    r = s.get(url)
+    r = s.get(url, timeout=120)
     pretty_json = json.loads(r.text)
 
     with open('projects.txt', 'w') as f:
