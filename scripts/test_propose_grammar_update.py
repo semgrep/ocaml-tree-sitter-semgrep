@@ -361,7 +361,7 @@ class TestResultArtifact(unittest.TestCase):
 
 
 class TestSummarize(unittest.TestCase):
-    """Summarize skips empty/corrupt artifacts."""
+    """Empty/corrupt artifacts must show up as failed rows, not vanish."""
 
     def _summarize(self, files: dict[str, str]) -> str:
         import io
@@ -374,19 +374,16 @@ class TestSummarize(unittest.TestCase):
                 pg.summarize(root)
             return buf.getvalue()
 
-    def test_empty_artifact_is_skipped(self):
+    def test_empty_artifact_is_failed_row(self):
         out = self._summarize({"result-apex.json": ""})
-        self.assertNotIn("apex", out)
-        self.assertIn("no result artifacts", out)
+        self.assertIn("| apex |", out)
+        self.assertIn("failed", out)
+        self.assertIn("empty result artifact", out)
 
-    def test_invalid_json_is_skipped(self):
-        out = self._summarize({
-            "result-php.json": "{not json",
-            "result-ruby.json":
-                '{"language":"ruby","status":"no-op"}',
-        })
-        self.assertNotIn("php", out)
-        self.assertIn("| ruby |", out)
+    def test_invalid_json_is_failed_row(self):
+        out = self._summarize({"result-php.json": "{not json"})
+        self.assertIn("| php |", out)
+        self.assertIn("invalid result JSON", out)
 
     def test_valid_row_still_rendered(self):
         out = self._summarize({
@@ -399,6 +396,11 @@ class TestSummarize(unittest.TestCase):
     def test_no_artifacts_notes_absence(self):
         out = self._summarize({})
         self.assertIn("no result artifacts", out)
+
+    def test_language_from_result_path(self):
+        self.assertEqual(pg.language_from_result_path(Path("result-c-sharp.json")),
+                         "c-sharp")
+        self.assertIsNone(pg.language_from_result_path(Path("other.json")))
 
 
 class TestMainFailedJson(unittest.TestCase):

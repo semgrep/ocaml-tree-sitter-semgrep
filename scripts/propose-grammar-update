@@ -1345,19 +1345,50 @@ def list_languages(root: Path, as_json: bool, updatable_only: bool = False) -> N
         print("\n".join(names))
 
 
+_RESULT_FILENAME_RE = re.compile(r"^result-(.+)\.json$")
+
+
+def language_from_result_path(path: Path) -> str | None:
+    """Best-effort language name from a `result-<lang>.json` artifact path."""
+    m = _RESULT_FILENAME_RE.match(path.name)
+    return m.group(1) if m else None
+
+
+def load_result_row(path: Path) -> dict[str, Any]:
+    """Load one result artifact; empty/invalid files become a failed row.
+
+    Workflow redirects stdout into `result-<lang>.json`. A hard crash before
+    the driver prints JSON leaves an empty file; skipping those hid failures
+    from Slack/summary. Surface them as failed, using the filename when the
+    payload has no language.
+    """
+    fallback_lang = language_from_result_path(path) or path.stem
+    try:
+        text = path.read_text().strip()
+    except OSError as e:
+        return {"language": fallback_lang, "status": STATUS_FAILED,
+                "detail": f"unreadable result artifact: {e}"}
+    if not text:
+        return {"language": fallback_lang, "status": STATUS_FAILED,
+                "detail": "empty result artifact (propose crashed before emitting JSON)"}
+    try:
+        r = json.loads(text)
+    except json.JSONDecodeError as e:
+        return {"language": fallback_lang, "status": STATUS_FAILED,
+                "detail": f"invalid result JSON: {e}"}
+    if not isinstance(r, dict):
+        return {"language": fallback_lang, "status": STATUS_FAILED,
+                "detail": "invalid result JSON: expected an object"}
+    if not r.get("language"):
+        r["language"] = fallback_lang
+    if not r.get("status"):
+        r["status"] = "unknown"
+    return r
+
+
 def summarize(results_dir: Path) -> None:
-    """Markdown table from result JSON files; skip unreadable ones."""
-    rows: list[dict[str, Any]] = []
-    for path in sorted(results_dir.rglob("*.json")):
-        try:
-            r = json.loads(path.read_text())
-        except (json.JSONDecodeError, OSError):
-            continue
-        if not isinstance(r, dict) or not r.get("language"):
-            continue
-        if not r.get("status"):
-            r["status"] = "unknown"
-        rows.append(r)
+    """Markdown table from result JSON files; empty/corrupt → failed rows."""
+    rows = [load_result_row(p) for p in sorted(results_dir.rglob("*.json"))]
 
     by_status: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
