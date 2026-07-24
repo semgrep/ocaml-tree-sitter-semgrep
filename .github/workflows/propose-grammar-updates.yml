@@ -193,10 +193,7 @@ jobs:
           RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          # Runners here use `bash -e` (no pipefail). Without pipefail, a
-          # failing propose-grammar-update still exits 0 via `| tee`, so the
-          # job looks green and Notify Slack posts "nothing to do" instead of
-          # an alert (see run 30110177633).
+          # bash -e omits pipefail; without it `| tee` hides script failures.
           set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
@@ -207,19 +204,10 @@ jobs:
           if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
           opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
-      # tee creates the file even when the driver crashes before printing
-      # JSON (empty artifact → header-only Slack table). Always leave a
-      # parseable failed row so summarize/notify can name the language.
+      # Fallback if tee left an empty/invalid artifact.
       - name: Ensure result JSON
         if: always()
-        env:
-          LANGUAGE: ${{ matrix.language }}
-        run: |
-          f="result-${LANGUAGE}.json"
-          if python -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,dict) and d.get('language') and d.get('status')" "$f" 2>/dev/null; then
-            exit 0
-          fi
-          python -c "import json,os; print(json.dumps({'language': os.environ['LANGUAGE'], 'status': 'failed', 'detail': 'no result JSON (propose crashed before emitting status)'}))" > "$f"
+        run: python scripts/ensure-propose-result "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -402,8 +390,7 @@ jobs:
           if find results -name '*.json' | grep -q .; then have_results=true; fi
           # PR links come from the result JSONs (pr_url is recorded by
           # propose-grammar-update when gh creates the PR).
-          # Per-file jq: an empty/corrupt artifact must not abort compose
-          # (that used to hide the failure alert behind a step error).
+          # Per-file jq so one corrupt artifact can't abort compose.
           prs=""
           if [ "$have_results" = true ]; then
             for f in results/*.json; do

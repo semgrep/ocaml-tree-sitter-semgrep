@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Rewrite empty/invalid result-<lang>.json as a failed row for summarize/Slack."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+_RESULT_RE = re.compile(r"^result-(.+)\.json$")
+_DETAIL = "no result JSON (propose crashed before emitting status)"
+
+
+def language_from_path(path: Path) -> str:
+    m = _RESULT_RE.match(path.name)
+    return m.group(1) if m else path.stem
+
+
+def is_valid_result(path: Path) -> bool:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(data, dict) and bool(data.get("language")) and bool(data.get("status"))
+
+
+def ensure(path: Path, language: str | None = None) -> bool:
+    """Return True if the file was rewritten."""
+    if is_valid_result(path):
+        return False
+    lang = language or language_from_path(path)
+    path.write_text(json.dumps({
+        "language": lang,
+        "status": "failed",
+        "detail": _DETAIL,
+    }) + "\n")
+    return True
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("path", type=Path, help="Path to result-<lang>.json")
+    p.add_argument("--language", help="Override language (default: from filename)")
+    args = p.parse_args(argv)
+    rewritten = ensure(args.path, args.language)
+    if rewritten:
+        print(f"wrote failed result for {args.language or language_from_path(args.path)}",
+              file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
