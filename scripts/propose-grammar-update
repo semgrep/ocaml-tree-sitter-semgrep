@@ -1191,6 +1191,14 @@ def propose(root: Path, target: Target, keep: bool = False,
         result.detail = f"unexpected error: {type(e).__name__}: {e}"
         log(f"[{language}] {result.detail}")
         return result
+    except Exception as e:
+        # Emit a failed result JSON (exit 1 via main) instead of a bare
+        # traceback so the workflow artifact / Slack summary still name the
+        # language. Job failure itself is what Notify Slack keys off of.
+        result.status = STATUS_FAILED
+        result.detail = f"unexpected error: {type(e).__name__}: {e}"
+        log(f"[{language}] {result.detail}")
+        return result
     finally:
         # Classify-only mode always resets. keep mode resets only if we did
         # NOT land a commit (early return / failure) so a broken branch isn't

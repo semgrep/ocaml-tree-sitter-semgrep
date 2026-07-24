@@ -362,6 +362,8 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_UPDATED)
 
     def test_unexpected_error_returns_failed_result(self):
+        # Crashes (e.g. git checkout) must become STATUS_FAILED JSON, not an
+        # uncaught traceback that leaves result-<lang>.json empty.
         import subprocess as sp
         with unittest.mock.patch.multiple(
             pg,

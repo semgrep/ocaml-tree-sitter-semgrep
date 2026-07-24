@@ -208,8 +208,10 @@ jobs:
           AGENT_TURN_CAP: ${{ inputs.agent_turn_cap }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          # bash -e omits pipefail; without it `| tee` hides script failures
-          # (the pipeline's exit code would be tee's, not the script's).
+          # Runners here use `bash -e` (no pipefail). Without pipefail, a
+          # failing propose-grammar-update still exits 0 via `| tee`, so the
+          # job looks green and Notify Slack posts "nothing to do" instead of
+          # an alert (see run 30110177633).
           set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
