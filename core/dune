@@ -1,0 +1,124 @@
+(dirs :standard)
+
+(rule
+ (mode
+  (promote (until-clean)))
+ (deps
+  tree-sitter-version
+  (source_tree patch)
+  (source_tree scripts))
+ (target
+  (dir tree-sitter-repo))
+ (action
+  ; Invoke via 'bash' rather than running the script directly: on Windows dune
+  ; can't CreateProcess a '#!'-script, which fails with "Exec format error".
+  (run bash %{project_root}/scripts/download-tree-sitter %{target})))
+
+(rule
+ (deps tree-sitter-repo)
+ (target
+  (dir tree-sitter-out))
+ (action
+  (chdir
+   tree-sitter-repo
+   (progn
+    ; Note: we need absolute paths here so that the generated .pc file results
+    ; in absolute paths for pkg-config.
+    ; Keep the shared libraries (libtree-sitter.{dylib,so,dll} and their
+    ; versioned symlinks) alongside the static archive: semgrep links
+    ; tree-sitter dynamically and its packaging bundles the shared library.
+    (bash "PREFIX=$(cygpath -m $(realpath %{project_root}) 2>/dev/null || realpath %{project_root})/tree-sitter-out make")
+    (bash "PREFIX=$(cygpath -m $(realpath %{project_root}) 2>/dev/null || realpath %{project_root})/tree-sitter-out make install")))))
+
+(rule
+ (deps tree-sitter-repo)
+ (target tree-sitter)
+ (action
+  (chdir
+   tree-sitter-repo
+   ; Don't infer deps/targets since otherwise dune expects cloning the repo to
+   ; create target/release/tree-sitter
+   (no-infer
+    (progn
+     (run cargo build --release)
+     (copy target/release/tree-sitter ../tree-sitter))))))
+
+; Main build - depends on setup
+
+(alias
+ (name build)
+ (deps
+  tree-sitter-out
+  (alias_rec src/all)))
+
+; Expose the code generator as a native binary at core/bin/ocaml-tree-sitter,
+; where ocaml-tree-sitter-semgrep's per-language builds look for it
+; (lang/Makefile.common: OCAML_TREE_SITTER_BINDIR). Promoting it into the source
+; tree gives downstream (non-dune) builds a stable path without reaching into
+; _build. Build with 'dune build bin/ocaml-tree-sitter' (or @post-build).
+
+(subdir
+ bin
+ (rule
+  (mode (promote (until-clean)))
+  (target ocaml-tree-sitter)
+  (deps %{project_root}/src/gen/bin/Ocaml_tree_sitter_main.exe)
+  (action
+   (copy
+    %{project_root}/src/gen/bin/Ocaml_tree_sitter_main.exe
+    ocaml-tree-sitter))))
+
+(alias
+ (name post-build)
+ (deps bin/ocaml-tree-sitter))
+
+(alias
+ (name runtest)
+ (deps
+  (alias build)))
+
+(install
+ (section lib)
+ (package tree-sitter)
+ (files
+  (glob_files tree-sitter-out/lib/*)))
+
+(install
+ (section lib)
+ (package tree-sitter)
+ (dirs tree-sitter-out/include))
+
+(install
+ (section bin)
+ (package tree-sitter)
+ (files tree-sitter))
+
+; Per-version tree-sitter provisioning for the downstream language builds in
+; ocaml-tree-sitter-semgrep's lang/. Each tree-sitter version pinned by a
+; language (see lang/languages-<version>) gets its CLI and runtime installed
+; into core/tree-sitter-<version>/{bin,include,lib}, which lang/Makefile.common
+; consumes. These are separate from the single version above (tree-sitter-out),
+; which is what core's own generator/bindings link against.
+;
+;   dune build @tree-sitter-versions
+;
+; The script installs into the stable source path (not _build) because the
+; runtime bakes absolute paths into its .pc file and macOS dylib install_name;
+; it is idempotent, so re-running is cheap once versions are in place. The set
+; of versions is derived from lang/scripts/ts-versions.
+;
+; This is a file-target rule (not an alias) so that building it -- via
+; 'dune build tree-sitter-versions.stamp' -- runs only the provisioning and not
+; the rest of the project (an alias build recurses into core's test corpus,
+; which needs the generator on PATH). Adding a new version requires adding its
+; checksum in scripts/provision-tree-sitter, which changes this rule's
+; (source_tree scripts) dependency and so re-runs provisioning.
+(rule
+ (target tree-sitter-versions.stamp)
+ (deps
+  (source_tree scripts)
+  (source_tree patch))
+ (action
+  (progn
+   (run bash %{project_root}/scripts/provision-tree-sitter-all)
+   (write-file tree-sitter-versions.stamp ""))))

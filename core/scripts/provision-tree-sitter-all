@@ -1,0 +1,32 @@
+#! /usr/bin/env bash
+#
+# Provision every tree-sitter version that ocaml-tree-sitter-semgrep's languages
+# are pinned to, into core/tree-sitter-<version>/. The list is derived from
+# lang/scripts/ts-versions (the single source of truth, computed from the
+# lang/languages-<version> lists) so adding a language on a new version needs no
+# change here -- only a checksum in provision-tree-sitter.
+#
+# Invoked by dune -- see the 'tree-sitter-versions' alias in core/dune.
+#
+set -eu -o pipefail
+
+# Resolve paths from this script's own location (core/scripts/) rather than
+# 'git rev-parse --show-toplevel', which would point at the outer repo root now
+# that core/ is a plain directory (and fails outside a git checkout).
+here=$(cd "$(dirname "$0")" && pwd)
+repo_root=$(cd "$here/../.." && pwd)
+versions_script="$repo_root/lang/scripts/ts-versions"
+
+if [[ -x "$versions_script" ]]; then
+  versions=$("$versions_script")
+elif [[ -f "$versions_script" ]]; then
+  versions=$(cat "$versions_script")
+else
+  echo "[provision-tree-sitter-all] Warning: $versions_script not found;" \
+       "falling back to the versions with registered checksums." >&2
+  versions="0.20.8 0.22.6 0.26.3"
+fi
+
+for v in $versions; do
+  "$here/provision-tree-sitter" "$v"
+done

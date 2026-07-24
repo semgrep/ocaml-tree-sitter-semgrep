@@ -1,0 +1,24 @@
+#! /usr/bin/env bash
+#
+# Install Node.js needed for tree-sitter grammar generation.
+#
+
+cat >> ~/.bashrc <<"EOF"
+export PATH="$HOME/.node/bin:$PATH"
+export NODE_PATH="$HOME/.node/lib/node_modules:$NODE_PATH"
+export MANPATH="$HOME/.node/share/man:$MANPATH"
+EOF
+
+if which apt-get > /dev/null 2>&1; then
+  sudo apt-get update
+  sudo apt-get install -y nodejs
+elif which apk > /dev/null 2>&1; then
+  sudo apk update
+  sudo apk add nodejs python3
+else
+  echo "$0: Unknown or unsupported package manager." >&2
+  exit 1
+fi
+
+echo "node is: $(which node)"
+echo "node version: $(node --version)"

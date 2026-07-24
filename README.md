@@ -1,8 +1,6 @@
 ocaml-tree-sitter-semgrep
 ==
 
-[![CircleCI](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep.svg?style=svg)](https://circleci.com/gh/returntocorp/ocaml-tree-sitter-semgrep)
-
 Generate OCaml parsers based on
 [tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars,
 for [semgrep](https://github.com/returntocorp/semgrep).
