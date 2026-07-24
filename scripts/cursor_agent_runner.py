@@ -140,14 +140,24 @@ def _cancel_if_running(run: Any) -> None:
         run.cancel()
 
 
-def _trip_cap(result: LanguageAgentResult, run: Any, timer: threading.Timer,
-             reason: str, message: str) -> None:
-    """Record a cap reason (first one wins), log it, and cancel the run."""
-    if result.capped_reason is None:
+def _claim_cap(result: LanguageAgentResult, lock: threading.Lock,
+               reason: str, message: str) -> bool:
+    """Atomically claim the cancel reason. First caller wins; returns True if claimed."""
+    with lock:
+        if result.capped_reason is not None:
+            return False
         result.capped_reason = reason
-        log(f"[agent] cancelled: {message}")
+    log(f"[agent] cancelled: {message}")
+    return True
+
+
+def _trip_cap(result: LanguageAgentResult, run: Any, timer: threading.Timer,
+             lock: threading.Lock, reason: str, message: str) -> None:
+    """Claim a cap reason (first one wins), cancel the timer, and cancel the run once."""
+    claimed = _claim_cap(result, lock, reason, message)
     timer.cancel()
-    _cancel_if_running(run)
+    if claimed:
+        _cancel_if_running(run)
 
 
 def _log_run_failure(run_result: Any) -> None:
@@ -186,13 +196,15 @@ def run_language_agent(root: Path, prompt: str, *, label: str = "agent",
             local=LocalAgentOptions(cwd=root),
         ) as agent:
             run = agent.send(prompt, {"local": {"force": True}})
+            # Shared by the event-loop thread (_trip_cap) and the Timer thread
+            # (cancel_on_timeout): unsynchronized check-then-act on
+            # capped_reason races to a log/state mismatch and double-cancel.
+            cap_lock = threading.Lock()
 
             def cancel_on_timeout():
-                if result.capped_reason is None:
-                    result.capped_reason = "wall_clock_timeout"
-                    log(f"[agent] cancelled: wall-clock timeout "
-                        f"({timeout_seconds:.0f}s)")
-                _cancel_if_running(run)
+                if _claim_cap(result, cap_lock, "wall_clock_timeout",
+                              f"wall-clock timeout ({timeout_seconds:.0f}s)"):
+                    _cancel_if_running(run)
 
             timer = threading.Timer(timeout_seconds, cancel_on_timeout)
             timer.daemon = True
@@ -227,7 +239,7 @@ def run_language_agent(root: Path, prompt: str, *, label: str = "agent",
                                 # Fold the in-flight estimate into reported totals.
                                 result.output_tokens = (
                                     result.output_tokens + streamed_tokens)
-                                _trip_cap(result, run, timer, "token_cap",
+                                _trip_cap(result, run, timer, cap_lock, "token_cap",
                                           f"best-effort token cap ({used} >= "
                                           f"{token_cap}; turn-boundary only)")
                                 break
@@ -247,12 +259,12 @@ def run_language_agent(root: Path, prompt: str, *, label: str = "agent",
                         result.turns += 1
                         used = result.input_tokens + result.output_tokens
                         if token_cap is not None and used >= token_cap:
-                            _trip_cap(result, run, timer, "token_cap",
+                            _trip_cap(result, run, timer, cap_lock, "token_cap",
                                       f"best-effort token cap ({used} >= "
                                       f"{token_cap}; turn-boundary only)")
                             break
                         if turn_cap is not None and result.turns >= turn_cap:
-                            _trip_cap(result, run, timer, "turn_cap",
+                            _trip_cap(result, run, timer, cap_lock, "turn_cap",
                                       f"turn cap ({result.turns} >= {turn_cap})")
                             break
 

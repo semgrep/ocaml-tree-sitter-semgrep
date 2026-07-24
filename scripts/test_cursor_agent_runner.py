@@ -343,9 +343,8 @@ class TestVerboseAndHeartbeat(unittest.TestCase):
         self.assertEqual(result.output_tokens, 7)
 
     def test_late_wall_clock_timer_does_not_override_token_cap_reason(self):
-        """Regression: the wall-clock timer used to only get cancelled AFTER
-        run.wait() returned, so a timer racing in during that wait could
-        clobber an already-set token_cap reason with wall_clock_timeout."""
+        """Regression: a timer callback already in flight when token_cap trips
+        must not clobber capped_reason or double-cancel the run."""
         over_cap = types.SimpleNamespace(
             type="usage", usage=types.SimpleNamespace(input_tokens=100, output_tokens=0))
         mock_cursor_sdk = self._fake_cursor_sdk([], messages=[over_cap])
@@ -365,9 +364,8 @@ class TestVerboseAndHeartbeat(unittest.TestCase):
                 self.cancelled = True
 
             def fire(self):
-                # Mirrors real threading.Timer: cancel() before firing is a no-op.
-                if not self.cancelled:
-                    self.function()
+                # Callback already running: Timer.cancel() does not stop it.
+                self.function()
 
         def wait_with_late_timer_fire():
             # Simulate the timer's callback racing in while run.wait() blocks.
@@ -383,6 +381,28 @@ class TestVerboseAndHeartbeat(unittest.TestCase):
 
         self.assertEqual(result.capped_reason, "token_cap")
         self.assertTrue(fake_timer["instance"].cancelled)
+        mock_cursor_sdk._run.cancel.assert_called_once()
+
+    def test_claim_cap_first_writer_wins_under_contention(self):
+        result = car.LanguageAgentResult()
+        lock = threading.Lock()
+        winners = []
+
+        def claim(reason):
+            if car._claim_cap(result, lock, reason, f"msg-{reason}"):
+                winners.append(reason)
+
+        threads = [
+            threading.Thread(target=claim, args=("token_cap",)),
+            threading.Thread(target=claim, args=("wall_clock_timeout",)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(winners), 1)
+        self.assertEqual(result.capped_reason, winners[0])
 
     def test_token_cap_none_disables_check(self):
         usage_msg = types.SimpleNamespace(
