@@ -313,6 +313,21 @@ class TestProposeFailurePath(unittest.TestCase):
         r, _agent = self._run([0], bump_rc=1)
         self.assertEqual(r.status, pg.STATUS_UPDATED)
 
+    def test_unexpected_error_returns_failed_result(self):
+        # Crashes (e.g. git checkout) must become STATUS_FAILED JSON, not an
+        # uncaught traceback that leaves result-<lang>.json empty.
+        import subprocess as sp
+        with unittest.mock.patch.multiple(
+            pg,
+            run_update_grammar=unittest.mock.Mock(
+                side_effect=sp.CalledProcessError(1, ["git", "checkout"])),
+            submodule_head=unittest.mock.Mock(return_value="OLD"),
+            reset_language_state=lambda *a, **k: None,
+        ):
+            r = pg.propose(Path("."), self.TARGET, keep=False, review_agent=False)
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertIn("CalledProcessError", r.detail)
+
 
 class TestResultArtifact(unittest.TestCase):
     """The result-<lang>.json contract between the propose and integrate jobs.

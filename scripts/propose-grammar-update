@@ -1103,13 +1103,13 @@ def propose(root: Path, target: Target, keep: bool = False,
     # duplication (and the second, unvalidated agent run it caused).
     branch = branch_name(lang, tag)
     committed = False
-    if keep:
-        base = base_branch()
-        log(f"[{language}] checking out {branch} from origin/{base}")
-        run_quiet(["git", "fetch", "origin", base], cwd=root)
-        run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
-
     try:
+        if keep:
+            base = base_branch()
+            log(f"[{language}] checking out {branch} from origin/{base}")
+            run_quiet(["git", "fetch", "origin", base], cwd=root)
+            run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
+
         # A non-zero bump with a MOVED submodule is expected (update-grammar's
         # own final test-lang fails on the stale snapshots we regenerate next);
         # our re-run below is the authoritative signal. But an unchanged
@@ -1178,6 +1178,14 @@ def propose(root: Path, target: Target, keep: bool = False,
             committed = True
             result.branch = branch
         log(f"[{language}] updated: {tag}")
+        return result
+    except Exception as e:
+        # Emit a failed result JSON (exit 1 via main) instead of a bare
+        # traceback so the workflow artifact / Slack summary still name the
+        # language. Job failure itself is what Notify Slack keys off of.
+        result.status = STATUS_FAILED
+        result.detail = f"unexpected error: {type(e).__name__}: {e}"
+        log(f"[{language}] {result.detail}")
         return result
     finally:
         # Classify-only mode always resets. keep mode resets only if we did

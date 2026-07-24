@@ -193,6 +193,11 @@ jobs:
           RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          # Runners here use `bash -e` (no pipefail). Without pipefail, a
+          # failing propose-grammar-update still exits 0 via `| tee`, so the
+          # job looks green and Notify Slack posts "nothing to do" instead of
+          # an alert (see run 30110177633).
+          set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
