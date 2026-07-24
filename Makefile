@@ -7,16 +7,18 @@
 
 PROJECT_ROOT = $(shell pwd)
 
+# The ocaml-tree-sitter code generator now builds with dune (see core/). The
+# dune build promotes it to core/bin/ocaml-tree-sitter, where the per-language
+# builds in lang/ look for it (lang/Makefile.common: OCAML_TREE_SITTER_BINDIR).
 .PHONY: build
 build:
-	cd core && ./configure
-	$(MAKE) -C core build
+	cd core && dune build bin/ocaml-tree-sitter
 
 # Full development setup.
 .PHONY: setup
 setup:
-	cd core && ./configure
-	$(MAKE) -C core setup
+	opam install --deps-only -y ./core
+	$(MAKE) build
 
 # Shortcut for updating the git submodules.
 .PHONY: update
@@ -36,7 +38,7 @@ distclean:
 # Run core tests
 .PHONY: test
 test: build
-	$(MAKE) -C core test
+	cd core && dune runtest
 	@echo
 	@echo '=================================================================='
 	@echo '"make test" ran the core (OCaml) tests only.'
@@ -59,20 +61,11 @@ test-python:
 
 # Install every tree-sitter version the grammars are pinned to (derived from the
 # lang/languages-* files), each into its own core/tree-sitter-<version>/. Needed
-# by the per-language builds and the Python tests. Restores the previously
-# selected version at the end.
+# by the per-language builds and the Python tests. Driven by dune (see the
+# 'tree-sitter-versions' alias in core/dune); idempotent.
 .PHONY: setup-tree-sitter-versions
 setup-tree-sitter-versions:
-	@set -eu; \
-	saved=$$(cat core/tree-sitter-version 2>/dev/null || cat core/tree-sitter-version.default); \
-	for v in $$(lang/scripts/ts-versions); do \
-	  echo ">>> Installing tree-sitter $$v"; \
-	  ( cd core && ./scripts/switch-tree-sitter-version "$$v" \
-	      && ./scripts/install-tree-sitter-cli \
-	      && ./scripts/install-tree-sitter-lib ); \
-	done; \
-	echo ">>> Restoring tree-sitter $$saved"; \
-	( cd core && ./scripts/switch-tree-sitter-version "$$saved" >/dev/null )
+	cd core && dune build tree-sitter-versions.stamp
 
 # Build and test all the production languages.
 .PHONY: lang
@@ -96,9 +89,14 @@ stat2:
 	$(MAKE) -C lang
 	$(MAKE) -C lang stat2
 
+# Install core's OCaml libraries (tree-sitter.run/.bindings/.gen) and the
+# tree-sitter runtime into the current opam switch. The per-language builds in
+# lang/ are standalone dune projects that resolve tree-sitter.run via findlib,
+# so this step is required before 'make lang'.
 .PHONY: install
 install:
-	$(MAKE) -C core install
+	cd core && dune build @install
+	cd core && dune install tree-sitter
 
 # Used by Conductor at setup time
 .PHONY: agent-setup

@@ -43,9 +43,6 @@
 [submodule "lang/semgrep-grammars/src/tree-sitter-hcl"]
 	path = lang/semgrep-grammars/src/tree-sitter-hcl
 	url = https://github.com/MichaHoffmann/tree-sitter-hcl.git
-[submodule "core"]
-	path = core
-	url = https://github.com/returntocorp/ocaml-tree-sitter-core.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-html"]
 	path = lang/semgrep-grammars/src/tree-sitter-html
 	url = https://github.com/tree-sitter/tree-sitter-html.git

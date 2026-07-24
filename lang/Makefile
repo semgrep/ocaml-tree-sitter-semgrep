@@ -10,8 +10,8 @@
 # The list below only shows typescript, not tsx.
 # For similar reasons we list sfapex here, and not apex.
 #
-# coupling: *** You must also add any new language to the list of languages
-# in /.circleci/config.yml for the CI tests to run for that language. ***
+# coupling: *** Any new language must also be added to the CI test matrix
+# so the CI tests run for that language. ***
 #
 SUPPORTED_TS_LANGUAGES = \
   bash \

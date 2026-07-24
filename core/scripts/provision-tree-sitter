@@ -1,0 +1,156 @@
+#! /usr/bin/env bash
+#
+# Provision the tree-sitter CLI and runtime library for a single version into
+# core/tree-sitter-<version>/{bin,include,lib}.
+#
+# This is what ocaml-tree-sitter-semgrep's per-language builds (lang/) consume:
+# each language is pinned to a tree-sitter version in lang/languages-<version>,
+# and its parser is generated (tree-sitter CLI) and linked (runtime lib) against
+# the matching version installed here. See lang/Makefile.common (TS_PREFIX).
+#
+# Invoked by dune -- see the 'tree-sitter-versions' alias in core/dune:
+#     dune build @tree-sitter-versions
+# It installs into the stable source-tree path rather than dune's _build because
+# the runtime bakes absolute paths into lib/pkgconfig/tree-sitter.pc and, on
+# macOS, into the dylib's install_name; both must point at the final location.
+#
+# Idempotent: a fully-provisioned version is skipped unless FORCE=1 is set.
+#
+# Usage: provision-tree-sitter <version>
+#
+set -eu -o pipefail
+
+version="${1:?usage: provision-tree-sitter <version>}"
+
+error() { echo "[provision-tree-sitter] Error: $*" >&2; exit 1; }
+
+# Resolve core/ from this script's own location (core/scripts/), not from
+# 'git rev-parse --show-toplevel': now that core/ is a plain directory of the
+# outer repo, the git toplevel is the outer root, and this also works from a
+# tarball, worktree, or dune's _build mirror where git may be unavailable.
+core_root=$(cd "$(dirname "$0")/.." && pwd)
+prefix="$core_root/tree-sitter-$version"
+
+# SHA-256 checksums for the tree-sitter source tarballs. Keep in sync with
+# scripts/download-tree-sitter. Verify against:
+# https://github.com/tree-sitter/tree-sitter/releases
+expected_checksum() {
+  case "$1" in
+    0.20.8) echo "6181ede0b7470bfca37e293e7d5dc1d16469b9485d13f13a605baec4a8b1f791" ;;
+    0.22.6) echo "e2b687f74358ab6404730b7fb1a1ced7ddb3780202d37595ecd7b20a8f41861f" ;;
+    0.26.3) echo "7f4a7cf0a2cd217444063fe2a4d800bc9d21ed609badc2ac20c0841d67166550" ;;
+    *) error "No checksum registered for tree-sitter $1. Add one to expected_checksum in this script." ;;
+  esac
+}
+
+# Portable SHA-256 (sha256sum on Linux, shasum on macOS).
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+# Lazy: skip if already fully installed.
+shopt -s nullglob
+existing_libs=("$prefix"/lib/libtree-sitter.*)
+shopt -u nullglob
+if [[ "${FORCE:-0}" != "1" \
+      && -x "$prefix/bin/tree-sitter" \
+      && -e "$prefix/include/tree_sitter/api.h" \
+      && ${#existing_libs[@]} -gt 0 \
+      && -e "$prefix/lib/pkgconfig/tree-sitter.pc" ]]; then
+  echo "tree-sitter $version already provisioned at $prefix"
+  exit 0
+fi
+
+echo ">>> Provisioning tree-sitter $version into $prefix"
+mkdir -p "$prefix/bin"
+
+# --- 1. tree-sitter CLI (pre-built binary; building older CLIs from source is
+#        fragile, so we download the published release like the previous flow) ---
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+arch=$(uname -m)
+case "$os" in
+  linux)  os_tag="linux" ;;
+  darwin) os_tag="macos" ;;
+  *)      error "Unsupported OS: $os" ;;
+esac
+case "$arch" in
+  x86_64)        arch_tag="x64" ;;
+  aarch64|arm64) arch_tag="arm64" ;;
+  *)             error "Unsupported architecture: $arch" ;;
+esac
+
+cli_url="https://github.com/tree-sitter/tree-sitter/releases/download/v${version}/tree-sitter-${os_tag}-${arch_tag}.gz"
+echo "Downloading tree-sitter $version CLI ($os_tag-$arch_tag)."
+curl -fL "$cli_url" | gunzip > "$prefix/bin/tree-sitter"
+chmod +x "$prefix/bin/tree-sitter"
+
+# --- 2. runtime library + headers (built from source into $prefix) ---
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+tarball="v${version}.tar.gz"
+echo "Downloading tree-sitter $version sources."
+curl -fL -o "$work/$tarball" \
+  "https://github.com/tree-sitter/tree-sitter/archive/refs/tags/${tarball}"
+actual=$(sha256 "$work/$tarball")
+[[ "$actual" == "$(expected_checksum "$version")" ]] \
+  || error "Checksum mismatch for $tarball (got $actual). This may indicate a compromised download."
+tar xf "$work/$tarball" -C "$work"
+src="$work/tree-sitter-$version"
+[[ -d "$src" ]] || error "Archive didn't unpack into the expected folder '$src'."
+
+# tree-sitter 0.22.6's Makefile needs a backport patch (see patch/ and
+# scripts/download-tree-sitter for the same handling).
+if [[ "$version" == "0.22.6" ]]; then
+  patch -N -b \
+    -i "$core_root/patch/tree-sitter-0.22.6/0001-Makefile-backports.patch" \
+    "$src/Makefile"
+fi
+
+# The tree-sitter Makefile honours $(CC)/$(AR)/$(STRIP). Discover the C toolchain
+# the OCaml switch uses so the runtime is ABI-compatible with the bindings.
+if [[ -z "${CC:-}" ]]; then
+  CC=$(opam var sys-ocaml-cc 2>/dev/null || \
+         opam exec -- ocamlc -config-var c_compiler 2>/dev/null || \
+         opam exec -- ocamlopt -config-var c_compiler 2>/dev/null || true)
+fi
+: "${AR:=${CC:+$(printf '%s' "$CC" | sed -E 's/(-?)[^-]*$/\1ar/')}}"
+: "${STRIP:=${CC:+$(printf '%s' "$CC" | sed -E 's/(-?)[^-]*$/\1strip/')}}"
+# macOS 'strip' errors on symbols in a shared library's indirect symbol table;
+# 'strip -x' (remove local symbols only) gives the same result plain strip does
+# elsewhere. Only adjust a strip we derived ourselves.
+if [[ "$(uname -s)" == "Darwin" && "${STRIP:-}" == "strip" ]]; then
+  STRIP="strip -x"
+fi
+make_vars=()
+[[ -n "${CC:-}" ]]    && make_vars+=("CC=$CC")
+[[ -n "${AR:-}" ]]    && make_vars+=("AR=$AR")
+[[ -n "${STRIP:-}" ]] && make_vars+=("STRIP=$STRIP")
+
+(
+  cd "$src"
+  make PREFIX="$prefix" ${make_vars[@]+"${make_vars[@]}"}
+  make install PREFIX="$prefix" ${CC:+CC=$CC}
+)
+
+# On macOS a parser records the dylib's install_name as its load path. The build
+# bakes it from $(LIBDIR); a fresh build into this prefix is correct, but a stale
+# reused library would make parsers fail to load. Detect and stop if so.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  for dylib in "$prefix"/lib/libtree-sitter.*.dylib; do
+    [[ -f "$dylib" && ! -L "$dylib" ]] || continue
+    install_name=$(otool -D "$dylib" | sed -n '2p')
+    case "$install_name" in
+      "$prefix"/lib/*) ;;  # good: points inside this versioned lib dir
+      *) error "libtree-sitter install_name is '$install_name', expected inside $prefix/lib. Remove $prefix and re-run with FORCE=1." ;;
+    esac
+  done
+fi
+
+echo ">>> tree-sitter $version provisioned:"
+echo "  CLI:     $prefix/bin/tree-sitter"
+echo "  headers: $prefix/include"
+echo "  library: $prefix/lib"
