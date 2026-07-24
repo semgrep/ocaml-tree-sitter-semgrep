@@ -1192,9 +1192,7 @@ def propose(root: Path, target: Target, keep: bool = False,
         log(f"[{language}] {result.detail}")
         return result
     except Exception as e:
-        # Emit a failed result JSON (exit 1 via main) instead of a bare
-        # traceback so the workflow artifact / Slack summary still name the
-        # language. Job failure itself is what Notify Slack keys off of.
+        # Failed JSON (not a bare traceback) so the artifact names the language.
         result.status = STATUS_FAILED
         result.detail = f"unexpected error: {type(e).__name__}: {e}"
         log(f"[{language}] {result.detail}")
@@ -1371,13 +1369,7 @@ def language_from_result_path(path: Path) -> str | None:
 
 
 def load_result_row(path: Path) -> dict[str, Any]:
-    """Load one result artifact; empty/invalid files become a failed row.
-
-    The workflow tees stdout into `result-<lang>.json`. A crash before the
-    driver prints JSON leaves an empty file; skipping those produced a
-    header-only Slack table (run 30110177633). Surface them as failures
-    instead, using the filename when the payload has no language.
-    """
+    """Load one result artifact; empty/invalid files become a failed row."""
     fallback_lang = language_from_result_path(path) or path.stem
     try:
         text = path.read_text().strip()
@@ -1405,11 +1397,7 @@ def load_result_row(path: Path) -> dict[str, Any]:
 def summarize(results_dir: Path) -> None:
     """Render a markdown table from per-language result JSON files.
 
-    Reads every `*.json` under `results_dir` (the workflow's downloaded
-    artifacts) and emits a GitHub-flavored summary grouped by status, so
-    failures and no-tags languages are visible on the run without opening
-    each job. Empty or corrupt artifacts are listed as failed rows rather
-    than omitted (omission left a header-only table in Slack).
+    Empty/corrupt artifacts become failed rows (not omitted).
     """
     rows = [load_result_row(path) for path in sorted(results_dir.rglob("*.json"))]
 
