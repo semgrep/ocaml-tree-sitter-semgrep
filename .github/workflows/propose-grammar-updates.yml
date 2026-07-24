@@ -228,6 +228,19 @@ jobs:
           if [ -n "$AGENT_TURN_CAP" ]; then flags="$flags --agent-turn-cap $AGENT_TURN_CAP"; fi
           opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
+      # tee creates the file even when the driver crashes before printing
+      # JSON (empty artifact → header-only Slack table). Always leave a
+      # parseable failed row so summarize/notify can name the language.
+      - name: Ensure result JSON
+        if: always()
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: |
+          f="result-${LANGUAGE}.json"
+          if python -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,dict) and d.get('language') and d.get('status')" "$f" 2>/dev/null; then
+            exit 0
+          fi
+          python -c "import json,os; print(json.dumps({'language': os.environ['LANGUAGE'], 'status': 'failed', 'detail': 'no result JSON (propose crashed before emitting status)'}))" > "$f"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -417,7 +430,10 @@ jobs:
           mkdir -p results
           have_results=false
           if find results -name '*.json' | grep -q .; then have_results=true; fi
-          # PR links from result JSON; per-file jq so one bad file can't abort.
+          # PR links come from the result JSONs (pr_url is recorded by
+          # propose-grammar-update when gh creates the PR).
+          # Per-file jq: an empty/corrupt artifact must not abort compose
+          # (that used to hide the failure alert behind a step error).
           prs=""
           if [ "$have_results" = true ]; then
             for f in results/*.json; do

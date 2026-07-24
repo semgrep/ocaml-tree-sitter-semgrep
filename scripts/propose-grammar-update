@@ -1373,9 +1373,10 @@ def language_from_result_path(path: Path) -> str | None:
 def load_result_row(path: Path) -> dict[str, Any]:
     """Load one result artifact; empty/invalid files become a failed row.
 
-    CI redirects propose stdout into ``result-<lang>.json``. A hard kill
-    before JSON is printed leaves an empty file — turn that into a failed
-    row, taking language from the filename when the payload lacks one.
+    The workflow tees stdout into `result-<lang>.json`. A crash before the
+    driver prints JSON leaves an empty file; skipping those produced a
+    header-only Slack table (run 30110177633). Surface them as failures
+    instead, using the filename when the payload has no language.
     """
     fallback_lang = language_from_result_path(path) or path.stem
     try:
@@ -1402,8 +1403,15 @@ def load_result_row(path: Path) -> dict[str, Any]:
 
 
 def summarize(results_dir: Path) -> None:
-    """Markdown table from result JSON; empty/corrupt files → failed rows."""
-    rows = [load_result_row(p) for p in sorted(results_dir.rglob("*.json"))]
+    """Render a markdown table from per-language result JSON files.
+
+    Reads every `*.json` under `results_dir` (the workflow's downloaded
+    artifacts) and emits a GitHub-flavored summary grouped by status, so
+    failures and no-tags languages are visible on the run without opening
+    each job. Empty or corrupt artifacts are listed as failed rows rather
+    than omitted (omission left a header-only table in Slack).
+    """
+    rows = [load_result_row(path) for path in sorted(results_dir.rglob("*.json"))]
 
     by_status: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
@@ -1425,6 +1433,7 @@ def summarize(results_dir: Path) -> None:
                 f"{(r.get('old_sha') or '')[:8]} → {r.get('new_tag') or ''}"
                 if status == STATUS_UPDATED else ""
             )
+            # Slack/code-block tables break on raw pipes/newlines in cells.
             detail = str(detail).replace("|", "\\|").replace("\n", " ")
             print(f"| {r['language']} | {icon.get(status, '')} {status} | {detail} |")
 
