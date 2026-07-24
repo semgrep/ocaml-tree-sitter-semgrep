@@ -99,7 +99,7 @@ ts_versions = _load_ts_versions()
 #   no-op    - already at the latest tag
 #   no-tags  - upstream has no parseable stable release tag
 #   exists   - a branch/PR already exists for this lang+tag
-#   failed   - the bump or test-lang failed (human attention needed)
+#   failed   - bump/test-lang failed, or an unexpected crash / ug.die
 STATUS_UPDATED = "updated"
 STATUS_NO_OP = "no-op"
 STATUS_NO_TAGS = "no-tags"
@@ -1357,10 +1357,9 @@ def language_from_result_path(path: Path) -> str | None:
 def load_result_row(path: Path) -> dict[str, Any]:
     """Load one result artifact; empty/invalid files become a failed row.
 
-    Workflow redirects stdout into `result-<lang>.json`. A hard crash before
-    the driver prints JSON leaves an empty file; skipping those hid failures
-    from Slack/summary. Surface them as failed, using the filename when the
-    payload has no language.
+    CI redirects propose stdout into ``result-<lang>.json``. A hard kill
+    before JSON is printed leaves an empty file — turn that into a failed
+    row, taking language from the filename when the payload lacks one.
     """
     fallback_lang = language_from_result_path(path) or path.stem
     try:
@@ -1387,7 +1386,7 @@ def load_result_row(path: Path) -> dict[str, Any]:
 
 
 def summarize(results_dir: Path) -> None:
-    """Markdown table from result JSON files; empty/corrupt → failed rows."""
+    """Markdown table from result JSON; empty/corrupt files → failed rows."""
     rows = [load_result_row(p) for p in sorted(results_dir.rglob("*.json"))]
 
     by_status: dict[str, list[dict[str, Any]]] = {}
@@ -1586,7 +1585,7 @@ def main() -> int:
         print(result.to_json())
         return 0 if result.status != STATUS_FAILED else 1
     except SystemExit as e:
-        # ug.die raises SystemExit(msg); Exception won't catch it.
+        # ug.die raises SystemExit(str); Exception won't catch it.
         if e.code in (0, None):
             raise
         detail = e.code if isinstance(e.code, str) else f"unexpected error: SystemExit: {e.code}"
