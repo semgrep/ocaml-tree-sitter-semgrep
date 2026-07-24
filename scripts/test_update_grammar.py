@@ -230,25 +230,21 @@ class ValidateLanguageTests(FilesystemTest):
 
     def test_dies_with_alias_hint_when_alias_target_passed(self):
         # "go-mod" is the LANGUAGE_ALIASES value for "gomod"; hint should fire.
-        captured = StringIO()
-        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+        with self.assertRaises(SystemExit) as cm:
             ug.validate_language("go-mod", self.VALID)
-        self.assertEqual(cm.exception.code, 1)
-        self.assertIn("did you mean 'gomod'", captured.getvalue())
+        self.assertIn("did you mean 'gomod'", cm.exception.code)
 
     def test_dies_without_hint_for_unknown_language(self):
-        captured = StringIO()
-        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+        with self.assertRaises(SystemExit) as cm:
             ug.validate_language("xyz", self.VALID)
-        self.assertEqual(cm.exception.code, 1)
-        self.assertNotIn("did you mean", captured.getvalue())
+        self.assertIn("unknown language 'xyz'", cm.exception.code)
+        self.assertNotIn("did you mean", cm.exception.code)
 
     def test_dies_on_path_traversal_attempt(self):
         # Defensive: "..", "/", etc. must never resolve as valid languages.
-        captured = StringIO()
-        with redirect_stderr(captured), self.assertRaises(SystemExit) as cm:
+        with self.assertRaises(SystemExit) as cm:
             ug.validate_language("..", self.VALID)
-        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("unknown language", cm.exception.code)
 
 
 class SyncMembershipTests(FilesystemTest):
@@ -436,7 +432,7 @@ class EnsureTreeSitterVersionTests(FilesystemTest):
             (self.scripts_dir / name).unlink()
         with self.assertRaises(SystemExit) as cm:
             ug.ensure_tree_sitter_version(self.root, "0.22.6")
-        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("error:", cm.exception.code)
 
 
 class InstalledTreeSitterVersionTests(FilesystemTest):
@@ -486,7 +482,7 @@ class SanitizeForBranchTests(TestBase):
     def test_dies_when_no_valid_chars(self):
         with self.assertRaises(SystemExit) as cm:
             ug.sanitize_for_branch("...")
-        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("error:", cm.exception.code)
 
 
 # ----- argparse ------------------------------------------------------------
@@ -626,7 +622,7 @@ class RequireCleanWorktreeTests(GitRepoTest):
         (self.repo / "dirty.txt").write_text("oops\n")
         with self.assertRaises(SystemExit) as cm:
             ug.require_clean_worktree(self.repo)
-        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("error:", cm.exception.code)
 
 
 class UpdateSubmoduleTests(FilesystemTest):
@@ -780,10 +776,10 @@ class RepoRootTests(TestBase):
 
 
 class DieTests(TestBase):
-    def test_exits_with_status_one(self):
+    def test_exits_with_message_code(self):
         with self.assertRaises(SystemExit) as cm:
             ug.die("boom")
-        self.assertEqual(cm.exception.code, 1)
+        self.assertEqual(cm.exception.code, "error: boom")
 
 
 if __name__ == "__main__":

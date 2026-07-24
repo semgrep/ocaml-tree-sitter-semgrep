@@ -315,8 +315,6 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_UPDATED)
 
     def test_unexpected_error_returns_failed_result(self):
-        # Crashes (e.g. git checkout) must become STATUS_FAILED JSON, not an
-        # uncaught traceback that leaves result-<lang>.json empty.
         import subprocess as sp
         with unittest.mock.patch.multiple(
             pg,
@@ -363,7 +361,7 @@ class TestResultArtifact(unittest.TestCase):
 
 
 class TestSummarize(unittest.TestCase):
-    """Empty/corrupt artifacts must show up as failed rows, not vanish."""
+    """Summarize skips empty/corrupt artifacts."""
 
     def _summarize(self, files: dict[str, str]) -> str:
         import io
@@ -376,16 +374,19 @@ class TestSummarize(unittest.TestCase):
                 pg.summarize(root)
             return buf.getvalue()
 
-    def test_empty_artifact_is_failed_row(self):
+    def test_empty_artifact_is_skipped(self):
         out = self._summarize({"result-apex.json": ""})
-        self.assertIn("| apex |", out)
-        self.assertIn("failed", out)
-        self.assertIn("empty result artifact", out)
+        self.assertNotIn("apex", out)
+        self.assertIn("no result artifacts", out)
 
-    def test_invalid_json_is_failed_row(self):
-        out = self._summarize({"result-php.json": "{not json"})
-        self.assertIn("| php |", out)
-        self.assertIn("invalid result JSON", out)
+    def test_invalid_json_is_skipped(self):
+        out = self._summarize({
+            "result-php.json": "{not json",
+            "result-ruby.json":
+                '{"language":"ruby","status":"no-op"}',
+        })
+        self.assertNotIn("php", out)
+        self.assertIn("| ruby |", out)
 
     def test_valid_row_still_rendered(self):
         out = self._summarize({
@@ -399,36 +400,54 @@ class TestSummarize(unittest.TestCase):
         out = self._summarize({})
         self.assertIn("no result artifacts", out)
 
-    def test_language_from_result_path(self):
-        self.assertEqual(pg.language_from_result_path(Path("result-c-sharp.json")),
-                         "c-sharp")
-        self.assertIsNone(pg.language_from_result_path(Path("other.json")))
 
+class TestMainFailedJson(unittest.TestCase):
+    """main() prints failed Result JSON after language is known."""
 
-class TestEnsureResultFile(unittest.TestCase):
-    """The --ensure-result CI fallback: rewrite only empty/invalid artifacts."""
+    def _run(self, **pg_patches) -> tuple[int, dict]:
+        import io
+        from types import SimpleNamespace
+        args = SimpleNamespace(
+            list_languages=False, summarize=None, language="php",
+            resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
+            review_agent=False, result=None, json=False, updatable_only=False,
+        )
+        cms = [
+            unittest.mock.patch.object(pg, "parse_args", return_value=args),
+            unittest.mock.patch.object(pg.ug, "repo_root", return_value=Path(".")),
+            unittest.mock.patch.object(
+                pg.ug, "discover_version_files", return_value=["0.26.3"]),
+            unittest.mock.patch.object(
+                pg.ug, "discover_valid_languages", return_value={"php": "php"}),
+            unittest.mock.patch.object(pg.ug, "validate_language", return_value="php"),
+            *[unittest.mock.patch.object(pg, k, v) for k, v in pg_patches.items()],
+        ]
+        buf = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            for cm in cms:
+                stack.enter_context(cm)
+            with contextlib.redirect_stdout(buf):
+                rc = pg.main()
+        return rc, json.loads(buf.getvalue())
 
-    def test_leaves_valid_file_alone(self):
-        with TemporaryDirectory() as d:
-            path = Path(d) / "result-php.json"
-            path.write_text('{"language":"php","status":"updated"}\n')
-            pg.ensure_result_file(path)
-            self.assertEqual(json.loads(path.read_text())["status"], "updated")
+    def test_exception_after_language_prints_failed_json(self):
+        rc, data = self._run(
+            resolve_target=unittest.mock.Mock(side_effect=RuntimeError("boom")),
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["language"], "php")
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("RuntimeError", data["detail"])
 
-    def test_rewrites_empty_file(self):
-        with TemporaryDirectory() as d:
-            path = Path(d) / "result-apex.json"
-            path.write_text("")
-            pg.ensure_result_file(path)
-            data = json.loads(path.read_text())
-            self.assertEqual(data["language"], "apex")
-            self.assertEqual(data["status"], pg.STATUS_FAILED)
-
-    def test_rewrites_missing_file(self):
-        with TemporaryDirectory() as d:
-            path = Path(d) / "result-ruby.json"
-            pg.ensure_result_file(path)
-            self.assertEqual(json.loads(path.read_text())["language"], "ruby")
+    def test_die_after_language_prints_failed_json(self):
+        rc, data = self._run(
+            resolve_target=unittest.mock.Mock(
+                side_effect=lambda *a, **k: pg.ug.die("no tags")),
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["language"], "php")
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("no tags", data["detail"])
 
 
 ###############################################################################

@@ -211,11 +211,9 @@ def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
 def run_quiet(cmd: list[str], cwd: Path) -> None:
     """Run a mutating command, mirroring its output to STDERR, raising on error.
 
-    stdout is reserved for the single JSON result line, so git/gh output
-    must never go there (it would corrupt the contract and the workflow's
-    `tee`'d artifact). The child's stderr is merged into its stdout at
-    capture time (stderr=STDOUT) so the re-emitted log keeps the original
-    interleaving. Retries on transient index.lock; other failures raise.
+    stdout is the Result JSON line — keep git/gh off it. Child stderr is
+    merged into stdout at capture so the re-emitted log keeps interleaving.
+    Retries on index.lock; else raises.
     """
     log(f"$ {' '.join(cmd)}  (in {cwd})")
 
@@ -1180,7 +1178,7 @@ def propose(root: Path, target: Target, keep: bool = False,
         log(f"[{language}] updated: {tag}")
         return result
     except Exception as e:
-        # Failed JSON (not a bare traceback) so the artifact names the language.
+        # Return failed Result (language set) instead of raising.
         result.status = STATUS_FAILED
         result.detail = f"unexpected error: {type(e).__name__}: {e}"
         log(f"[{language}] {result.detail}")
@@ -1347,69 +1345,23 @@ def list_languages(root: Path, as_json: bool, updatable_only: bool = False) -> N
         print("\n".join(names))
 
 
-_RESULT_FILENAME_RE = re.compile(r"^result-(.+)\.json$")
-
-
-def language_from_result_path(path: Path) -> str | None:
-    """Best-effort language name from a `result-<lang>.json` artifact path."""
-    m = _RESULT_FILENAME_RE.match(path.name)
-    return m.group(1) if m else None
-
-
-def load_result_row(path: Path) -> dict[str, Any]:
-    """Load one result artifact; empty/invalid files become a failed row."""
-    fallback_lang = language_from_result_path(path) or path.stem
-    try:
-        text = path.read_text().strip()
-    except OSError as e:
-        return {"language": fallback_lang, "status": STATUS_FAILED,
-                "detail": f"unreadable result artifact: {e}"}
-    if not text:
-        return {"language": fallback_lang, "status": STATUS_FAILED,
-                "detail": "empty result artifact (propose crashed before emitting JSON)"}
-    try:
-        r = json.loads(text)
-    except json.JSONDecodeError as e:
-        return {"language": fallback_lang, "status": STATUS_FAILED,
-                "detail": f"invalid result JSON: {e}"}
-    if not isinstance(r, dict):
-        return {"language": fallback_lang, "status": STATUS_FAILED,
-                "detail": "invalid result JSON: expected an object"}
-    if not r.get("language"):
-        r["language"] = fallback_lang
-    if not r.get("status"):
-        r["status"] = "unknown"
-    return r
-
-
-def _is_valid_result_file(path: Path) -> bool:
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return False
-    return isinstance(data, dict) and bool(data.get("language")) and bool(data.get("status"))
-
-
-def ensure_result_file(path: Path) -> None:
-    """CI fallback: if `path` isn't a valid result-<lang>.json (missing or
-    corrupt because propose crashed before writing it), replace it with a
-    failed row via `load_result_row` so summarize/Slack still see the
-    language instead of a silently dropped artifact.
-    """
-    if not _is_valid_result_file(path):
-        path.write_text(json.dumps(load_result_row(path)) + "\n")
-
-
 def summarize(results_dir: Path) -> None:
-    """Render a markdown table from per-language result JSON files.
-
-    Empty/corrupt artifacts become failed rows (not omitted).
-    """
-    rows = [load_result_row(path) for path in sorted(results_dir.rglob("*.json"))]
+    """Markdown table from result JSON files; skip unreadable ones."""
+    rows: list[dict[str, Any]] = []
+    for path in sorted(results_dir.rglob("*.json")):
+        try:
+            r = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(r, dict) or not r.get("language"):
+            continue
+        if not r.get("status"):
+            r["status"] = "unknown"
+        rows.append(r)
 
     by_status: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
-        by_status.setdefault(r.get("status", "unknown"), []).append(r)
+        by_status.setdefault(r["status"], []).append(r)
 
     order = [STATUS_UPDATED, STATUS_EXISTS, STATUS_NO_OP, STATUS_NO_TAGS, STATUS_FAILED]
     icon = {STATUS_UPDATED: "✅", STATUS_EXISTS: "↩️", STATUS_NO_OP: "➖",
@@ -1427,7 +1379,6 @@ def summarize(results_dir: Path) -> None:
                 f"{(r.get('old_sha') or '')[:8]} → {r.get('new_tag') or ''}"
                 if status == STATUS_UPDATED else ""
             )
-            # Slack/code-block tables break on raw pipes/newlines in cells.
             detail = str(detail).replace("|", "\\|").replace("\n", " ")
             print(f"| {r['language']} | {icon.get(status, '')} {status} | {detail} |")
 
@@ -1449,11 +1400,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--summarize", metavar="DIR",
         help="Render a markdown summary from result JSON files under DIR.",
-    )
-    parser.add_argument(
-        "--ensure-result", metavar="FILE",
-        help="CI fallback: rewrite FILE as a failed-status row if it's "
-             "missing/empty/invalid (propose crashed before writing it).",
     )
     parser.add_argument(
         "--json", action="store_true",
@@ -1555,61 +1501,75 @@ def main() -> int:
         summarize(Path(args.summarize))
         return 0
 
-    if args.ensure_result:
-        ensure_result_file(Path(args.ensure_result))
-        return 0
-
     if not args.language:
         ug.die("a language is required (or use --list-languages).")
 
-    # Parse once here; _pick_ts_version compares these directly.
-    tree_sitter_versions = sorted(
-        (Version.parse(v) for v in ug.discover_version_files(root, "languages")),
-        reverse=True,
-    )
-    if not tree_sitter_versions:
-        ug.die("no supported tree-sitter versions found in lang/languages-* files")
+    # Emit failed Result JSON on any crash below (language already known).
+    try:
+        # Parse once here; _pick_ts_version compares these directly.
+        tree_sitter_versions = sorted(
+            (Version.parse(v) for v in ug.discover_version_files(root, "languages")),
+            reverse=True,
+        )
+        if not tree_sitter_versions:
+            ug.die("no supported tree-sitter versions found in lang/languages-* files")
 
-    # Dies if the language is unknown.
-    valid = ug.discover_valid_languages(root)
-    wrapper = ug.validate_language(args.language, valid)
+        # Dies if the language is unknown.
+        valid = ug.discover_valid_languages(root)
+        wrapper = ug.validate_language(args.language, valid)
 
-    # Determine what to update the language to.
-    lang = LangAndWrapper(language=args.language, wrapper=wrapper)
-    target = resolve_target(root, lang, tree_sitter_versions)
+        # Determine what to update the language to.
+        lang = LangAndWrapper(language=args.language, wrapper=wrapper)
+        target = resolve_target(root, lang, tree_sitter_versions)
 
-    if args.resolve_tag_only:
-        if target.tag is None:
-            log(f"{lang.language}: no stable release tag found.")
-            return 1
-        print(target.tag)
-        return 0
+        if args.resolve_tag_only:
+            if target.tag is None:
+                log(f"{lang.language}: no stable release tag found.")
+                return 1
+            print(target.tag)
+            return 0
 
-    # Every path below this point can shell out to test-lang/release/
-    # update-grammar, each of which invokes a bare `tree-sitter`. Put the
-    # right one on PATH once, globally, before any of them run.
-    if target.ts_version:
-        ensure_ts_version_on_path(root, target.ts_version)
+        # Every path below this point can shell out to test-lang/release/
+        # update-grammar, each of which invokes a bare `tree-sitter`. Put the
+        # right one on PATH once, globally, before any of them run.
+        if target.ts_version:
+            ensure_ts_version_on_path(root, target.ts_version)
 
-    if args.release:
-        return run_release(root, target, args.dry_run, result_file=args.result)
+        if args.release:
+            return run_release(root, target, args.dry_run, result_file=args.result)
 
-    # keep=True (do the work on the PR branch, commit it) only for a real
-    # --open-pr run; --dry-run and classify-only leave the tree reset.
-    # In keep mode, bail cheaply if this lang+tag was already proposed
-    # (dry runs still exercise the full pipeline on purpose).
-    keep = args.open_pr and not args.dry_run
-    result = existing_proposal(root, target) if keep else None
-    if result is None:
-        result = propose(root, target, keep=keep, review_agent=args.review_agent)
+        # keep=True (do the work on the PR branch, commit it) only for a real
+        # --open-pr run; --dry-run and classify-only leave the tree reset.
+        # In keep mode, bail cheaply if this lang+tag was already proposed
+        # (dry runs still exercise the full pipeline on purpose).
+        keep = args.open_pr and not args.dry_run
+        result = existing_proposal(root, target) if keep else None
+        if result is None:
+            result = propose(root, target, keep=keep, review_agent=args.review_agent)
 
-    # Only a green, real update is worth a PR. Everything else (no-op,
-    # no-tags, failed) is reported as-is for the workflow summary.
-    if (args.open_pr or args.dry_run) and result.status == STATUS_UPDATED:
-        result = open_pr(root, target, result, dry_run=args.dry_run)
+        # Only a green, real update is worth a PR. Everything else (no-op,
+        # no-tags, failed) is reported as-is for the workflow summary.
+        if (args.open_pr or args.dry_run) and result.status == STATUS_UPDATED:
+            result = open_pr(root, target, result, dry_run=args.dry_run)
 
-    print(result.to_json())
-    return 0 if result.status != STATUS_FAILED else 1
+        print(result.to_json())
+        return 0 if result.status != STATUS_FAILED else 1
+    except SystemExit as e:
+        # ug.die raises SystemExit(msg); Exception won't catch it.
+        if e.code in (0, None):
+            raise
+        detail = e.code if isinstance(e.code, str) else f"unexpected error: SystemExit: {e.code}"
+        log(detail)
+        print(Result(
+            language=args.language, status=STATUS_FAILED, detail=detail,
+        ).to_json())
+        return 1 if not isinstance(e.code, int) else e.code
+    except Exception as e:
+        print(Result(
+            language=args.language, status=STATUS_FAILED,
+            detail=f"unexpected error: {type(e).__name__}: {e}",
+        ).to_json())
+        return 1
 
 
 def cli() -> None:
