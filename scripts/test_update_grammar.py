@@ -623,6 +623,22 @@ class CommitChangesTests(GitRepoTest):
         ug.commit_changes(self.repo, "python", "old12345", "new12345")
         self.assertEqual(self.head_sha(), self.initial_sha)
 
+    def test_excludes_core_directory(self):
+        # core/ is in-repo now; a grammar commit must not sweep it in.
+        core = self.repo / "core"
+        core.mkdir()
+        (core / "noise.txt").write_text("do not commit\n")
+        (self.repo / "lang.txt").write_text("ok\n")
+        ug.commit_changes(self.repo, "python", "old12345", "new12345")
+        self.assertNotEqual(self.head_sha(), self.initial_sha)
+        names = _git(
+            "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD",
+            cwd=self.repo,
+        ).stdout.splitlines()
+        self.assertEqual(names, ["lang.txt"])
+        # core/noise.txt stays untracked / uncommitted.
+        self.assertIn("?? core/", self.porcelain_status())
+
 
 class RequireCleanWorktreeTests(GitRepoTest):
     def test_returns_when_clean(self):

@@ -455,11 +455,15 @@ def ensure_on_branch(repo: Path, branch: str, *, at: str | None = None) -> None:
 def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> None:
     """Stage and commit the update; no-op if nothing changed.
 
-    `git add -A` is safe because this function only runs in the release
-    path (no `--skip-release`), and `main()` enforces a clean tree
-    up front in that path via `require_clean_worktree`.
+    Stages everything except `core/` — a grammar bump must only move the
+    language submodule and lang/ files. Provisioning writes under
+    gitignored `core/tree-sitter-*` trees, but excluding `core/` also
+    guards against incidental dirtiness of tracked core files. Safe
+    because this only runs in the release path (no `--skip-release`),
+    where `main()` already enforced a clean tree via
+    `require_clean_worktree`.
     """
-    run(["git", "add", "-A"], cwd=root)
+    run(["git", "add", "-A", "--", ".", ":(exclude)core"], cwd=root)
     if run(
         ["git", "diff", "--cached", "--quiet"], cwd=root, check=False,
     ).returncode == 0:
