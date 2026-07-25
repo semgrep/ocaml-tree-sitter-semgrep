@@ -67,9 +67,8 @@ LANGUAGE_VARIANTS = {
 
 
 def die(msg: str) -> NoReturn:
-    """Print `msg` to stderr and exit the process with status 1."""
-    print(f"error: {msg}", file=sys.stderr)
-    sys.exit(1)
+    """Abort via SystemExit; .code is ``error: <msg>`` (exit status 1 if uncaught)."""
+    raise SystemExit(f"error: {msg}")
 
 
 def sanitize_for_branch(name: str) -> str:

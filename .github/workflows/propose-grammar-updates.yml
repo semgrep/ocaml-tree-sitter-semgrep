@@ -193,6 +193,9 @@ jobs:
           RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          # bash -e omits pipefail; without it `| tee` hides script failures
+          # (the pipeline's exit code would be tee's, not the script's).
+          set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
@@ -246,12 +249,14 @@ jobs:
       - name: Skip unless this language was updated
         id: gate
         run: |
+          # Bad/empty JSON => skip (don't fail the step).
           f="result/result-${{ matrix.language }}.json"
-          if [ -f "$f" ] && [ "$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status'))" "$f")" = "updated" ]; then
-            echo "go=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "go=false" >> "$GITHUB_OUTPUT"
+          go=false
+          if [ -f "$f" ]; then
+            status=$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status') or '')" "$f" 2>/dev/null) || status=""
+            [ "$status" = "updated" ] && go=true
           fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
       - if: steps.gate.outputs.go == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -382,12 +387,15 @@ jobs:
           mkdir -p results
           have_results=false
           if find results -name '*.json' | grep -q .; then have_results=true; fi
-          # PR links come from the result JSONs (pr_url is recorded by
-          # propose-grammar-update when gh creates the PR).
+          # PR links from result JSON; per-file jq so one bad file can't abort.
           prs=""
           if [ "$have_results" = true ]; then
-            prs=$(jq -r 'select(.status == "updated" and .pr_url != null)
-                         | "• \(.language) \(.new_tag): \(.pr_url)"' results/*.json)
+            for f in results/*.json; do
+              [ -f "$f" ] || continue
+              line=$(jq -r 'select(.status == "updated" and .pr_url != null)
+                            | "• \(.language) \(.new_tag): \(.pr_url)"' "$f" 2>/dev/null) || true
+              [ -n "$line" ] && prs="${prs}${prs:+$'\n'}${line}"
+            done
           fi
           if [ "$FAILED" = "true" ]; then
             # The run link is the entry point to the failed job's log.

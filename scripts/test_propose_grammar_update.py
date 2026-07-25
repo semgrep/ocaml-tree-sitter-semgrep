@@ -10,6 +10,7 @@ by the integration run in the workflow.
 from __future__ import annotations
 
 import contextlib
+import json
 import sys
 import unittest
 import unittest.mock
@@ -313,6 +314,19 @@ class TestProposeFailurePath(unittest.TestCase):
         r, _agent = self._run([0], bump_rc=1)
         self.assertEqual(r.status, pg.STATUS_UPDATED)
 
+    def test_unexpected_error_returns_failed_result(self):
+        import subprocess as sp
+        with unittest.mock.patch.multiple(
+            pg,
+            run_update_grammar=unittest.mock.Mock(
+                side_effect=sp.CalledProcessError(1, ["git", "checkout"])),
+            submodule_head=unittest.mock.Mock(return_value="OLD"),
+            reset_language_state=lambda *a, **k: None,
+        ):
+            r = pg.propose(Path("."), self.TARGET, keep=False, review_agent=False)
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertIn("CalledProcessError", r.detail)
+
 
 class TestResultArtifact(unittest.TestCase):
     """The result-<lang>.json contract between the propose and integrate jobs.
@@ -333,7 +347,6 @@ class TestResultArtifact(unittest.TestCase):
         self.assertEqual(back.status, "updated")
 
     def test_to_json_drops_nones_keeps_falsy(self):
-        import json
         d = json.loads(pg.Result(language="php").to_json())
         self.assertNotIn("status", d)           # None dropped
         self.assertEqual(d["tests_adapted"], False)  # real bool kept
@@ -345,6 +358,98 @@ class TestResultArtifact(unittest.TestCase):
             path = Path(d) / "r.json"
             path.write_text('{"language": "php", "status": "updated", "novel": 1}')
             self.assertEqual(pg.Result.from_file(path).status, "updated")
+
+
+class TestSummarize(unittest.TestCase):
+    """Empty/corrupt artifacts must show up as failed rows, not vanish."""
+
+    def _summarize(self, files: dict[str, str]) -> str:
+        import io
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            for name, body in files.items():
+                (root / name).write_text(body)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                pg.summarize(root)
+            return buf.getvalue()
+
+    def test_empty_artifact_is_failed_row(self):
+        out = self._summarize({"result-apex.json": ""})
+        self.assertIn("| apex |", out)
+        self.assertIn("failed", out)
+        self.assertIn("empty result artifact", out)
+
+    def test_invalid_json_is_failed_row(self):
+        out = self._summarize({"result-php.json": "{not json"})
+        self.assertIn("| php |", out)
+        self.assertIn("invalid result JSON", out)
+
+    def test_valid_row_still_rendered(self):
+        out = self._summarize({
+            "result-ruby.json":
+                '{"language":"ruby","status":"updated","new_tag":"v1.0.0","old_sha":"abcd1234"}',
+        })
+        self.assertIn("| ruby |", out)
+        self.assertIn("updated", out)
+
+    def test_no_artifacts_notes_absence(self):
+        out = self._summarize({})
+        self.assertIn("no result artifacts", out)
+
+    def test_language_from_result_path(self):
+        self.assertEqual(pg.language_from_result_path(Path("result-c-sharp.json")),
+                         "c-sharp")
+        self.assertIsNone(pg.language_from_result_path(Path("other.json")))
+
+
+class TestMainFailedJson(unittest.TestCase):
+    """main() prints failed Result JSON after language is known."""
+
+    def _run(self, **pg_patches) -> tuple[int, dict]:
+        import io
+        from types import SimpleNamespace
+        args = SimpleNamespace(
+            list_languages=False, summarize=None, language="php",
+            resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
+            review_agent=False, result=None, json=False, updatable_only=False,
+        )
+        cms = [
+            unittest.mock.patch.object(pg, "parse_args", return_value=args),
+            unittest.mock.patch.object(pg.ug, "repo_root", return_value=Path(".")),
+            unittest.mock.patch.object(
+                pg.ug, "discover_version_files", return_value=["0.26.3"]),
+            unittest.mock.patch.object(
+                pg.ug, "discover_valid_languages", return_value={"php": "php"}),
+            unittest.mock.patch.object(pg.ug, "validate_language", return_value="php"),
+            *[unittest.mock.patch.object(pg, k, v) for k, v in pg_patches.items()],
+        ]
+        buf = io.StringIO()
+        with contextlib.ExitStack() as stack:
+            for cm in cms:
+                stack.enter_context(cm)
+            with contextlib.redirect_stdout(buf):
+                rc = pg.main()
+        return rc, json.loads(buf.getvalue())
+
+    def test_exception_after_language_prints_failed_json(self):
+        rc, data = self._run(
+            resolve_target=unittest.mock.Mock(side_effect=RuntimeError("boom")),
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["language"], "php")
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("RuntimeError", data["detail"])
+
+    def test_die_after_language_prints_failed_json(self):
+        rc, data = self._run(
+            resolve_target=unittest.mock.Mock(
+                side_effect=lambda *a, **k: pg.ug.die("no tags")),
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["language"], "php")
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("no tags", data["detail"])
 
 
 ###############################################################################
