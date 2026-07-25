@@ -60,6 +60,35 @@ module.exports = grammar(standard_grammar, {
       return choice(previous, $.ellipsis);
     },
 
+    // Allow single-line `class Foo { ... }` patterns. Without this,
+    // a bare ellipsis between `{` and `}` fails because class members
+    // require trailing `semis` (see LANG-476).
+    class_body: ($, previous) => {
+      return choice(previous, seq("{", $.ellipsis, "}"));
+    },
+
+    // Same as `class_body`, for `enum class E { ... }` (LANG-483).
+    // Higher prec so `enum class E { ... }` resolves to the dedicated
+    // single-line alternative rather than the multi-line form with a
+    // single `enum_entry` of ellipsis.
+    enum_class_body: ($, previous) => {
+      return choice(previous, prec(1, seq("{", $.ellipsis, "}")));
+    },
+
+    // Allow `...` as a stand-alone enum entry, for multi-line forms
+    // like `enum class E { A, B, ... }` (LANG-483).
+    enum_entry: ($, previous) => {
+      return choice(previous, $.ellipsis);
+    },
+
+    // Allow `...` as a `when` body entry: `when ($X) { ... }` (LANG-480).
+    // Higher prec than `_expression`'s ellipsis so a bare `...` in a
+    // `when` body parses as a stand-alone entry rather than the start
+    // of an expression-form `when_condition`.
+    when_entry: ($, previous) => {
+      return choice(previous, prec(1, $.ellipsis));
+    },
+
     deep_ellipsis: ($) => seq("<...", $._expression, "...>"),
 
     ellipsis: ($) => "...",
