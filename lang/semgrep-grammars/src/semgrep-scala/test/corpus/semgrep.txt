@@ -1,0 +1,119 @@
+========================
+LANG-482: bare case clause as top-level pattern
+========================
+
+case Some($X) =>
+
+---
+
+(compilation_unit
+  (semgrep_case_clause
+    (case_clause
+      (case_class_pattern
+        (type_identifier)
+        (identifier)))))
+
+========================
+LANG-482: bare case clause with body
+========================
+
+case $X if $X.isDefined => $RESULT
+
+---
+
+(compilation_unit
+  (semgrep_case_clause
+    (case_clause
+      (identifier)
+      (guard
+        (field_expression
+          (semgrep_metavariable)
+          (identifier)))
+      (semgrep_metavariable))))
+
+========================
+LANG-488: match with bare ellipsis case-block body
+========================
+
+__SEMGREP_EXPRESSION $X match { ... }
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (match_expression
+      (semgrep_metavariable)
+      (case_block
+        (semgrep_ellipsis)))))
+
+========================
+LANG-492: type_arguments with ellipsis-metavariable
+========================
+
+__SEMGREP_EXPRESSION List[$...TS]
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (generic_function
+      (identifier)
+      (type_arguments
+        (semgrep_ellipsis_metavariable)))))
+
+========================
+LANG-492: type_arguments with bare ellipsis
+========================
+
+__SEMGREP_EXPRESSION Map[$K, ...]
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (generic_function
+      (identifier)
+      (type_arguments
+        (type_identifier)
+        (semgrep_ellipsis)))))
+
+========================
+LANG-492: type_arguments with concrete type and ellipsis-metavariable
+========================
+
+__SEMGREP_EXPRESSION Future[$...REST]
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (generic_function
+      (identifier)
+      (type_arguments
+        (semgrep_ellipsis_metavariable)))))
+
+========================
+LANG-496: eta-expansion of metavariable
+========================
+
+__SEMGREP_EXPRESSION $F _
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (postfix_expression
+      (semgrep_metavariable))))
+
+========================
+LANG-496: eta-expansion of method call
+========================
+
+__SEMGREP_EXPRESSION callback _
+
+---
+
+(compilation_unit
+  (semgrep_expression
+    (postfix_expression
+      (identifier))))
