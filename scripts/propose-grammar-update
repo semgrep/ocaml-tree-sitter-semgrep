@@ -1595,9 +1595,10 @@ def main() -> int:
         ).to_json())
         return 1 if not isinstance(e.code, int) else e.code
     except Exception as e:
+        detail = f"unexpected error: {type(e).__name__}: {e}"
+        log(detail)
         print(Result(
-            language=args.language, status=STATUS_FAILED,
-            detail=f"unexpected error: {type(e).__name__}: {e}",
+            language=args.language, status=STATUS_FAILED, detail=detail,
         ).to_json())
         return 1
 

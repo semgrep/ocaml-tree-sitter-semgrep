@@ -193,6 +193,9 @@ jobs:
           RUN_REVIEW_AGENT: ${{ inputs.run_review_agent }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
+          # bash -e omits pipefail; without it `| tee` hides script failures
+          # (the pipeline's exit code would be tee's, not the script's).
+          set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
@@ -201,7 +204,7 @@ jobs:
           flags=""
           if [ "$RUN_REVIEW_AGENT" = "true" ]; then flags="--review-agent"; fi
           opam exec -- python scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
-            > "result-${{ matrix.language }}.json"
+            | tee "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
