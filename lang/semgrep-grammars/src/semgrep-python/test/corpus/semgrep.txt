@@ -39,3 +39,108 @@ Metavariable in match
                   (string_start)
                   (string_content)
                   (string_end))))))))))
+
+====================================
+LANG-460: def with ellipsis params
+====================================
+
+def $F(...): ...
+---
+
+(module
+  (function_definition
+    (identifier)
+    (parameters
+      (semgrep_ellipsis))
+    (block
+      (expression_statement
+        (ellipsis)))))
+
+====================================
+LANG-461: variadic metavariable in argument list
+====================================
+
+foo($...ARGS)
+---
+
+(module
+  (expression_statement
+    (call
+      (identifier)
+      (argument_list
+        (semgrep_ellipsis_metavar)))))
+
+====================================
+LANG-461: variadic metavariable mixed with regular args
+====================================
+
+requests.get($URL, $...REST)
+---
+
+(module
+  (expression_statement
+    (call
+      (attribute
+        (identifier)
+        (identifier))
+      (argument_list
+        (identifier)
+        (semgrep_ellipsis_metavar)))))
+
+====================================
+LANG-463: typed metavariable expression
+====================================
+
+($X : str)
+---
+
+(module
+  (expression_statement
+    (typed_metavar
+      (identifier)
+      (type
+        (identifier)))))
+
+====================================
+LANG-464: ellipsis in match-case class pattern
+====================================
+
+match x:
+    case $CLS($X, ...): ...
+---
+
+(module
+  (match_statement
+    (identifier)
+    (block
+      (case_clause
+        (case_pattern
+          (class_pattern
+            (dotted_name
+              (identifier))
+            (case_pattern
+              (dotted_name
+                (identifier)))
+            (case_pattern
+              (semgrep_ellipsis))))
+        (block
+          (expression_statement
+            (ellipsis)))))))
+
+====================================
+LANG-465: ellipsis in dict literal
+====================================
+
+{"k": 1, ...}
+---
+
+(module
+  (expression_statement
+    (dictionary
+      (pair
+        (string
+          (string_start)
+          (string_content)
+          (string_end))
+        (integer))
+      (semgrep_ellipsis))))
