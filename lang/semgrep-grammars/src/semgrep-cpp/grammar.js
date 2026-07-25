@@ -33,7 +33,10 @@ module.exports = grammar(base_grammar, {
 
     // Typed metavariables
 
-    semgrep_metavar: $ => /\$[A-Z_][A-Z_0-9]*/,
+    // Token precedence so the lexer prefers `semgrep_metavar` over the
+    // `identifier` rule (whose regex also accepts a leading `$`) when
+    // the surrounding rule allows a metavar (e.g. inside an enum body).
+    semgrep_metavar: $ => token(prec(1, /\$[A-Z_][A-Z_0-9]*/)),
 
     semgrep_typed_metavar: $ =>
       seq(
@@ -97,6 +100,50 @@ module.exports = grammar(base_grammar, {
     _field_identifier: ($, previous) => choice(
       previous,
       $.semgrep_ellipsis
+    ),
+
+    // Allow `...` and `$X` inside class/struct bodies, e.g.
+    //   class C { ... }
+    //   struct S { $X }
+    // The lexer prefers `semgrep_metavar` over `identifier` thanks to
+    // the token precedence on `semgrep_metavar`, so a bare `$X` ends
+    // up here rather than as a malformed field_declaration.
+    _field_declaration_list_item: ($, previous) => choice(
+      previous,
+      $.semgrep_ellipsis,
+      $.semgrep_metavar
+    ),
+
+    // Allow `...` and `$X` inside enum bodies, e.g.
+    //   enum E { ... }
+    // The upstream rule is a `seq` so we must override it wholesale
+    // (copied from tree-sitter-c with semgrep alternatives added).
+    enumerator_list: $ => seq(
+      '{',
+      repeat(choice(
+        seq($.enumerator, ','),
+        alias($.preproc_if_in_enumerator_list, $.preproc_if),
+        alias($.preproc_ifdef_in_enumerator_list, $.preproc_ifdef),
+        seq($.preproc_call, ','),
+        seq($.semgrep_ellipsis, ','),
+        seq($.semgrep_metavar, ','),
+      )),
+      optional(choice(
+        $.enumerator,
+        alias($.preproc_if_in_enumerator_list_no_comma, $.preproc_if),
+        alias($.preproc_ifdef_in_enumerator_list_no_comma, $.preproc_ifdef),
+        $.preproc_call,
+        $.semgrep_ellipsis,
+        $.semgrep_metavar,
+      )),
+      '}',
+    ),
+
+    // Allow `operator $OP` as an operator name, e.g.
+    //   T operator $OP(T x);
+    operator_name: ($, previous) => choice(
+      previous,
+      prec(1, seq('operator', $.semgrep_metavar)),
     ),
 
     // So we prefer to parse a unary left fold for
