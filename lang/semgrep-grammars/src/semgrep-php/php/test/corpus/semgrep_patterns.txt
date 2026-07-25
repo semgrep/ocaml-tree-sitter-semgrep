@@ -1,0 +1,1068 @@
+========================
+SQL Injection - String Concatenation in Query
+========================
+
+<?php
+$qb->where('user.id = ' . $_GET['id']);
+$query->select('*')->from('users')->where("name = '" . $_POST['name'] . "'");
+$db->executeQuery("SELECT * FROM " . $table . " WHERE id = " . $id);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (string
+              (string_content))
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))))))
+  (expression_statement
+    (member_call_expression
+      (member_call_expression
+        (member_call_expression
+          (variable_name
+            (name))
+          (name)
+          (arguments
+            (argument
+              (string
+                (string_content)))))
+        (name)
+        (arguments
+          (argument
+            (string
+              (string_content)))))
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (binary_expression
+              (encapsed_string
+                (string_content))
+              (subscript_expression
+                (variable_name
+                  (name))
+                (string
+                  (string_content))))
+            (encapsed_string
+              (string_content)))))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (binary_expression
+              (binary_expression
+                (encapsed_string
+                  (string_content))
+                (variable_name
+                  (name)))
+              (encapsed_string
+                (string_content)))
+            (variable_name
+              (name))))))))
+
+========================
+Assert with User Input
+========================
+
+<?php
+assert($_GET['debug']);
+assert($_POST['condition'], "Error message");
+assert($_REQUEST['validate']);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (encapsed_string
+            (string_content))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))))))
+
+========================
+SSL Verification Disabled
+========================
+
+<?php
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, null);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (name))
+        (argument
+          (boolean)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (name))
+        (argument
+          (integer)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (name))
+        (argument
+          (null))))))
+
+========================
+Extract on User Data
+========================
+
+<?php
+extract($_GET);
+extract($_POST);
+extract($_REQUEST);
+extract($_GET, EXTR_SKIP);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (name))))))
+
+========================
+Echoed Request XSS
+========================
+
+<?php
+echo $_GET['name'];
+echo $_POST['comment'];
+echo $_REQUEST['data'];
+print $_GET['output'];
+
+---
+
+(program
+  (php_tag)
+  (echo_statement
+    (subscript_expression
+      (variable_name
+        (name))
+      (string
+        (string_content))))
+  (echo_statement
+    (subscript_expression
+      (variable_name
+        (name))
+      (string
+        (string_content))))
+  (echo_statement
+    (subscript_expression
+      (variable_name
+        (name))
+      (string
+        (string_content))))
+  (expression_statement
+    (print_intrinsic
+      (subscript_expression
+        (variable_name
+          (name))
+        (string
+          (string_content))))))
+
+========================
+Tainted Filename SSRF
+========================
+
+<?php
+file_get_contents($_GET['file']);
+fopen($_POST['path'], 'r');
+file($_REQUEST['url']);
+readfile($_GET['document']);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (string
+            (string_content))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))))))
+
+========================
+Tainted Object Instantiation
+========================
+
+<?php
+$obj = new $_GET['class']();
+$instance = new $_POST['type']($arg1, $arg2);
+$reflection = new $_REQUEST['classname'];
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (object_creation_expression
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content)))
+        (arguments))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (object_creation_expression
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content)))
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (variable_name
+              (name)))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (object_creation_expression
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content)))))))
+
+========================
+Tainted URL Host
+========================
+
+<?php
+$url = "http://" . $_GET['host'] . "/api";
+$endpoint = "https://" . $_POST['domain'] . "/callback";
+file_get_contents("http://" . $_REQUEST['server'] . "/data");
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (binary_expression
+          (encapsed_string
+            (string_content))
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (encapsed_string
+          (string_content)))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (binary_expression
+          (encapsed_string
+            (string_content))
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (encapsed_string
+          (string_content)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (binary_expression
+              (encapsed_string
+                (string_content))
+              (subscript_expression
+                (variable_name
+                  (name))
+                (string
+                  (string_content))))
+            (encapsed_string
+              (string_content))))))))
+
+========================
+MD5 Password Hashing
+========================
+
+<?php
+$hash = md5($password);
+$digest = hash('md5', $user_password);
+$hashed_pwd = md5($_POST['password']);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (variable_name
+              (name)))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (string
+              (string_content)))
+          (argument
+            (variable_name
+              (name)))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content)))))))))
+
+========================
+Static IV with CBC Mode
+========================
+
+<?php
+$encrypted = openssl_encrypt($data, 'AES-256-CBC', $key, 0, "1234567890123456");
+$result = openssl_encrypt($plaintext, 'AES-128-CBC', $secret_key, OPENSSL_RAW_DATA, "staticIVvalue12");
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (string
+              (string_content)))
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (integer))
+          (argument
+            (encapsed_string
+              (string_content)))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (string
+              (string_content)))
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (name))
+          (argument
+            (encapsed_string
+              (string_content))))))))
+
+========================
+Phpinfo Exposure
+========================
+
+<?php
+phpinfo();
+phpinfo(INFO_ALL);
+phpinfo(INFO_GENERAL);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments)))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (name)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (name))))))
+
+========================
+Open Redirect
+========================
+
+<?php
+header('Location: ' . $_SERVER['REQUEST_URI']);
+header("Location: " . $_GET['redirect']);
+header('Location: ' . $_POST['next']);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (string
+              (string_content))
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (encapsed_string
+              (string_content))
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (string
+              (string_content))
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content)))))))))
+
+========================
+Laravel Raw SQL Injection
+========================
+
+<?php
+DB::table('users')->whereRaw($_GET['condition']);
+DB::unprepared($_POST['query']);
+User::whereRaw('age > ' . $_REQUEST['age'])->get();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (scoped_call_expression
+        (name)
+        (name)
+        (arguments
+          (argument
+            (string
+              (string_content)))))
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (scoped_call_expression
+      (name)
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (member_call_expression
+      (scoped_call_expression
+        (name)
+        (name)
+        (arguments
+          (argument
+            (binary_expression
+              (string
+                (string_content))
+              (subscript_expression
+                (variable_name
+                  (name))
+                (string
+                  (string_content)))))))
+      (name)
+      (arguments))))
+
+========================
+Tainted Callable
+========================
+
+<?php
+call_user_func($_GET['function']);
+call_user_func_array($_POST['callback'], $args);
+usort($array, $_REQUEST['comparator']);
+array_map($_GET['fn'], $data);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (variable_name
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Command Execution Tainted Exec
+========================
+
+<?php
+exec($_GET['cmd']);
+system($_POST['command']);
+shell_exec($_REQUEST['script']);
+passthru($_GET['program'], $output);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Session Key Poisoning
+========================
+
+<?php
+$_SESSION[$_GET['key']] = $value;
+$_SESSION[$_POST['name']] = $_POST['value'];
+$_SESSION[$_REQUEST['session_var']] = "data";
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content))))
+      (variable_name
+        (name))))
+  (expression_statement
+    (assignment_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content))))
+      (subscript_expression
+        (variable_name
+          (name))
+        (string
+          (string_content)))))
+  (expression_statement
+    (assignment_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content))))
+      (encapsed_string
+        (string_content)))))
+
+========================
+WordPress SSRF
+========================
+
+<?php
+wp_remote_get($_GET['url']);
+wp_safe_remote_post($_POST['endpoint'], $args);
+wp_remote_request($_REQUEST['target']);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (variable_name
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))))))
+
+========================
+Password Hash Function
+========================
+
+<?php
+$hashed = password_hash($password, PASSWORD_BCRYPT);
+$secure_hash = password_hash($pwd, PASSWORD_ARGON2I);
+password_verify($input, $stored_hash);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (name))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (name))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Sanitization Functions
+========================
+
+<?php
+echo htmlentities($_GET['data']);
+echo htmlspecialchars($_POST['input']);
+echo strip_tags($_REQUEST['content']);
+$safe = escapeshellarg($_GET['arg']);
+
+---
+
+(program
+  (php_tag)
+  (echo_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (echo_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (echo_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content)))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content)))))))))
+
+========================
+Sprintf SQL Pattern
+========================
+
+<?php
+$sql = sprintf("SELECT * FROM users WHERE id = %s", $_GET['id']);
+$query = sprintf("DELETE FROM %s WHERE name = '%s'", $table, $_POST['name']);
+$stmt = sprintf("UPDATE users SET role = '%s' WHERE id = %d", $_REQUEST['role'], $id);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (encapsed_string
+              (string_content)))
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (encapsed_string
+              (string_content)))
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (encapsed_string
+              (string_content)))
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (string
+                (string_content))))
+          (argument
+            (variable_name
+              (name))))))))
