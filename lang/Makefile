@@ -35,7 +35,6 @@ SUPPORTED_TS_LANGUAGES = \
   hcl \
   html \
   java \
-  javascript \
   jsonnet \
   julia \
   kotlin \
@@ -91,7 +90,6 @@ SUPPORTED_DIALECTS = \
   html \
   java \
   julia \
-  javascript \
   jsonnet \
   julia \
   kotlin \

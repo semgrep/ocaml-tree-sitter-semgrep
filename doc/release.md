@@ -62,7 +62,6 @@ ocaml-tree-sitter-semgrep](https://github.com/returntocorp/ocaml-tree-sitter-sem
 * [hcl](https://github.com/returntocorp/semgrep-hcl)
 * [html](https://github.com/returntocorp/semgrep-html)
 * [java](https://github.com/returntocorp/semgrep-java)
-* [javascript](https://github.com/returntocorp/semgrep-javascript)
 * [jsonnet](https://github.com/returntocorp/semgrep-jsonnet)
 * [julia](https://github.com/returntocorp/semgrep-julia)
 * [kotlin](https://github.com/returntocorp/semgrep-kotlin)
