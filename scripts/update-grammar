@@ -161,19 +161,12 @@ def validate_language(lang: str, valid: dict[str, str]) -> str:
     )
 
 
-# Provisions a single version into core/tree-sitter-<version>/{bin,include,lib}.
-# Replaces the old switch-tree-sitter-version + install-tree-sitter-{cli,lib}
-# trio that existed when core/ was a separate submodule.
+# Provisions into core/tree-sitter-<version>/{bin,include,lib}.
 PROVISION_TREE_SITTER = "provision-tree-sitter"
 
 
 def installed_tree_sitter_version(core: Path, version: str) -> str | None:
-    """Return `version` if `core/tree-sitter-<version>/bin/tree-sitter` reports it.
-
-    Versions live side by side under `core/tree-sitter-<version>/` (see
-    `core/scripts/provision-tree-sitter`); there is no single shared
-    `core/tree-sitter` install for grammar builds.
-    """
+    """Return `version` if `core/tree-sitter-<version>/bin/tree-sitter` reports it."""
     binary = core / f"tree-sitter-{version}" / "bin" / "tree-sitter"
     if not binary.exists():
         return None
@@ -185,22 +178,20 @@ def installed_tree_sitter_version(core: Path, version: str) -> str | None:
     return reported if reported == version else None
 
 
-def ensure_tree_sitter_version(root: Path, version: str) -> None:
-    """Provision `core/tree-sitter-<version>/` if not already present.
-
-    Idempotency comes from probing the versioned binary
-    (`installed_tree_sitter_version`) and from `provision-tree-sitter`
-    itself, which skips a fully-installed prefix. Grammar builds point
-    at the versioned path directly (lang/Makefile.common); this never
-    touches core's own `tree-sitter-version` pin.
-    """
-    core = root / "core"
-    script = core / "scripts" / PROVISION_TREE_SITTER
+def require_provision_script(root: Path) -> None:
+    """Die early if `core/scripts/provision-tree-sitter` is missing."""
+    script = root / "core" / "scripts" / PROVISION_TREE_SITTER
     if not script.exists():
         die(
             f"missing required core script: scripts/{PROVISION_TREE_SITTER}. "
             f"Was core/ restructured?"
         )
+
+
+def ensure_tree_sitter_version(root: Path, version: str) -> None:
+    """Provision `core/tree-sitter-<version>/` if not already present."""
+    core = root / "core"
+    require_provision_script(root)
     if installed_tree_sitter_version(core, version) == version:
         print(f"tree-sitter {version} already provisioned.", file=sys.stderr)
         return

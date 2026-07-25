@@ -170,25 +170,18 @@ jobs:
       - run: git submodule update --init --recursive --depth 1
       - run: ./core/scripts/setup-node
       # Cache the opam/dune + tree-sitter build, keyed on the core/ tree
-      # SHA so it only rebuilds when core changes (core/ is in-repo, not a
-      # submodule).
+      # SHA so it only rebuilds when core/ changes.
       - id: core-sha
         run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             core/_build
-            core/tree-sitter
+            core/tree-sitter-*
           key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
       - run: opam exec -- make setup
       - run: opam exec -- make
       - run: opam exec -- make install
-      # The load-bearing PATH fix: test-lang / Makefiles call bare
-      # `tree-sitter` from PATH. It MUST be the version update-grammar
-      # installed (in core/tree-sitter/bin), not whatever else is around.
-      # This step must come AFTER `make install` populates that dir.
-      - name: Put pinned tree-sitter CLI on PATH
-        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
       # uv script: PEP 723 pulls cursor-sdk; language agent still needs
       # run_language_agent + CURSOR_API_KEY to actually dispatch.
       - name: Install the latest version of uv
@@ -322,13 +315,10 @@ jobs:
       - if: steps.gate.outputs.go == 'true'
         run: opam exec -- make setup && opam exec -- make && opam exec -- make install
       - if: steps.gate.outputs.go == 'true'
-        name: Put pinned tree-sitter CLI on PATH
-        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
-      - if: steps.gate.outputs.go == 'true'
         name: Install the latest version of uv
         uses: ./.github/actions/setup-uv
       - if: steps.gate.outputs.go == 'true'
-        name: Release to semgrep-${ matrix.language }
+        name: Release to semgrep-${{ matrix.language }}
         env:
           # Pushing to the downstream semgrep-<lang> repos needs broader
           # creds than GITHUB_TOKEN.
