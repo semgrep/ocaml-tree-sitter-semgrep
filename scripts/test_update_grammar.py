@@ -452,14 +452,10 @@ class InstalledTreeSitterVersionTests(FilesystemTest):
         )
 
     def test_parses_version_without_sha_suffix(self):
-        self.version = "0.22.6"
-        self.bin = (
-            self.core / f"tree-sitter-{self.version}" / "bin" / "tree-sitter"
-        )
-        self._install('echo "tree-sitter 0.22.6"')
+        self._install(f'echo "tree-sitter {self.version}"')
         self.assertEqual(
             ug.installed_tree_sitter_version(self.core, self.version),
-            "0.22.6",
+            self.version,
         )
 
     def test_returns_none_when_binary_exits_nonzero(self):

@@ -1615,8 +1615,10 @@ def main() -> int:
         valid = ug.discover_valid_languages(root)
         wrapper = ug.validate_language(args.language, valid)
 
-        # Before network work; target.ts_version may be None and skip ensure_*.
-        ug.require_provision_script(root)
+        # Before network work; skipped for --resolve-tag-only, which never
+        # provisions anything. target.ts_version may be None and skip ensure_*.
+        if not args.resolve_tag_only:
+            ug.require_provision_script(root)
 
         # Determine what to update the language to.
         lang = LangAndWrapper(language=args.language, wrapper=wrapper)
