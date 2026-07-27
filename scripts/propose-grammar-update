@@ -16,22 +16,15 @@
 # ///
 """Propose an upstream grammar update for a single language.
 
-This is the per-language driver behind the scheduled "propose grammar
-updates" GitHub Actions workflow. It wraps `scripts/update-grammar`,
-adding the orchestration that workflow needs:
+It wraps `scripts/update-grammar`, with the following orchestration:
 
   * resolve each grammar's latest *stable* release tag (never an in-flux
     upstream `master` commit),
-  * bump to it via `update-grammar --skip-release` (so nothing is ever
-    pushed to the downstream `semgrep-<lang>` repos),
+  * bump to it via `update-grammar --skip-release`,
   * regenerate the corpus snapshots a grammar bump invariably churns and
     re-run `test-lang` for an authoritative pass/fail,
-  * open exactly one PR in *this* repo when there's a real, green update,
+  * open one PR in *this* repo when there's a real, green update,
   * and clean up after itself so a failure never leaks into the next run.
-
-It deliberately reuses `update-grammar`'s language-discovery and
-version-file logic by importing it (see `_load_update_grammar`) rather
-than duplicating it.
 
 Modes:
   propose-grammar-update --list-languages [--json]
@@ -42,18 +35,11 @@ Modes:
   propose-grammar-update <language> [--open-pr] [--dry-run] [--language-agent]
       Bump <language> to its latest tag, regenerate snapshots, test, and
       emit a JSON result. With --open-pr, also create the PR; --dry-run
-      prints the would-be PR instead of pushing. --language-agent (explicit
-      opt-in) dispatches a Cursor agent to adapt tests on a test-lang
-      failure; without it a failing bump is simply reported as failed.
+      prints the would-be PR instead of pushing. --language-agent dispatches a Cursor
+      to fix the grammar on test-lang failure.
   propose-grammar-update <language> --release [--result FILE]
-      Downstream step: release the validated parser branch to
-      semgrep-<lang> via PR. semgrep-proprietary integration is left to
-      the existing Cursor workflow on that repo — not handled here.
-
-Wall-clock timeout / token cap / turn cap for the language agent are CLI flags
-(--agent-timeout / --agent-token-cap / --agent-turn-cap), not env vars — see
---help. The agent's model and credentials remain environment-based since
-they're read by the cursor_sdk itself, not this script.
+      Create a PR to semgrep-<lang>. semgrep-proprietary integration is left to
+      the existing Cursor workflow on that repo.
 
 Environment variables:
   GH_TOKEN / GITHUB_TOKEN   Required by every `gh` call (PR/label create,
