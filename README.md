@@ -95,11 +95,11 @@ language (via `lang/ts_versions.py`, exposed as `lang/scripts/ts-version-for-lan
 `core/tree-sitter-<version>/{bin,include,lib}`. A language listed in no
 `languages-*` / `language-variants-*` file is a build error.
 
-**This is independent of `core/scripts/provision-tree-sitter` and
-the `core/tree-sitter` symlink.** Provisioning installs a specific
-version under `core/tree-sitter-<version>/` for language builds. The
-`core/tree-sitter` symlink (and `core/tree-sitter-version`) only select
-which tree-sitter version *core itself* builds its OCaml runtime against.
+**This is independent of `core/scripts/provision-tree-sitter`.**
+Provisioning installs a specific version under `core/tree-sitter-<version>/`
+for language builds. Separately, `core/tree-sitter-version` (a plain pin
+file, not a symlink) selects which tree-sitter version *core itself* builds
+its OCaml runtime against and installs into the current opam switch.
 Switching core's version does not require rebuilding the grammars, and
 grammars on different versions coexist.
 
