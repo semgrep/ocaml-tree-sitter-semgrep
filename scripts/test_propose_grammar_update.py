@@ -501,6 +501,32 @@ class TestMainFailedJson(unittest.TestCase):
         self.assertIn("no tags", data["detail"])
 
 
+class TestEnsureResultFile(unittest.TestCase):
+    """The --ensure-result CI fallback: rewrite only empty/invalid artifacts."""
+
+    def test_leaves_valid_file_alone(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-php.json"
+            path.write_text('{"language":"php","status":"updated"}\n')
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["status"], "updated")
+
+    def test_rewrites_empty_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-apex.json"
+            path.write_text("")
+            pg.ensure_result_file(path)
+            data = json.loads(path.read_text())
+            self.assertEqual(data["language"], "apex")
+            self.assertEqual(data["status"], pg.STATUS_FAILED)
+
+    def test_rewrites_missing_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-ruby.json"
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["language"], "ruby")
+
+
 ###############################################################################
 # Review-and-adapt agent (on test-lang failure) #
 ###############################################################################
