@@ -32,6 +32,9 @@ Modes:
       array for the workflow matrix).
   propose-grammar-update <language> --resolve-tag-only
       Print the latest stable tag for <language> and exit (no mutation).
+  propose-grammar-update <language> --print-ts-version
+      Print the tree-sitter version <language> is pinned to and exit
+      (no mutation; used by CI to key the per-version cache).
   propose-grammar-update <language> [--open-pr] [--dry-run] [--language-agent]
       Bump <language> to its latest tag, regenerate snapshots, test, and
       emit a JSON result. With --open-pr, also create the PR; --dry-run
@@ -1479,6 +1482,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Print the latest stable tag for the language and exit.",
     )
     parser.add_argument(
+        "--print-ts-version", action="store_true",
+        help="Print the tree-sitter version the language is pinned to and exit.",
+    )
+    parser.add_argument(
         "--open-pr", action="store_true",
         help="Create the PR (default: dry run, emit JSON result only).",
     )
@@ -1600,6 +1607,17 @@ def main() -> int:
 
     if not args.language:
         ug.die("a language is required (or use --list-languages).")
+
+    # Cheap local pin lookup for CI cache keys (LANG-625); no network / provision.
+    if args.print_ts_version:
+        valid = ug.discover_valid_languages(root)
+        wrapper = ug.validate_language(args.language, valid)
+        lang = LangAndWrapper(language=args.language, wrapper=wrapper)
+        ver = language_ts_version(root, lang)
+        if ver is None:
+            ug.die(f"'{wrapper}' is not in any lang/languages-* file")
+        print(ver)
+        return 0
 
     # Emit failed Result JSON on any crash below (language already known).
     try:

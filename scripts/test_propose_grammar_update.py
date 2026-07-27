@@ -176,6 +176,32 @@ class TestLanguageTsVersion(unittest.TestCase):
             )
 
 
+class TestPrintTsVersion(unittest.TestCase):
+    """`--print-ts-version` is the cheap CI lookup that keys the tree-sitter cache."""
+
+    def test_flag_parses(self):
+        args = pg.parse_args(["python", "--print-ts-version"])
+        self.assertTrue(args.print_ts_version)
+        self.assertEqual(args.language, "python")
+
+    def test_cli_prints_pinned_version(self):
+        # End-to-end against the real repo — the workflow keys
+        # actions/cache on this stdout (LANG-625).
+        import subprocess
+        root = SCRIPT_PATH.parent.parent
+        py = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "python", "--print-ts-version"],
+            cwd=root, capture_output=True, text=True, check=True,
+        )
+        self.assertRegex(py.stdout.strip(), r"^\d+\.\d+\.\d+$")
+        # Distinct pins must not collapse — that was the race.
+        sol = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "solidity", "--print-ts-version"],
+            cwd=root, capture_output=True, text=True, check=True,
+        )
+        self.assertNotEqual(py.stdout.strip(), sol.stdout.strip())
+
+
 ###############################################################################
 # PR shaping #
 ###############################################################################
