@@ -447,12 +447,7 @@ def commit_changes(root: Path, lang: str, old_short: str, new_short: str) -> Non
     """Stage and commit the update; no-op if nothing changed.
 
     Stages everything except `core/` — a grammar bump must only move the
-    language submodule and lang/ files. Provisioning writes under
-    gitignored `core/tree-sitter-*` trees, but excluding `core/` also
-    guards against incidental dirtiness of tracked core files. Safe
-    because this only runs in the release path (no `--skip-release`),
-    where `main()` already enforced a clean tree via
-    `require_clean_worktree`.
+    language submodule and lang/ files.
     """
     run(["git", "add", "-A", "--", ".", ":(exclude)core"], cwd=root)
     if run(
