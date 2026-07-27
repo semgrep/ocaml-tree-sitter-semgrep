@@ -9,7 +9,7 @@ name: Propose grammar updates
 # PR. semgrep-proprietary integration is deliberately out of scope.
 #
 # The `notify` job (needs the SLACK_BOT_TOKEN secret) posts to
-# #team-languages: an alert when any job fails, a success note with PR links
+# #support-engine: an alert when any job fails, a success note with PR links
 # when updates were proposed, a "nothing to do" heartbeat otherwise. Test the
 # alert path end-to-end with the inject_failure + notify_channel inputs.
 #
@@ -47,12 +47,12 @@ on:
         type: boolean
         default: false
       inject_failure:
-        description: "Test mode: force this job to fail, to exercise the Slack alert end-to-end (pair with notify_channel so the alert goes to you, not #team-languages)."
+        description: "Test mode: force this job to fail, to exercise the Slack alert end-to-end (pair with notify_channel so the alert goes to you, not #support-engine)."
         type: choice
         options: [none, enumerate, propose, integrate]
         default: none
       notify_channel:
-        description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send notifications to instead of #team-languages."
+        description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send notifications to instead of #support-engine."
         required: false
 
 permissions:
@@ -366,7 +366,7 @@ jobs:
       - name: Render summary
         run: uv run --script scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
-  # Slack notification (LANG-604): pages #team-languages when any job fails,
+  # Slack notification (LANG-604): pages #support-engine when any job fails,
   # posts a success note (with PR links) when update PRs were opened, and a
   # quiet "nothing to do" heartbeat otherwise. Job-level results
   # are the authoritative failure signal: propose-grammar-update exits
@@ -456,6 +456,6 @@ jobs:
           errors: true
           payload: |
             {
-              "channel": ${{ toJSON(inputs.notify_channel || '#team-languages') }},
+              "channel": ${{ toJSON(inputs.notify_channel || '#support-engine') }},
               "text": ${{ toJSON(steps.compose.outputs.text) }}
             }
