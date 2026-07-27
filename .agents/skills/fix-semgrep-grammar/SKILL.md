@@ -57,10 +57,10 @@ extension grammar and its tests.**
    v=$(lang/scripts/ts-version-for-lang <lang>)
    [ -x core/tree-sitter-$v/bin/tree-sitter ] || make setup-tree-sitter-versions
    ```
-   `make setup-tree-sitter-versions` installs every pinned version and then
-   restores the repo's default `core/tree-sitter-version`. Never run
-   `core/scripts/switch-tree-sitter-version` on its own — it changes that
-   default. If the install fails, stop with `CANNOT_PROCEED` reporting the
+   `make setup-tree-sitter-versions` installs every pinned version via
+   `core/scripts/provision-tree-sitter`. Prefer that over calling
+   `provision-tree-sitter` for a single version unless you know you only
+   need one. If the install fails, stop with `CANNOT_PROCEED` reporting the
    error.
 
 3. **Capture the Blank-node baseline** — run `test-lang` once, before any

@@ -95,21 +95,20 @@ language (via `lang/ts_versions.py`, exposed as `lang/scripts/ts-version-for-lan
 `core/tree-sitter-<version>/{bin,include,lib}`. A language listed in no
 `languages-*` / `language-variants-*` file is a build error.
 
-**This is independent of `core/scripts/switch-tree-sitter-version` and
-the `core/tree-sitter` symlink.** That script and symlink only select
+**This is independent of `core/scripts/provision-tree-sitter` and
+the `core/tree-sitter` symlink.** Provisioning installs a specific
+version under `core/tree-sitter-<version>/` for language builds. The
+`core/tree-sitter` symlink (and `core/tree-sitter-version`) only select
 which tree-sitter version *core itself* builds its OCaml runtime against.
 Switching core's version does not require rebuilding the grammars, and
 grammars on different versions coexist.
 
 The one requirement is that every pinned version is *installed* under
 `core/`. `make setup` installs the default version; to add another,
-install it once (this leaves the grammars' pinning untouched):
+provision it once (this leaves the grammars' pinning untouched):
 
 ```
-cd core
-./scripts/switch-tree-sitter-version <version>   # e.g. 0.22.6
-./scripts/install-tree-sitter-cli
-./scripts/install-tree-sitter-lib
+./core/scripts/provision-tree-sitter <version>   # e.g. 0.26.3
 ```
 
 Each version installs into its own `core/tree-sitter-<version>/`, so

@@ -100,7 +100,7 @@ build-ocaml:
 # Parse source using standalone executable and dump OCaml CST
 .PHONY: parse-examples
 parse-examples:
-	$(SCRIPTS)/parse-examples $(LANG)
+	$(SCRIPTS)/parse-examples ./parse-$(LANG) $(LANG)
 
 .PHONY: stat
 stat:

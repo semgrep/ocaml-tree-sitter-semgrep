@@ -2,7 +2,11 @@
 #
 # Install runtime support only, without the ability to generate new parsers.
 #
-set -eu
+set -eu -o pipefail
 
-./scripts/install-tree-sitter-lib
+script_dir=$(cd "$(dirname "$0")" && pwd)
+core_root=$(cd "$script_dir/.." && pwd)
+version=$(cat "$core_root/tree-sitter-version")
+
+"$script_dir/provision-tree-sitter" "$version"
 opam install -y .
