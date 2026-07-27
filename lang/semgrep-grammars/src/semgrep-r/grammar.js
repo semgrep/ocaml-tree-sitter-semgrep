@@ -15,15 +15,13 @@ module.exports = grammar(standard_grammar, {
     */
     rules: {
 
-    // Metavariables
-    identifier: ($, previous) => {
-      return choice(
-        previous,
-        $._semgrep_metavariable
-      );
-    },
-
-    _semgrep_metavariable: $ => token(/\$[A-Z_][A-Z_0-9]*/),
+    // Metavariables. identifier is the word: token upstream, so it must remain
+    // a single token (choice of previous + metavariable regex), not a
+    // non-terminal — same pattern as semgrep-ruby.
+    identifier: ($, previous) => token(choice(
+      previous,
+      /\$[A-Z_][A-Z_0-9]*/
+    )),
 
     // Expression ellipsis
     //_expression: ($, previous) => {

@@ -5,4 +5,9 @@ Metavariables
 foo($X)
 
 ---
-(program (call (identifier) (arguments (identifier)))) 
+(program
+  (call
+    (identifier)
+    (arguments
+      (argument
+        (identifier)))))
