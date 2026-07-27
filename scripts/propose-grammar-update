@@ -779,7 +779,7 @@ def _stdout_to_stderr():
 
 
 def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
-    """Provision `ts_version`'s tree-sitter CLI and put it first on PATH."""
+    """Set up `ts_version`'s tree-sitter CLI and add it to PATH, ahead of everything else."""
     with _stdout_to_stderr():
         ug.ensure_tree_sitter_version(root, ts_version)
     bin_dir = root / "core" / f"tree-sitter-{ts_version}" / "bin"
@@ -809,9 +809,8 @@ def regenerate_snapshots(root: Path, lang: LangAndWrapper, ts_version: str) -> N
     A grammar bump almost always churns parse trees, so the committed
     corpus snapshots go stale. `tree-sitter test --update` rewrites them
     from the new parser. Runs in each dir containing a grammar.js (the
-    base grammar plus any sub-grammars). Requires
-    `core/tree-sitter-<version>/bin` on PATH (`ensure_ts_version_on_path`,
-    called by main(), guarantees this).
+    base grammar plus any sub-grammars). Requires core/tree-sitter/bin on
+    PATH (`ensure_ts_version_on_path`, called by main(), guarantees this).
     Every grammar.js under a wrapper is expected to be pinned to the same
     `ts_version` the wrapper was just bumped to; a sub-dialect pinned to a
     different one is a real inconsistency that must be reported, not
