@@ -363,33 +363,33 @@ class RemoveStaleParsersTests(FilesystemTest):
 
 
 class EnsureTreeSitterVersionTests(FilesystemTest):
-    """Drive ensure_tree_sitter_version against stub `core/scripts/*` shells."""
+    """Drive ensure_tree_sitter_version against a stub provision-tree-sitter."""
 
     def setUp(self) -> None:
         super().setUp()
         self.core = self.root / "core"
         self.scripts_dir = self.core / "scripts"
         self.scripts_dir.mkdir(parents=True)
-        # Each stub appends '<name> <args>' to calls.log; tests assert on the
+        # Stub appends '<name> <args>' to calls.log; tests assert on the
         # recorded call sequence rather than on any real side effect.
-        for name in ug.CORE_SCRIPTS:
-            script = self.scripts_dir / name
-            script.write_text(
-                "#!/usr/bin/env bash\n"
-                f'printf "%s\\n" "{name} $*" >> "$(dirname "$0")/../calls.log"\n'
-            )
-            script.chmod(0o755)
+        script = self.scripts_dir / ug.PROVISION_TREE_SITTER
+        script.write_text(
+            "#!/usr/bin/env bash\n"
+            f'printf "%s\\n" "{ug.PROVISION_TREE_SITTER} $*" '
+            f'>> "$(dirname "$0")/../calls.log"\n'
+        )
+        script.chmod(0o755)
         self.calls_log = self.core / "calls.log"
-        self.tree_sitter_bin = self.core / "tree-sitter" / "bin" / "tree-sitter"
 
     def _install_stub_binary(self, version: str) -> None:
         """Install a fake tree-sitter binary that prints `version` on --version."""
-        self.tree_sitter_bin.parent.mkdir(parents=True, exist_ok=True)
-        self.tree_sitter_bin.write_text(
+        binary = self.core / f"tree-sitter-{version}" / "bin" / "tree-sitter"
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        binary.write_text(
             "#!/usr/bin/env bash\n"
             f'echo "tree-sitter {version} (stub)"\n'
         )
-        self.tree_sitter_bin.chmod(0o755)
+        binary.chmod(0o755)
 
     def _calls(self) -> list[str]:
         if not self.calls_log.exists():
@@ -402,34 +402,24 @@ class EnsureTreeSitterVersionTests(FilesystemTest):
         ug.ensure_tree_sitter_version(self.root, "0.26.3")
         self.assertEqual(self._calls(), [])
 
-    def test_runs_scripts_when_binary_reports_other_version(self):
+    def test_runs_provision_when_other_version_present(self):
+        # A different version being provisioned must not satisfy this request.
         self._install_stub_binary("0.20.6")
         ug.ensure_tree_sitter_version(self.root, "0.26.3")
         self.assertEqual(
             self._calls(),
-            [
-                "switch-tree-sitter-version 0.26.3",
-                "install-tree-sitter-cli",
-                "install-tree-sitter-lib",
-            ],
+            [f"{ug.PROVISION_TREE_SITTER} 0.26.3"],
         )
 
-    def test_runs_scripts_when_binary_missing(self):
-        # No installed binary => treat as "not aligned" and re-run everything.
-        self.assertFalse(self.tree_sitter_bin.exists())
+    def test_runs_provision_when_binary_missing(self):
         ug.ensure_tree_sitter_version(self.root, "0.22.6")
         self.assertEqual(
             self._calls(),
-            [
-                "switch-tree-sitter-version 0.22.6",
-                "install-tree-sitter-cli",
-                "install-tree-sitter-lib",
-            ],
+            [f"{ug.PROVISION_TREE_SITTER} 0.22.6"],
         )
 
-    def test_dies_when_core_scripts_missing(self):
-        for name in ug.CORE_SCRIPTS:
-            (self.scripts_dir / name).unlink()
+    def test_dies_when_provision_script_missing(self):
+        (self.scripts_dir / ug.PROVISION_TREE_SITTER).unlink()
         with self.assertRaises(SystemExit) as cm:
             ug.ensure_tree_sitter_version(self.root, "0.22.6")
         self.assertIn("error:", cm.exception.code)
@@ -439,7 +429,10 @@ class InstalledTreeSitterVersionTests(FilesystemTest):
     def setUp(self) -> None:
         super().setUp()
         self.core = self.root / "core"
-        self.bin = self.core / "tree-sitter" / "bin" / "tree-sitter"
+        self.version = "0.26.3"
+        self.bin = (
+            self.core / f"tree-sitter-{self.version}" / "bin" / "tree-sitter"
+        )
 
     def _install(self, body: str) -> None:
         self.bin.parent.mkdir(parents=True, exist_ok=True)
@@ -447,23 +440,36 @@ class InstalledTreeSitterVersionTests(FilesystemTest):
         self.bin.chmod(0o755)
 
     def test_returns_none_when_binary_missing(self):
-        self.assertIsNone(ug.installed_tree_sitter_version(self.core))
+        self.assertIsNone(
+            ug.installed_tree_sitter_version(self.core, self.version),
+        )
 
     def test_parses_version_from_standard_output(self):
         self._install('echo "tree-sitter 0.26.3 (abc1234)"')
         self.assertEqual(
-            ug.installed_tree_sitter_version(self.core), "0.26.3",
+            ug.installed_tree_sitter_version(self.core, self.version),
+            "0.26.3",
         )
 
     def test_parses_version_without_sha_suffix(self):
-        self._install('echo "tree-sitter 0.22.6"')
+        self._install(f'echo "tree-sitter {self.version}"')
         self.assertEqual(
-            ug.installed_tree_sitter_version(self.core), "0.22.6",
+            ug.installed_tree_sitter_version(self.core, self.version),
+            self.version,
         )
 
     def test_returns_none_when_binary_exits_nonzero(self):
         self._install("exit 1")
-        self.assertIsNone(ug.installed_tree_sitter_version(self.core))
+        self.assertIsNone(
+            ug.installed_tree_sitter_version(self.core, self.version),
+        )
+
+    def test_returns_none_when_binary_reports_wrong_version(self):
+        # Stale/misnamed prefix: binary exists but reports a different version.
+        self._install('echo "tree-sitter 0.20.6"')
+        self.assertIsNone(
+            ug.installed_tree_sitter_version(self.core, self.version),
+        )
 
 
 class SanitizeForBranchTests(TestBase):
@@ -612,6 +618,22 @@ class CommitChangesTests(GitRepoTest):
     def test_skips_commit_when_clean(self):
         ug.commit_changes(self.repo, "python", "old12345", "new12345")
         self.assertEqual(self.head_sha(), self.initial_sha)
+
+    def test_excludes_core_directory(self):
+        # core/ is in-repo now; a grammar commit must not sweep it in.
+        core = self.repo / "core"
+        core.mkdir()
+        (core / "noise.txt").write_text("do not commit\n")
+        (self.repo / "lang.txt").write_text("ok\n")
+        ug.commit_changes(self.repo, "python", "old12345", "new12345")
+        self.assertNotEqual(self.head_sha(), self.initial_sha)
+        names = _git(
+            "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD",
+            cwd=self.repo,
+        ).stdout.splitlines()
+        self.assertEqual(names, ["lang.txt"])
+        # core/noise.txt stays untracked / uncommitted.
+        self.assertIn("?? core/", self.porcelain_status())
 
 
 class RequireCleanWorktreeTests(GitRepoTest):

@@ -24,12 +24,10 @@ parser="$1"
 lang="$2"
 
 # Make the tree-sitter runtime library findable at load time.
-#
-# The parsers are linked dynamically against libtree-sitter (see the top-level
-# dune), and dune runs us with the test directory as the working directory, so
-# without this the dynamic loader can't find the shared library on Linux.
+# Prefer TREESITTER_LIBDIR (set by lang/Makefile.common for the language's
+# pinned version); fall back to core's tree-sitter-out layout used by dune tests.
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-ts_lib_dir="$script_dir/../tree-sitter-out/lib"
+ts_lib_dir="${TREESITTER_LIBDIR:-$script_dir/../tree-sitter-out/lib}"
 if [[ -d "$ts_lib_dir" ]]; then
   ts_lib_dir="$(cd "$ts_lib_dir" && pwd)"
   export LD_LIBRARY_PATH="$ts_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"

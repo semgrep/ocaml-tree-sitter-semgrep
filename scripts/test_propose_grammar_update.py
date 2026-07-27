@@ -362,6 +362,8 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_UPDATED)
 
     def test_unexpected_error_returns_failed_result(self):
+        # Crashes (e.g. git checkout) must become STATUS_FAILED JSON, not an
+        # uncaught traceback that leaves result-<lang>.json empty.
         import subprocess as sp
         with unittest.mock.patch.multiple(
             pg,
@@ -457,7 +459,7 @@ class TestMainFailedJson(unittest.TestCase):
         import io
         from types import SimpleNamespace
         args = SimpleNamespace(
-            list_languages=False, summarize=None, language="php",
+            list_languages=False, summarize=None, ensure_result=None, language="php",
             resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
             language_agent=False, result=None, json=False, updatable_only=False,
         )
@@ -497,6 +499,32 @@ class TestMainFailedJson(unittest.TestCase):
         self.assertEqual(data["language"], "php")
         self.assertEqual(data["status"], pg.STATUS_FAILED)
         self.assertIn("no tags", data["detail"])
+
+
+class TestEnsureResultFile(unittest.TestCase):
+    """The --ensure-result CI fallback: rewrite only empty/invalid artifacts."""
+
+    def test_leaves_valid_file_alone(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-php.json"
+            path.write_text('{"language":"php","status":"updated"}\n')
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["status"], "updated")
+
+    def test_rewrites_empty_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-apex.json"
+            path.write_text("")
+            pg.ensure_result_file(path)
+            data = json.loads(path.read_text())
+            self.assertEqual(data["language"], "apex")
+            self.assertEqual(data["status"], pg.STATUS_FAILED)
+
+    def test_rewrites_missing_file(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-ruby.json"
+            pg.ensure_result_file(path)
+            self.assertEqual(json.loads(path.read_text())["language"], "ruby")
 
 
 ###############################################################################

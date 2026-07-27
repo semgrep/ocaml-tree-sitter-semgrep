@@ -169,25 +169,19 @@ jobs:
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - run: git submodule update --init --recursive --depth 1
       - run: ./core/scripts/setup-node
-      # Cache the opam/dune + tree-sitter build, keyed on the core submodule
-      # SHA so it only rebuilds when core changes.
+      # Cache the opam/dune + tree-sitter build, keyed on the core/ tree
+      # SHA so it only rebuilds when core/ changes.
       - id: core-sha
         run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             core/_build
-            core/tree-sitter
+            core/tree-sitter-*
           key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
       - run: opam exec -- make setup
       - run: opam exec -- make
       - run: opam exec -- make install
-      # The load-bearing PATH fix: test-lang / Makefiles call bare
-      # `tree-sitter` from PATH. It MUST be the version update-grammar
-      # installed (in core/tree-sitter/bin), not whatever else is around.
-      # This step must come AFTER `make install` populates that dir.
-      - name: Put pinned tree-sitter CLI on PATH
-        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
       # uv script: PEP 723 pulls cursor-sdk; language agent still needs
       # run_language_agent + CURSOR_API_KEY to actually dispatch.
       - name: Install the latest version of uv
@@ -208,8 +202,7 @@ jobs:
           AGENT_TURN_CAP: ${{ inputs.agent_turn_cap }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          # bash -e omits pipefail; without it `| tee` hides script failures
-          # (the pipeline's exit code would be tee's, not the script's).
+          # bash -e omits pipefail; without it `| tee` hides script failures.
           set -o pipefail
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
@@ -226,6 +219,10 @@ jobs:
           if [ -n "$AGENT_TURN_CAP" ]; then flags="$flags --agent-turn-cap $AGENT_TURN_CAP"; fi
           opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" $mode $flags \
             | tee "result-${{ matrix.language }}.json"
+      # Fallback if tee left an empty/invalid artifact.
+      - name: Ensure result JSON
+        if: always()
+        run: python scripts/propose-grammar-update --ensure-result "result-${{ matrix.language }}.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -318,13 +315,10 @@ jobs:
       - if: steps.gate.outputs.go == 'true'
         run: opam exec -- make setup && opam exec -- make && opam exec -- make install
       - if: steps.gate.outputs.go == 'true'
-        name: Put pinned tree-sitter CLI on PATH
-        run: echo "$GITHUB_WORKSPACE/core/tree-sitter/bin" >> "$GITHUB_PATH"
-      - if: steps.gate.outputs.go == 'true'
         name: Install the latest version of uv
         uses: ./.github/actions/setup-uv
       - if: steps.gate.outputs.go == 'true'
-        name: Release to semgrep-${ matrix.language }
+        name: Release to semgrep-${{ matrix.language }}
         env:
           # Pushing to the downstream semgrep-<lang> repos needs broader
           # creds than GITHUB_TOKEN.
@@ -415,7 +409,9 @@ jobs:
           mkdir -p results
           have_results=false
           if find results -name '*.json' | grep -q .; then have_results=true; fi
-          # PR links from result JSON; per-file jq so one bad file can't abort.
+          # PR links come from the result JSONs (pr_url is recorded by
+          # propose-grammar-update when gh creates the PR).
+          # Per-file jq so one corrupt artifact can't abort compose.
           prs=""
           if [ "$have_results" = true ]; then
             for f in results/*.json; do

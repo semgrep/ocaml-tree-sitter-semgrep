@@ -52,8 +52,8 @@ if [[ -f tree-sitter.json ]] && abi15_enabled; then
     cat >&2 <<EOF
 Error: $name uses ABI 15 (tree-sitter.json present, SEMGREP_ENABLE_ABI15 set)
 and requires tree-sitter >= 0.25.0.
-The currently installed version is too old. Switch with:
-  $script_dir/switch-tree-sitter-version 0.26.3
+The currently installed version is too old. Provision with:
+  $script_dir/provision-tree-sitter 0.26.3
 EOF
     exit 1
   fi
