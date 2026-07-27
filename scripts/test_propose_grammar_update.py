@@ -459,7 +459,7 @@ class TestMainFailedJson(unittest.TestCase):
         import io
         from types import SimpleNamespace
         args = SimpleNamespace(
-            list_languages=False, summarize=None, language="php",
+            list_languages=False, summarize=None, ensure_result=None, language="php",
             resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
             language_agent=False, result=None, json=False, updatable_only=False,
         )
