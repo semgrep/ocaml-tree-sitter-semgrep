@@ -236,33 +236,49 @@ jobs:
       matrix:
         language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
     steps:
-      - name: Inject failure (test mode)
-        if: inputs.inject_failure == 'integrate'
-        run: |
-          echo "::error::Failure injected via the inject_failure input (test mode)"
-          exit 1
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
+      # Download outside the workspace: actions/checkout wipes GITHUB_WORKSPACE,
+      # which previously deleted the propose artifact and made --result miss
+      # the file (FileNotFoundError) after a successful gate check.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: result-${{ matrix.language }}
-          path: result
+          path: ${{ runner.temp }}/propose-result
         continue-on-error: true   # no artifact => this language wasn't proposed
       - name: Skip unless this language was updated
         id: gate
+        env:
+          PROPOSE_RESULT: ${{ runner.temp }}/propose-result/result-${{ matrix.language }}.json
         run: |
           # Bad/empty JSON => skip (don't fail the step).
-          f="result/result-${{ matrix.language }}.json"
           go=false
-          if [ -f "$f" ]; then
-            status=$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status') or '')" "$f" 2>/dev/null) || status=""
+          if [ -f "$PROPOSE_RESULT" ]; then
+            status=$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status') or '')" "$PROPOSE_RESULT" 2>/dev/null) || status=""
             [ "$status" = "updated" ] && go=true
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
+      # Seed outside the workspace so checkout can't wipe it; release tees
+      # over this file, and on any later failure we flip `updated` → `failed`
+      # before uploading (overwrites the propose artifact for Slack/summary).
+      - if: steps.gate.outputs.go == 'true'
+        name: Seed result for reporting
+        env:
+          PROPOSE_RESULT: ${{ runner.temp }}/propose-result/result-${{ matrix.language }}.json
+          OUT_RESULT: ${{ runner.temp }}/out-result/result-${{ matrix.language }}.json
+        run: |
+          mkdir -p "$(dirname "$OUT_RESULT")"
+          cp "$PROPOSE_RESULT" "$OUT_RESULT"
+      # After seed so Record-integrate-failure can flip the table row too.
+      - name: Inject failure (test mode)
+        if: inputs.inject_failure == 'integrate'
+        run: |
+          echo "::error::Failure injected via the inject_failure input (test mode)"
+          exit 1
       - if: steps.gate.outputs.go == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -309,18 +325,59 @@ jobs:
           # creds than GITHUB_TOKEN.
           GH_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
           GITHUB_TOKEN: ${{ secrets.SEMGREP_LANG_PAT }}
+          PROPOSE_RESULT: ${{ runner.temp }}/propose-result/result-${{ matrix.language }}.json
+          OUT_RESULT: ${{ runner.temp }}/out-result/result-${{ matrix.language }}.json
         run: |
           # Make git's HTTPS pushes (lang/release clones + pushes
           # semgrep-<lang> via the insteadOf rewrite) authenticate with the
           # PAT. Without this, `git push` has no credential helper and the
           # downstream release fails.
           gh auth setup-git
+          # bash -e omits pipefail; without it `| tee` hides script failures.
+          set -o pipefail
           # opam exec: same reason as the propose job — the nested
           # lang/release -> make gen-c needs `ocaml-tree-sitter` on PATH.
           # --result: release the exact tag/branch the propose job validated
           # (from its artifact), never a live re-resolved one.
+          # stdout Result JSON overwrites the seeded propose row so success
+          # keeps `updated` and failure becomes `failed` for Slack/summary.
           opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" --release \
-            --result "result/result-${{ matrix.language }}.json"
+            --result "$PROPOSE_RESULT" \
+            | tee "$OUT_RESULT"
+      # If setup/build failed before release could report, flip the seeded
+      # propose `updated` row to failed so the Slack table isn't a lie.
+      - name: Record integrate failure
+        if: always() && steps.gate.outputs.go == 'true' && failure()
+        env:
+          OUT_RESULT: ${{ runner.temp }}/out-result/result-${{ matrix.language }}.json
+        run: |
+          if [ -f scripts/propose-grammar-update ]; then
+            python scripts/propose-grammar-update --mark-failed "$OUT_RESULT" \
+              --failed-detail "integrate failed (see job log)"
+          else
+            # checkout never landed; flip the seeded propose row in-place
+            python -c "
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['OUT_RESULT'])
+          d = json.loads(p.read_text()) if p.is_file() and p.stat().st_size else {}
+          if not (isinstance(d, dict) and d.get('status') == 'failed' and d.get('detail')):
+              if not isinstance(d, dict):
+                  d = {}
+              d.setdefault('language', '${{ matrix.language }}')
+              d['status'] = 'failed'
+              d['detail'] = 'integrate failed (see job log)'
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(json.dumps(d) + '\n')
+          "
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.gate.outputs.go == 'true'
+        with:
+          name: result-${{ matrix.language }}
+          path: ${{ runner.temp }}/out-result/result-${{ matrix.language }}.json
+          overwrite: true
+          if-no-files-found: ignore
 
   summary:
     name: Summary
@@ -348,11 +405,11 @@ jobs:
   # Slack notification (LANG-604): pages #support-engine when any job fails,
   # posts a success note (with PR links) when update PRs were opened, and a
   # quiet "nothing to do" heartbeat otherwise. Job-level results
-  # are the authoritative failure signal: propose-grammar-update exits
-  # non-zero on a failed bump/test, and this also catches failures the
-  # script can't see from inside (build breakage, timeouts, crashes). The
-  # message carries only job statuses, PR links and the status table + a run
-  # link — never grammar source or logs.
+  # are the authoritative failure signal for the alert header; the per-language
+  # table comes from result artifacts, which integrate overwrites on release
+  # failure so a green propose + failed release shows as `failed`, not
+  # leftover `updated`. The message carries only job statuses, PR links and
+  # the status table + a run link — never grammar source or logs.
   notify:
     name: Notify Slack
     needs: [enumerate, propose, integrate]

@@ -459,7 +459,8 @@ class TestMainFailedJson(unittest.TestCase):
         import io
         from types import SimpleNamespace
         args = SimpleNamespace(
-            list_languages=False, summarize=None, ensure_result=None, language="php",
+            list_languages=False, summarize=None, ensure_result=None,
+            mark_failed=None, failed_detail="integrate failed", language="php",
             resolve_tag_only=False, release=False, open_pr=False, dry_run=False,
             language_agent=False, result=None, json=False, updatable_only=False,
         )
@@ -525,6 +526,101 @@ class TestEnsureResultFile(unittest.TestCase):
             path = Path(d) / "result-ruby.json"
             pg.ensure_result_file(path)
             self.assertEqual(json.loads(path.read_text())["language"], "ruby")
+
+
+class TestMarkResultFailed(unittest.TestCase):
+    """Integrate job helper: flip propose's leftover `updated` to `failed`."""
+
+    def test_preserves_propose_fields(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-r.json"
+            path.write_text(pg.Result(
+                language="r", status=pg.STATUS_UPDATED, new_tag="v1.3.0",
+                branch="grammar-update/r/v1.3.0",
+                pr_url="https://example.com/pr/1",
+            ).to_json())
+            pg.mark_result_failed(path, "integrate failed (see job log)")
+            data = json.loads(path.read_text())
+            self.assertEqual(data["status"], pg.STATUS_FAILED)
+            self.assertEqual(data["detail"], "integrate failed (see job log)")
+            self.assertEqual(data["new_tag"], "v1.3.0")
+            self.assertEqual(data["pr_url"], "https://example.com/pr/1")
+
+    def test_noop_when_already_failed_with_detail(self):
+        with TemporaryDirectory() as d:
+            path = Path(d) / "result-r.json"
+            path.write_text(pg.Result(
+                language="r", status=pg.STATUS_FAILED,
+                detail="r: lang/release failed.", new_tag="v1.3.0",
+            ).to_json())
+            pg.mark_result_failed(path, "integrate failed (see job log)")
+            data = json.loads(path.read_text())
+            self.assertEqual(data["detail"], "r: lang/release failed.")
+
+
+class TestRunReleaseResultJson(unittest.TestCase):
+    """--release must emit the same Result JSON contract as propose."""
+
+    def _target(self, root: Path) -> pg.Target:
+        sub = root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-r"
+        sub.mkdir(parents=True)
+        lang = pg.LangAndWrapper(language="r", wrapper="r")
+        return pg.Target(lang=lang, submodule=sub, tag="v1.3.0",
+                         ts_version="0.26.3")
+
+    def test_success_emits_updated_result(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            target = self._target(root)
+            result_path = root / "result-r.json"
+            result_path.write_text(pg.Result(
+                language="r", status=pg.STATUS_UPDATED, new_tag="v1.3.0",
+                branch="grammar-update/r/v1.3.0",
+                pr_url="https://example.com/pr/1",
+            ).to_json())
+            buf = io.StringIO()
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "run_quiet", return_value=None))
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "release_downstream",
+                    return_value=unittest.mock.Mock(returncode=0)))
+                stack.enter_context(contextlib.redirect_stdout(buf))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                rc = pg.run_release(root, target, dry_run=False,
+                                    result_file=str(result_path))
+            data = json.loads(buf.getvalue())
+        self.assertEqual(rc, 0)
+        self.assertEqual(data["status"], pg.STATUS_UPDATED)
+        self.assertEqual(data["new_tag"], "v1.3.0")
+        self.assertEqual(data["pr_url"], "https://example.com/pr/1")
+
+    def test_failure_emits_failed_result_preserving_fields(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            target = self._target(root)
+            result_path = root / "result-r.json"
+            result_path.write_text(pg.Result(
+                language="r", status=pg.STATUS_UPDATED, new_tag="v1.3.0",
+                branch="grammar-update/r/v1.3.0",
+                pr_url="https://example.com/pr/1",
+            ).to_json())
+            buf = io.StringIO()
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "run_quiet", return_value=None))
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "release_downstream",
+                    return_value=unittest.mock.Mock(returncode=1)))
+                stack.enter_context(contextlib.redirect_stdout(buf))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                rc = pg.run_release(root, target, dry_run=False,
+                                    result_file=str(result_path))
+            data = json.loads(buf.getvalue())
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("lang/release failed", data["detail"])
+        self.assertEqual(data["pr_url"], "https://example.com/pr/1")
 
 
 ###############################################################################
