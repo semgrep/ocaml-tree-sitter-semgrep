@@ -3,11 +3,14 @@ Releasing generated code for semgrep
 
 ⚠️ r2c admins: See note at the bottom.
 
-The process for updating a grammar and releasing the generated code in
-described in details [in this document](https://semgrep.dev/docs/contributing/updating-a-grammar/).
+The process for updating a grammar and releasing the generated code is
+described in detail [in this document](https://semgrep.dev/docs/contributing/updating-a-grammar/).
 
-Until we have an automatic process for this and for security reasons,
-please ask someone at r2c to release the code for the language.
+For an automated bump to the latest stable upstream tag, see [Propose grammar updates](propose-grammar-update.md)
+(`scripts/propose-grammar-update` and the Propose grammar updates Github workflow).
+
+Manual releases to `semgrep-<lang>` still need someone with push access
+to those repos; ask on the channels below if you do not.
 
 Contact channels:
 * your ocaml-tree-sitter pull request

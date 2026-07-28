@@ -62,7 +62,9 @@ $ ./test-lang kotlin
 ```
 
 For details, see [How to upgrade the grammar for a
-language](https://semgrep.dev/docs/contributing/updating-a-grammar/).
+language](https://semgrep.dev/docs/contributing/updating-a-grammar/)
+(manual) or [Propose grammar updates](doc/propose-grammar-update.md)
+(`scripts/propose-grammar-update`, automated).
 
 ### Python / ABI tests
 
