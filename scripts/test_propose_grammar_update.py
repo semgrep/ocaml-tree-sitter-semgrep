@@ -278,14 +278,22 @@ class TestProposeFailurePath(unittest.TestCase):
         lang=pg.LangAndWrapper(language="php", wrapper="php"), submodule=Path("/tmp/sub"),
         ts_version="0.26.3", url="https://x/y.git", tag="v0.24.2",
     )
+    MIGRATE_TARGET = pg.Target(
+        lang=pg.LangAndWrapper(language="ruby", wrapper="ruby"),
+        submodule=Path("/tmp/sub"),
+        ts_version="0.26.3", url="https://x/y.git", tag="v0.23.1",
+        needs_scanner_migrate=True,
+        resolution_note="will migrate",
+    )
 
     def _run(self, test_returncodes, language_agent=True, bump_rc=0,
-             shas=("OLD", "NEW")):
+             shas=("OLD", "NEW"), target=None, semgrep_cpp_after_migrate=False):
         """Run propose() with mocked internals; test_returncodes drives the
         test-lang result(s) in sequence (first run, then post-agent re-run).
         Returns (result, language_agent_mock)."""
         import subprocess as sp
         calls = iter(test_returncodes)
+        tgt = target or self.TARGET
 
         def fake_test(_lang, _root):
             return sp.CompletedProcess([], next(calls), stdout="log", stderr="")
@@ -301,8 +309,10 @@ class TestProposeFailurePath(unittest.TestCase):
             run_test_lang=fake_test,
             run_language_agent=agent,
             reset_language_state=lambda *a, **k: None,
+            _semgrep_has_cpp_scanner=lambda root, lang: semgrep_cpp_after_migrate,
+            _forked_scanner_c_drift_note=lambda root, lang: None,
         ):
-            result = pg.propose(Path("."), self.TARGET, keep=False,
+            result = pg.propose(Path("."), tgt, keep=False,
                                 language_agent=language_agent)
         return result, agent
 
@@ -342,6 +352,31 @@ class TestProposeFailurePath(unittest.TestCase):
         self.assertEqual(r.status, pg.STATUS_FAILED)
         self.assertIn("not enabled", r.detail)
         agent.assert_not_called()
+
+    def test_migrate_scanner_runs_before_test_when_needed(self):
+        r, agent = self._run([0], target=self.MIGRATE_TARGET)
+        self.assertEqual(r.status, pg.STATUS_UPDATED)
+        agent.assert_called_once()
+        _root, prompt = agent.call_args.args
+        self.assertIn("migrate-semgrep-scanner", prompt)
+        self.assertEqual(agent.call_args.kwargs["label"], "ruby-migrate-scanner")
+
+    def test_migrate_then_fix_grammar_on_test_failure(self):
+        r, agent = self._run([1, 0], target=self.MIGRATE_TARGET)
+        self.assertEqual(r.status, pg.STATUS_UPDATED)
+        self.assertTrue(r.tests_adapted)
+        self.assertEqual(agent.call_count, 2)
+        prompts = [c.args[1] for c in agent.call_args_list]
+        self.assertIn("migrate-semgrep-scanner", prompts[0])
+        self.assertIn("fix-semgrep-grammar", prompts[1])
+
+    def test_migrate_failure_if_scanner_cc_remains(self):
+        r, agent = self._run(
+            [], target=self.MIGRATE_TARGET, semgrep_cpp_after_migrate=True,
+        )
+        self.assertEqual(r.status, pg.STATUS_FAILED)
+        self.assertIn("scanner.cc", r.detail)
+        agent.assert_called_once()
 
     def test_failed_bump_without_move_is_failed_not_noop(self):
         # update-grammar dies before moving the submodule -> must surface
@@ -949,7 +984,7 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     @contextlib.contextmanager
     def _patch(self, tags, reserved_tags=(), cpp_scanner_tags=(), floors=None,
-              fetch_ok=True, semgrep_cpp=False):
+              fetch_ok=True, semgrep_cpp=False, upstream_has_c_scanner=True):
         floors = floors or {}
 
         def fake_fetch(submodule):
@@ -964,6 +999,9 @@ class TestResolveTagAndVersion(unittest.TestCase):
                 return pg.NewerStableTags(list(tags))
 
             fetched.list_newer_stable_tags.side_effect = list_newer
+            fetched.tag_has_path.side_effect = (
+                lambda t, p: p == "src/scanner.c" and upstream_has_c_scanner
+            )
             return fetched
 
         with unittest.mock.patch.multiple(
@@ -977,9 +1015,11 @@ class TestResolveTagAndVersion(unittest.TestCase):
 
     def _resolve(self, **kwargs):
         versions = kwargs.pop("versions", self.VERSIONS)
+        language_agent = kwargs.pop("language_agent", False)
         with self._patch(**kwargs):
             return pg.resolve_tag_and_version(
                 Path("."), Path("/tmp/s"), "u", versions, self.OLD_SHA, self.LANG,
+                language_agent=language_agent,
             )
 
     def test_picks_latest_tag_and_highest_version(self):
@@ -1015,7 +1055,23 @@ class TestResolveTagAndVersion(unittest.TestCase):
         self.assertEqual(r.ts_version, "0.22.6")
         self.assertIn("semgrep-ruby/src/scanner.cc", r.note)
         self.assertIn("still C++", r.note)
-        self.assertIn("upstream", r.note)
+        self.assertFalse(r.needs_scanner_migrate)
+
+    def test_language_agent_uncaps_semgrep_only_cpp_for_migrate(self):
+        # With language_agent, stale Semgrep .cc no longer caps — migrate runs later.
+        r = self._resolve(tags=["v1.0.0"], semgrep_cpp=True, language_agent=True)
+        self.assertIsInstance(r, pg.VersionOk)
+        self.assertEqual(r.ts_version, "0.26.3")
+        self.assertTrue(r.needs_scanner_migrate)
+        self.assertIn("migrate-semgrep-scanner", r.note)
+
+    def test_language_agent_still_caps_upstream_cpp(self):
+        r = self._resolve(
+            tags=["v1.0.0"], cpp_scanner_tags=["v1.0.0"], language_agent=True,
+        )
+        self.assertIsInstance(r, pg.VersionOk)
+        self.assertEqual(r.ts_version, "0.22.6")
+        self.assertFalse(r.needs_scanner_migrate)
 
     def test_cpp_ceiling_wins_over_conflicting_floor(self):
         # Floor >= 0.24 is incompatible with a C++ scanner; keep the newest
