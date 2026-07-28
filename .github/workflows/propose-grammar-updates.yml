@@ -169,29 +169,23 @@ jobs:
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
       - run: git submodule update --init --recursive --depth 1
       - run: ./core/scripts/setup-node
-      # Split caches (LANG-625): core/_build is shared across the matrix, but
-      # each language provisions only its pinned tree-sitter into
-      # core/tree-sitter-<ver>/. A single shared key races across the matrix —
-      # actions/cache keeps only the first save — so other versions never
-      # persist and are re-downloaded every run. Key the tree-sitter cache by
-      # the language's pinned version (resolved before restore).
+      # Split caches (LANG-625): core/_build keyed by core SHA; tree-sitter
+      # pins shared. Provision all pins so the first save has every version.
       - id: core-sha
         run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
-      - id: ts-version
-        env:
-          LANGUAGE: ${{ matrix.language }}
-        run: |
-          ver=$(python scripts/propose-grammar-update "$LANGUAGE" --print-ts-version)
-          echo "version=$ver" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: core/_build
-          key: core-build-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+          key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+      - id: ts-versions
+        # Single source of truth; shared key across the matrix (LANG-625).
+        run: echo "versions=$(./lang/scripts/ts-versions | tr '\n' '-')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: core/tree-sitter-${{ steps.ts-version.outputs.version }}
-          # Version alone: tree-sitter is an external dep; core/ changes don't alter it.
-          key: tree-sitter-${{ runner.os }}-${{ steps.ts-version.outputs.version }}
+          # Semver installs only (tree-sitter-0.x.y) — not tree-sitter-out/repo.
+          path: core/tree-sitter-*.*.*
+          key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
+      - run: ./core/scripts/provision-tree-sitter-all
       - run: opam exec -- make setup
       - run: opam exec -- make
       - run: opam exec -- make install
