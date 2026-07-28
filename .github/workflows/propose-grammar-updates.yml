@@ -275,6 +275,13 @@ jobs:
             [ "$status" = "updated" ] && go=true
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
+      # actions/checkout wipes the workspace; park the propose artifact outside
+      # it so --release can still read the validated tag/branch after checkout.
+      - if: steps.gate.outputs.go == 'true'
+        name: Preserve result JSON across checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/grammar-result"
+          cp "result/result-${{ matrix.language }}.json"             "$RUNNER_TEMP/grammar-result/result-${{ matrix.language }}.json"
       - if: steps.gate.outputs.go == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -335,7 +342,7 @@ jobs:
           # --result: release the exact tag/branch the propose job validated
           # (from its artifact), never a live re-resolved one.
           opam exec -- uv run --script scripts/propose-grammar-update "${{ matrix.language }}" --release \
-            --result "result/result-${{ matrix.language }}.json"
+            --result "$RUNNER_TEMP/grammar-result/result-${{ matrix.language }}.json"
 
   summary:
     name: Summary
