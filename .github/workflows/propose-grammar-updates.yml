@@ -272,7 +272,9 @@ jobs:
           go=false
           if [ -f "$f" ]; then
             status=$(python -c "import json,sys; print(json.load(open(sys.argv[1])).get('status') or '')" "$f" 2>/dev/null) || status=""
-            [ "$status" = "updated" ] && go=true
+            # "exists": OTS branch already proposed; still release to
+            # semgrep-<lang> when that step previously failed (e.g. r v1.3.0).
+            { [ "$status" = "updated" ] || [ "$status" = "exists" ]; } && go=true
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
       # actions/checkout wipes the workspace; park the propose artifact outside
