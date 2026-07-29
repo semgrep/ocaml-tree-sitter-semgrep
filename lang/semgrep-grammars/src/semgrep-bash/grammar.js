@@ -83,8 +83,9 @@ module.exports = grammar(base_grammar, {
       $.word
     ),
 
-    // Fragile. Copy of the original with $.word -> $._extended_word
-    function_definition: $ => seq(
+    // Fragile. Copy of upstream with $.word -> $._extended_word on
+    // `function` names so metavariables work there.
+    function_definition: $ => prec.right(seq(
       choice(
         seq(
           'function',
@@ -101,9 +102,11 @@ module.exports = grammar(base_grammar, {
         choice(
           $.compound_statement,
           $.subshell,
-          $.test_command)
-      )
-    ),
+          $.test_command,
+          $.if_statement)
+      ),
+      field('redirect', optional($._redirect)),
+    )),
 
     semgrep_metavariable: $ => /\$[A-Z_][A-Z_0-9]*/,
     semgrep_metavar_eq: $ => /\$[A-Z_][A-Z_0-9]*=/,
