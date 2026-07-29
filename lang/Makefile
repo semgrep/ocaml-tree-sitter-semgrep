@@ -4,118 +4,6 @@
 # ocaml-tree-sitter must have been built and installed for this to work.
 #
 
-# List of languages matching a tree-sitter-* repo.
-#
-# For example, both typescript and tsx are provided by tree-sitter-typescript.
-# The list below only shows typescript, not tsx.
-# For similar reasons we list sfapex here, and not apex.
-#
-# coupling: *** Any new language must also be added to the CI test matrix
-# so the CI tests run for that language. ***
-#
-SUPPORTED_TS_LANGUAGES = \
-  bash \
-  c \
-  cairo \
-  cfml \
-  clojure \
-  circom \
-  cpp \
-  c-sharp \
-  c-sharp-pro \
-  dart \
-  dockerfile \
-  elixir \
-  fga \
-  go \
-  gosu \
-	gomod \
-  hack \
-  haskell \
-  hcl \
-  html \
-  java \
-  javascript \
-  jsonnet \
-  julia \
-  kotlin \
-  lua \
-  make \
-  move-on-aptos \
-  move-on-sui \
-  ocaml \
-  php \
-  powershell \
-  promql \
-  proto \
-  python \
-  ql \
-  r \
-	requirements \
-  ruby \
-  rust \
-  sfapex \
-  solidity \
-  sqlite \
-  swift \
-  toml \
-  typescript \
-
-# List of all language variants, as they're made available to semgrep.
-#
-# This includes all language variants e.g. typescript and tsx that may
-# come from the same tree-sitter project.
-# Here we list apex, and not sfapex
-#
-# After updating this list, run 'make links' and update the
-# list of languages in the release readme (/doc/release.md).
-# (nothing bad will happen if you forget, though)
-#
-SUPPORTED_DIALECTS = \
-  apex \
-  bash \
-  c \
-  cfml \
-  clojure \
-  cpp \
-  c-sharp \
-  c-sharp-pro \
-  dart \
-  dockerfile \
-  elixir \
-  fga \
-  go \
-  gosu \
-  hack \
-  hcl \
-  html \
-  java \
-  julia \
-  javascript \
-  jsonnet \
-  julia \
-  kotlin \
-  lua \
-  make \
-  move-on-aptos \
-  move-on-sui \
-  ocaml \
-  php \
-  powershell \
-  promql \
-  proto \
-  python \
-  ql \
-  r \
-  ruby \
-  rust \
-  solidity \
-  sqlite \
-  swift \
-  toml \
-  tsx \
-  typescript \
-
 # Languages which are set up to run parsing stats. Ideally, this is all
 # the supported languages. See the 'stat' target.
 # update: we split the list in 2 (STAT_LANGUAGES1 and STAT_LANGUAGES2) because
@@ -162,14 +50,18 @@ STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
-# This takes a while and is intended for CI. If you're working on a single
-# language, better just run ./test-lang.
+# The language list comes from scripts/list-languages (same source
+# .github/workflows/test-languages.yml uses for the CI matrix).
+#
+# This takes a while and is intended for local full-repo testing. If you're
+# working on a single language, better just run ./test-lang.
 #
 .PHONY: test
 test:
+	../core/scripts/provision-tree-sitter-all
 	set -e; \
         failed=""; \
-	for lang in $(SUPPORTED_TS_LANGUAGES); do \
+	for lang in $$(scripts/list-languages); do \
           ./test-lang $$lang || failed="$$failed $$lang"; \
         done; \
 	if [ -n "$$failed" ]; then \
@@ -260,7 +152,23 @@ push:
 #merge:
 #	A=`git rev-parse --abbrev-ref HEAD` && git checkout main && git pull &&# git branch -D $$A
 
-# Regenerate the language list in the release readme (/docs/release.md)
+
+# List of all language variants.
+#
+# This includes all language variants e.g. typescript and tsx that may
+# come from the same tree-sitter project.
+# Here we list apex, and not sfapex
+#
+# Derived from lang/language-variants-*.
+#
+# After updating language-variants-*, run 'make links' and update the
+# list of languages in the release readme (/doc/release.md).
+# (nothing bad will happen if you forget, though)
+#
+SUPPORTED_DIALECTS := $(shell cat language-variants-* | sort -u)
+
+# Print the language list for the release readme (/doc/release.md).
+# Does not write the file — paste the output into the Appendix section.
 .PHONY: links
 links:
 	for x in $(SUPPORTED_DIALECTS); do \

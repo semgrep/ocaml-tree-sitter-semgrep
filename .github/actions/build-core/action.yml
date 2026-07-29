@@ -1,0 +1,56 @@
+name: Build ocaml-tree-sitter core
+description: >
+  Init submodules, provision every pinned tree-sitter version, and build +
+  install ocaml-tree-sitter core, with caching (LANG-625). Assumes checkout
+  and ocaml/setup-ocaml already ran.
+runs:
+  using: composite
+  steps:
+    # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
+    - name: Rewrite SSH submodule URLs to HTTPS
+      shell: bash
+      run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+    - run: git submodule update --init --recursive --depth 1
+      shell: bash
+    - run: ./core/scripts/setup-node
+      shell: bash
+    # Split caches: core/_build keyed by core SHA; tree-sitter pins shared.
+    # Provision all pins so the first save has every version. Use
+    # restore/save (not the combined action) so a later step's failure
+    # still persists the tree-sitter cache.
+    - id: core-sha
+      shell: bash
+      run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+    - id: core-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: core/_build
+        key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+    - id: ts-versions
+      # Single source of truth; shared key across the matrix.
+      shell: bash
+      run: echo "versions=$(./lang/scripts/ts-versions | tr '\n' '-')" >> "$GITHUB_OUTPUT"
+    - id: ts-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        # Semver installs only (tree-sitter-0.x.y) — not tree-sitter-out/repo.
+        path: core/tree-sitter-*.*.*
+        key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
+    - run: ./core/scripts/provision-tree-sitter-all
+      shell: bash
+    - if: steps.ts-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: core/tree-sitter-*.*.*
+        key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
+    - run: opam exec -- make setup
+      shell: bash
+    - run: opam exec -- make
+      shell: bash
+    - run: opam exec -- make install
+      shell: bash
+    - if: always() && steps.core-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: core/_build
+        key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}

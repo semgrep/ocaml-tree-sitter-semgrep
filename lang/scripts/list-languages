@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+#
+# Print, one per line, every standalone language with a semgrep-<lang>
+# grammar dir under lang/semgrep-grammars/src -- i.e. every valid
+# `./test-lang <lang>` argument. Sub-dialects that live inside a parent's
+# grammar dir (sfapex's soql/sosl, cfml's cfquery/cfscript) aren't
+# standalone targets, so they're not listed.
+#
+# Usage: list-languages
+#
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+
+def list_languages(lang_dir: Path) -> list[str]:
+    """Return every standalone language with a semgrep-<lang> grammar dir."""
+    sg_src = lang_dir / "semgrep-grammars" / "src"
+    names = {p.name.removeprefix("semgrep-") for p in sg_src.glob("semgrep-*") if p.is_dir()}
+    return sorted(names)
+
+
+def main() -> int:
+    """Print each standalone language on its own line."""
+    argparse.ArgumentParser(
+        description="Print each standalone language on its own line."
+    ).parse_args()
+    lang_dir = Path(__file__).resolve().parent.parent
+    for lang in list_languages(lang_dir):
+        print(lang)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
