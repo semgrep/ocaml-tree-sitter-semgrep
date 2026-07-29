@@ -1418,25 +1418,6 @@ def ensure_result_file(path: Path) -> None:
         path.write_text(json.dumps(load_result_row(path)) + "\n")
 
 
-def mark_result_failed(path: Path, detail: str) -> None:
-    """CI helper: set status=failed on an existing result, keep other fields.
-
-    Used by the integrate job so Slack/summary reflect a release failure
-    instead of the propose job's leftover `updated`. No-op when status is
-    already failed with a detail (release already reported a specific cause).
-    """
-    if _is_valid_result_file(path):
-        res = Result.from_file(path)
-        if res.status == STATUS_FAILED and res.detail:
-            return
-    else:
-        ensure_result_file(path)
-        res = Result.from_file(path)
-    res.status = STATUS_FAILED
-    res.detail = detail
-    path.write_text(res.to_json() + "\n")
-
-
 def summarize(results_dir: Path) -> None:
     """Render a markdown table from per-language result JSON files.
 
@@ -1491,17 +1472,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--ensure-result", metavar="FILE",
         help="CI fallback: rewrite FILE as a failed-status row if it's "
              "missing/empty/invalid (propose crashed before writing it).",
-    )
-    parser.add_argument(
-        "--mark-failed", metavar="FILE",
-        help="CI helper: set status=failed on FILE, preserving other fields "
-             "(integrate job: so Slack/summary don't keep propose's "
-             "`updated`). No-op if already failed with a detail.",
-    )
-    parser.add_argument(
-        "--failed-detail", metavar="TEXT", default="integrate failed",
-        help="With --mark-failed, the detail string to record "
-             "(default: 'integrate failed').",
     )
     parser.add_argument(
         "--json", action="store_true",
@@ -1607,30 +1577,22 @@ def run_release(root: Path, target: Target, dry_run: bool,
     if tag is None or branch is None:
         return _fail(f"{language}: no validated tag/branch; nothing to release.")
 
-    try:
-        # Check out the exact branch the propose job built + validated
-        # (submodule bump + any skill-adapted tests are committed there).
-        # Do NOT re-bump — that could pull different content than what
-        # test-lang actually validated. `lang/release` regenerates the
-        # OCaml sources from this tree via its own `make gen`.
-        run_quiet(["git", "fetch", "origin", branch], cwd=root)
-        run_quiet(["git", "checkout", branch], cwd=root)
-        run_quiet(
-            ["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
-             "--", str(target.submodule.relative_to(root))],
-            cwd=root,
-        )
+    # Check out the exact branch the propose job built + validated
+    # (submodule bump + any skill-adapted tests are committed there).
+    # Do NOT re-bump — that could pull different content than what
+    # test-lang actually validated. `lang/release` regenerates the
+    # OCaml sources from this tree via its own `make gen`.
+    run_quiet(["git", "fetch", "origin", branch], cwd=root)
+    run_quiet(["git", "checkout", branch], cwd=root)
+    run_quiet(
+        ["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
+         "--", str(target.submodule.relative_to(root))],
+        cwd=root,
+    )
 
-        rel = release_downstream(root, target.lang, branch, tag, dry_run=dry_run)
-        if rel is not None and rel.returncode != 0:
-            return _fail(f"{language}: lang/release failed.")
-    except SystemExit as e:
-        if e.code in (0, None):
-            raise
-        detail = e.code if isinstance(e.code, str) else f"SystemExit: {e.code}"
-        return _fail(detail)
-    except Exception as e:
-        return _fail(f"unexpected error: {type(e).__name__}: {e}")
+    rel = release_downstream(root, target.lang, branch, tag, dry_run=dry_run)
+    if rel is not None and rel.returncode != 0:
+        return _fail(f"{language}: lang/release failed.")
 
     log(f"{language}: released to semgrep-{wrapper} branch {branch} "
         f"(PR opened per dialect).")
@@ -1656,10 +1618,6 @@ def main() -> int:
 
     if args.ensure_result:
         ensure_result_file(Path(args.ensure_result))
-        return 0
-
-    if args.mark_failed:
-        mark_result_failed(Path(args.mark_failed), args.failed_detail)
         return 0
 
     if not args.language:
