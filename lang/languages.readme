@@ -9,7 +9,9 @@ binary and runtime library for each grammar. ABI flags for
 
 The language names in languages-* are suitable for the `test-lang` script.
 The dialect names in language-variants-* are suitable for the `release`
-script.
+script. Nested grammars under `semgrep-<wrapper>/` that are not listed
+(e.g. soql/sosl under sfapex) inherit the wrapper's pin via
+`version_for_grammar_dir`.
 
 Sample bash commands iterating over languages:
 

@@ -76,6 +76,26 @@ def test_version_for_grammar_dir_delegates_to_lang_pins(tmp_path):
     assert version_for_grammar_dir(grammar_dir, lang_dir=tmp_path) == "0.26.3"
 
 
+def test_version_for_grammar_dir_inherits_wrapper_pin(tmp_path):
+    """Unlisted nested grammars (e.g. soql) inherit the semgrep-<wrapper> pin."""
+    (tmp_path / "languages-0.20.8").write_text("sfapex\n")
+    grammar_dir = tmp_path / "semgrep-sfapex" / "soql"
+    grammar_dir.mkdir(parents=True)
+    (grammar_dir / "tree-sitter.json").write_text(
+        '{"grammars": [{"name": "soql", "scope": "source.soql", "path": "."}]}'
+    )
+    assert version_for_grammar_dir(grammar_dir, lang_dir=tmp_path) == "0.20.8"
+
+
+def test_version_for_grammar_dir_unlisted_without_wrapper(tmp_path):
+    """Unlisted names outside a wrapper package still raise TsVersionError."""
+    (tmp_path / "languages-0.22.6").write_text("kotlin\n")
+    grammar_dir = tmp_path / "orphan" / "soql"
+    grammar_dir.mkdir(parents=True)
+    with pytest.raises(TsVersionError, match="not listed"):
+        version_for_grammar_dir(grammar_dir, lang_dir=tmp_path)
+
+
 @pytest.mark.parametrize(
     "script,args,expected",
     [

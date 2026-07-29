@@ -107,6 +107,32 @@ def extract_grammar_name(grammar_dir: Path) -> str:
     return name.replace("_", "-")
 
 
+def wrapper_name_from_path(grammar_dir: Path) -> str | None:
+    """Return enclosing semgrep-/tree-sitter- package name, if any."""
+    for parent in Path(grammar_dir).resolve().parents:
+        name = parent.name
+        for prefix in ("semgrep-", "tree-sitter-"):
+            if name.startswith(prefix) and len(name) > len(prefix):
+                return name[len(prefix) :]
+    return None
+
+
 def version_for_grammar_dir(grammar_dir: Path | str, lang_dir: Path | None = None) -> str:
-    """Return the tree-sitter version pinned for a grammar directory."""
-    return version_for_lang(extract_grammar_name(Path(grammar_dir)), lang_dir)
+    """Return the tree-sitter version pinned for a grammar directory.
+
+    Resolves the grammar's own name first. If that name is not listed
+    (nested co-built grammars such as soql under semgrep-sfapex), fall
+    back to the enclosing wrapper package pin.
+    """
+    path = Path(grammar_dir)
+    name = extract_grammar_name(path)
+    try:
+        return version_for_lang(name, lang_dir)
+    except TsVersionError as leaf_err:
+        wrapper = wrapper_name_from_path(path)
+        if wrapper is None or wrapper == name:
+            raise leaf_err
+        try:
+            return version_for_lang(wrapper, lang_dir)
+        except TsVersionError:
+            raise leaf_err from None
