@@ -9,9 +9,17 @@ cat ...
 ---
 
 (program
-  (command (command_name (word)))
-  (command (command_name (word)) (word))
-  (command (command_name (word)) (word)))
+  (command
+    (command_name
+      (word)))
+  (command
+    (command_name
+      (word))
+    (word))
+  (command
+    (command_name
+      (word))
+    (word)))
 
 ======================================================================
 Metavariables
@@ -24,9 +32,14 @@ $FOO
 
 (program
   (command
-    (command_name (word))
-    (simple_expansion (variable_name)))
-  (command (command_name (simple_expansion (variable_name)))))
+    (command_name
+      (word))
+    (simple_expansion
+      (variable_name)))
+  (command
+    (command_name
+      (simple_expansion
+        (variable_name)))))
 
 ======================================================================
 Simple expansion
@@ -48,7 +61,8 @@ $$A
     (command_name
       (string
         (simple_expansion
-          (special_variable_name))))))
+          (special_variable_name))
+        (string_content)))))
 
 ======================================================================
 Concatenation
@@ -79,11 +93,21 @@ ${BAR}
 ---
 
 (program
-  (command (command_name (word)) (string (expansion (variable_name))))
   (command
-    (command_name (word))
-    (expansion (variable_name)))
-  (command (command_name (expansion (variable_name)))))
+    (command_name
+      (word))
+    (string
+      (expansion
+        (variable_name))))
+  (command
+    (command_name
+      (word))
+    (expansion
+      (variable_name)))
+  (command
+    (command_name
+      (expansion
+        (variable_name)))))
 
 ======================================================================
 Metavariable matching a variable
@@ -96,13 +120,16 @@ echo ${$X#/}
 
 (program
   (command
-    (command_name (word))
-    (expansion (semgrep_metavariable)))
+    (command_name
+      (word))
+    (expansion
+      (semgrep_metavariable)))
   (command
-    (command_name (word))
+    (command_name
+      (word))
     (expansion
       (semgrep_metavariable)
-      (word))))
+      (regex))))
 
 ======================================================================
 Ellipsis in unquoted concatenation
@@ -141,10 +168,12 @@ Ellipsis in quoted concatenation
     (command_name
       (string
         (simple_expansion
-          (variable_name)))))
+          (variable_name))
+        (string_content))))
   (command
     (command_name
       (string
+        (string_content)
         (simple_expansion
           (variable_name))))))
 
@@ -162,9 +191,12 @@ esac
 
 (program
   (case_statement
-    (simple_expansion (variable_name))
-    (case_item (word))
-    (case_item (word))))
+    (simple_expansion
+      (variable_name))
+    (case_item
+      (word))
+    (case_item
+      (extglob_pattern))))
 
 ======================================================================
 For loop with metavariable and ellipsis
@@ -180,7 +212,10 @@ done
   (for_statement
     (semgrep_metavariable)
     (word)
-    (do_group (command (command_name (word))))))
+    (do_group
+      (command
+        (command_name
+          (word))))))
 
 ======================================================================
 Function definition
@@ -195,8 +230,10 @@ function $FOO() {
 (program
   (function_definition
     (semgrep_metavariable)
-    (compound_statement (command (command_name (word))))))
-
+    (compound_statement
+      (command
+        (command_name
+          (word))))))
 
 ======================================================================
 Metavariable in declaration
@@ -259,7 +296,7 @@ $X= 42 command
   (command
     (variable_assignment
       (semgrep_metavar_eq)
-      (word))
+      (number))
     (variable_assignment
       (variable_name)
       (word))
@@ -270,7 +307,7 @@ $X= 42 command
     (variable_assignment
       (semgrep_metavar_eq))
     (command_name
-      (word))
+      (number))
     (word)))
 
 ======================================================================
@@ -281,7 +318,10 @@ declare -a $ARR
 
 ---
 
-(program (declaration_command (word) (semgrep_metavariable)))
+(program
+  (declaration_command
+    (word)
+    (semgrep_metavariable)))
 
 ======================================================================
 Deep expressions
@@ -344,5 +384,7 @@ $...ARGS and more
   (command
     (command_name
       (string
+        (string_content)
         (simple_expansion
-          (semgrep_named_ellipsis))))))
+          (semgrep_named_ellipsis))
+        (string_content)))))
