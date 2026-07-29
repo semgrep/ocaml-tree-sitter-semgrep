@@ -1,6 +1,7 @@
 name: Smoke larger runner
 
 # Check access to org larger runners in "Default Larger Runners".
+# Labels are singular: ubuntu-latest-8-core (not -cores).
 on:
   push:
     paths:
@@ -13,8 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         label:
-          - ubuntu-latest-8-cores
-          - ubuntu-latest-16-cores
+          - ubuntu-latest-8-core
+          - ubuntu-latest-16-core
     runs-on:
       group: Default Larger Runners
       labels: ${{ matrix.label }}
