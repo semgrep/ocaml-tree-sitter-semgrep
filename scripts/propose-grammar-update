@@ -1109,9 +1109,10 @@ def propose(root: Path, target: Target, keep: bool = False,
     try:
         if keep:
             base = base_branch()
-            log(f"[{language}] checking out {branch} from origin/{base}")
-            run_quiet(["git", "fetch", "origin", base], cwd=root)
-            run_quiet(["git", "checkout", "-B", branch, f"origin/{base}"], cwd=root)
+            # Local one-shot: base on HEAD (pin-inherit fix) instead of
+            # origin/main so we need not push the feature branch first.
+            log(f"[{language}] checking out {branch} from HEAD (local base)")
+            run_quiet(["git", "checkout", "-B", branch, "HEAD"], cwd=root)
 
         # A non-zero bump with a MOVED submodule is expected (update-grammar's
         # own final test-lang fails on the stale snapshots we regenerate next);

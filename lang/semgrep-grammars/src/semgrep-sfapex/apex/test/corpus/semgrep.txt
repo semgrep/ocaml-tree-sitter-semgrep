@@ -41,7 +41,8 @@ public Foo(...) { }
 (parser_output
   (constructor_declaration
     (modifiers
-      (modifier))
+      (modifier
+        (public)))
     (identifier)
     (formal_parameters
       (formal_parameter
@@ -130,7 +131,8 @@ public Foo(...) {
 (parser_output
   (constructor_declaration
     (modifiers
-      (modifier))
+      (modifier
+        (public)))
     (identifier)
     (formal_parameters
       (formal_parameter
@@ -238,7 +240,7 @@ Top-level lone annotation
 Top-level lone annotation with args
 ==========================================
 
-@Annotation(param1=false, param2='hello')
+@Annotation(param1=false param2='hello')
 
 ---
 
@@ -265,8 +267,10 @@ GlObAl without sharing cLaSs $A extends $SUPER implements $I1, $I2
 
 (parser_output
   (modifiers
-    (modifier)
-    (modifier))
+    (modifier
+      (global))
+    (modifier
+      (without_sharing)))
   (identifier
     (semgrep_metavar))
   (superclass
@@ -289,8 +293,10 @@ public override void printName()
 
 (parser_output
   (modifiers
-    (modifier)
-    (modifier))
+    (modifier
+      (public))
+    (modifier
+      (override)))
   (void_type)
   (identifier)
   (formal_parameters))
@@ -347,7 +353,8 @@ tRy {
     (block
       (expression_statement
         (dml_expression
-          (dml_type)
+          (dml_type
+            (insert))
           (identifier))))))
 
 ==========================================
@@ -361,7 +368,7 @@ caTch(DmlException e) {}
 (parser_output
   (partial_catch
     (catch_clause
-      (catch_formal_parameter
+      (formal_parameter
         (type_identifier)
         (identifier))
       (block))))
@@ -433,7 +440,7 @@ catch (...) {}
   (try_statement
     (block)
     (catch_clause
-      (catch_formal_parameter
+      (formal_parameter
         (semgrep_ellipsis))
       (block))))
 
@@ -452,12 +459,14 @@ public class ClassA {
 (parser_output
   (class_declaration
     (modifiers
-      (modifier))
+      (modifier
+        (public)))
     (identifier)
     (class_body
       (method_declaration
         (modifiers
-          (modifier))
+          (modifier
+            (public)))
         (void_type)
         (identifier)
         (formal_parameters
@@ -526,15 +535,14 @@ SELECT ellipsis
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
-          (field_identifier
-            (identifier))
-          (semgrep_ellipsis))
-        (from_clause
-          (storage_identifier
-            (identifier)))))))
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier))
+        (semgrep_ellipsis))
+      (from_clause
+        (storage_identifier
+          (identifier))))))
 
 ==========================================
 SELECT metavariable
@@ -546,18 +554,17 @@ SELECT metavariable
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
-          (field_identifier
-            (identifier
-              (semgrep_metavar)))
-          (field_identifier
-            (identifier
-              (semgrep_metavar))))
-        (from_clause
-          (storage_identifier
-            (identifier)))))))
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier
+            (semgrep_metavar)))
+        (field_identifier
+          (identifier
+            (semgrep_metavar))))
+      (from_clause
+        (storage_identifier
+          (identifier))))))
 
 ==========================================
 FROM ellipsis
@@ -569,18 +576,17 @@ FROM ellipsis
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
-          (field_identifier
-            (identifier)))
-        (from_clause
-          (storage_identifier
-            (identifier))
-          (storage_identifier
-            (semgrep_ellipsis))
-          (storage_identifier
-            (identifier)))))))
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier)))
+      (from_clause
+        (storage_identifier
+          (identifier))
+        (storage_identifier
+          (semgrep_ellipsis))
+        (storage_identifier
+          (identifier))))))
 
 ==========================================
 FROM metavariable
@@ -592,15 +598,14 @@ FROM metavariable
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
-          (field_identifier
-            (identifier)))
-        (from_clause
-          (storage_identifier
-            (identifier
-              (semgrep_metavar))))))))
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier)))
+      (from_clause
+        (storage_identifier
+          (identifier
+            (semgrep_metavar)))))))
 
 ==========================================
 WHERE metavariable
@@ -612,23 +617,22 @@ WHERE metavariable
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
-          (field_identifier
-            (identifier)))
-        (from_clause
-          (storage_identifier
-            (identifier)))
-        (where_clause
-          (and_expression
-            (semgrep_metavar)
-            (comparison_expression
-              (field_identifier
-                (identifier
-                  (semgrep_metavar)))
-              (value_comparison_operator)
-              (int))))))))
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier)))
+      (from_clause
+        (storage_identifier
+          (identifier)))
+      (where_clause
+        (and_expression
+          (semgrep_metavar)
+          (comparison_expression
+            (field_identifier
+              (identifier
+                (semgrep_metavar)))
+            (value_comparison_operator)
+            (int)))))))
 
 ==========================================
 Metavariables for Apex expressions embedded in SOQL
@@ -640,22 +644,21 @@ Metavariables for Apex expressions embedded in SOQL
 
 (parser_output
   (query_expression
-    (soql_query
-      (soql_query_body
-        (select_clause
+    (soql_query_body
+      (select_clause
+        (field_identifier
+          (identifier)))
+      (from_clause
+        (storage_identifier
+          (identifier)))
+      (where_clause
+        (comparison_expression
           (field_identifier
-            (identifier)))
-        (from_clause
-          (storage_identifier
-            (identifier)))
-        (where_clause
-          (comparison_expression
-            (field_identifier
-              (identifier))
-            (value_comparison_operator)
-            (bound_apex_expression
-              (identifier
-                (semgrep_metavar)))))))))
+            (identifier))
+          (value_comparison_operator)
+          (bound_apex_expression
+            (identifier
+              (semgrep_metavar))))))))
 
 ==========================================
 Top-level method declaration
@@ -691,7 +694,6 @@ int x = 42;
       (assignment_operator)
       (int))))
 
-
 ==========================================
 Enum ellipsis
 ==========================================
@@ -711,7 +713,7 @@ enum E { ... }
 Annotation argument ellipsis
 ==========================================
 
-@SomeAnnot(..., a=b)
+@SomeAnnot(... a=b)
 
 ---
 

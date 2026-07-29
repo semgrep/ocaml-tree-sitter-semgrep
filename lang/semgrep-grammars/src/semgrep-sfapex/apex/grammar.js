@@ -36,15 +36,15 @@ module.exports = grammar(base_grammar, {
 
   rules: {
     // Entrypoint. We add alternate entrypoints for Semgrep patterns.
+    // Upstream parser_output is already repeat($.statement); statement →
+    // declaration covers method/class/etc., so don't re-list those here.
     parser_output: ($, previous) => choice(
-      // Replace repeat($.declaration) which is too limited. (need to clarify)
-      repeat($.statement),
+      previous,
 
+      // Not reachable via statement:
       $.constructor_declaration,
       $.expression,
       $.annotation,
-      $.method_declaration,
-      prec(100, $.local_variable_declaration),
 
       ///// Partial definitions
       $._class_header,
@@ -145,12 +145,6 @@ module.exports = grammar(base_grammar, {
       ),
       ")",
       field("body", $.statement)
-    ),
-
-    // catch(...) {}
-    catch_formal_parameter: ($, previous) => choice(
-      $.semgrep_ellipsis,
-      previous
     ),
 
     // class X { ... }
