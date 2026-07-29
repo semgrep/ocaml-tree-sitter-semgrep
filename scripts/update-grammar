@@ -65,6 +65,13 @@ LANGUAGE_VARIANTS = {
     "sfapex": ["apex"],
 }
 
+# Co-built grammars under a wrapper that share its tree-sitter pin but are
+# neither test-lang inputs nor release dialects (see lang/languages.readme).
+# Kept in languages-* only so version_for_grammar_dir can resolve them.
+LANGUAGE_SUBGRAMMARS = {
+    "sfapex": ["soql", "sosl"],
+}
+
 
 def die(msg: str) -> NoReturn:
     """Abort via SystemExit; .code is ``error: <msg>`` (exit status 1 if uncaught)."""
@@ -288,6 +295,9 @@ def sync_languages_membership(root: Path, list_name: str, version: str,
                               variant_version_files: dict[str, Path]) -> None:
     """Ensure `list_name` and its variants are listed in the right files."""
     sync_membership([list_name], version, version_files, root)
+    sync_membership(
+        LANGUAGE_SUBGRAMMARS.get(list_name, []), version, version_files, root,
+    )
     variants = LANGUAGE_VARIANTS.get(list_name, [list_name])
     sync_membership(variants, version, variant_version_files, root)
 

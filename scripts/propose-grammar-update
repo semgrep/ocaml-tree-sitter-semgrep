@@ -844,9 +844,13 @@ def corpus_diff(root: Path, lang: LangAndWrapper) -> str:
 
 
 def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProcess:
-    """Run `./test-lang <language>` for the authoritative pass/fail."""
+    """Run `./test-lang <wrapper>` for the authoritative pass/fail.
+
+    Uses the wrapper name (e.g. sfapex), not the CLI alias (apex): test-lang
+    cds into semgrep-<name>/.
+    """
     return subprocess.run(
-        ["./test-lang", lang.language], cwd=root / "lang",
+        ["./test-lang", lang.wrapper], cwd=root / "lang",
         text=True, capture_output=True, check=False,
     )
 
@@ -1042,8 +1046,8 @@ def language_agent_prompt(lang: LangAndWrapper, tag: str,
     signal remains the test-lang RE-RUN the caller does afterward.
     """
     return (
-        f"Use the `fix-semgrep-grammar` skill to make `test-lang {lang.language}` "
-        f"pass. Context: the tree-sitter-{lang.language} submodule was just bumped "
+        f"Use the `fix-semgrep-grammar` skill to make `test-lang {lang.wrapper}` "
+        f"pass. Context: the tree-sitter-{lang.wrapper} submodule was just bumped "
         f"to {tag} and test-lang now fails. Follow the skill's edit boundaries "
         f"and exit contract exactly; do not commit, push, or open a PR — leave "
         f"the working tree changed for the outer pipeline. Print the skill's "

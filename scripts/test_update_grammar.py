@@ -318,14 +318,40 @@ class SyncLanguagesMembershipTests(FilesystemTest):
 
     def test_alias_target_expands_to_variants(self):
         # "sfapex" (the wrapper name returned by validate_language when
-        # the user passes "apex") expands to ["apex"] in LANGUAGE_VARIANTS.
+        # the user passes "apex") expands to ["apex"] in LANGUAGE_VARIANTS
+        # and moves soql/sosl via LANGUAGE_SUBGRAMMARS.
         langs, variants = self._setup_files()
         ug.sync_languages_membership(
             self.root, "sfapex", "0.22.6",
             {"0.22.6": langs}, {"0.22.6": variants},
         )
-        self.assertEqual(ug.read_languages_entries(langs), {"sfapex"})
+        self.assertEqual(
+            ug.read_languages_entries(langs), {"sfapex", "soql", "sosl"},
+        )
         self.assertEqual(ug.read_languages_entries(variants), {"apex"})
+
+    def test_subgrammars_move_with_wrapper(self):
+        # soql/sosl share sfapex's pin but are neither test-lang nor release
+        # names; sync must drag them when the wrapper bumps.
+        old_langs = self.root / "languages-0.20.8"
+        new_langs = self.root / "languages-0.22.6"
+        old_variants = self.root / "language-variants-0.20.8"
+        new_variants = self.root / "language-variants-0.22.6"
+        old_langs.write_text("sfapex\nsoql\nsosl\n")
+        new_langs.write_text("")
+        old_variants.write_text("apex\n")
+        new_variants.write_text("")
+        ug.sync_languages_membership(
+            self.root, "sfapex", "0.22.6",
+            {"0.20.8": old_langs, "0.22.6": new_langs},
+            {"0.20.8": old_variants, "0.22.6": new_variants},
+        )
+        self.assertEqual(ug.read_languages_entries(old_langs), set())
+        self.assertEqual(
+            ug.read_languages_entries(new_langs), {"sfapex", "soql", "sosl"},
+        )
+        self.assertEqual(ug.read_languages_entries(old_variants), set())
+        self.assertEqual(ug.read_languages_entries(new_variants), {"apex"})
 
 
 class RemoveStaleParsersTests(FilesystemTest):
