@@ -1,6 +1,6 @@
 name: Smoke larger runner
 
-# One-shot check: does this repo have access to ubuntu-latest-8-cores?
+# Check access to org larger-runner labels shared to this repo.
 on:
   push:
     paths:
@@ -9,13 +9,20 @@ on:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest-8-cores
-    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest-8-cores
+          - ubuntu-latest-2x
+          - ubuntu-latest-16-cores
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
     steps:
       - name: Prove the runner started
         run: |
           set -euo pipefail
-          echo "runner labels OK"
+          echo "label=${{ matrix.runner }}"
           nproc
           free -h
           uname -a
