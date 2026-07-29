@@ -1,6 +1,6 @@
 name: Smoke larger runner
 
-# Check access to org larger-runner labels shared to this repo.
+# Check access to org larger runners in "Default Larger Runners".
 on:
   push:
     paths:
@@ -12,17 +12,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner:
+        label:
           - ubuntu-latest-8-cores
-          - ubuntu-latest-2x
           - ubuntu-latest-16-cores
-    runs-on: ${{ matrix.runner }}
+    runs-on:
+      group: Default Larger Runners
+      labels: ${{ matrix.label }}
     timeout-minutes: 10
     steps:
       - name: Prove the runner started
         run: |
           set -euo pipefail
-          echo "label=${{ matrix.runner }}"
+          echo "label=${{ matrix.label }}"
           nproc
           free -h
           uname -a
