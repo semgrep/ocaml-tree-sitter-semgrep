@@ -4,7 +4,7 @@ name: Test languages
 # `test-language` job (.circleci/config.yml, removed in #627).
 #
 # For each language from lang/scripts/list-languages, runs
-# `./test-lang <lang>`. Failures are fatal except ALLOWED_FAILURES below.
+# `./test-lang <lang>`. Failures are fatal except continue-on-error langs.
 
 on:
   pull_request:
@@ -23,29 +23,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      languages: ${{ steps.list.outputs.languages }}
+      # [{language, runner}, ...] — runner is JSON for runs-on (string or object)
+      matrix: ${{ steps.list.outputs.matrix }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: list
         run: |
           set -euo pipefail
-          langs=$(lang/scripts/list-languages | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "languages=$langs" >> "$GITHUB_OUTPUT"
+          # Heavy langs (tree-sitter generate OOM on standard ~16GB runners)
+          # need org larger runners. Label is singular: ubuntu-latest-8-core.
+          larger='{"group":"Default Larger Runners","labels":"ubuntu-latest-8-core"}'
+          matrix=$(lang/scripts/list-languages | jq -R -s -c --arg larger "$larger" '
+            split("\n")
+            | map(select(length > 0))
+            | map({
+                language: .,
+                runner: (if . == "c-sharp-pro" then $larger else "\"ubuntu-latest\"" end)
+              })
+          ')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   test-language:
     name: test-lang ${{ matrix.language }}
     needs: enumerate
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 60
     # Temporary allowlist while we unblock CI (LANG-579):
     # - bash: C++ scanner.cc → g++ rejects designated initializers in parser.c
-    # - c-sharp-pro: tree-sitter generate dies on standard runners (likely OOM)
-    continue-on-error: ${{ contains(fromJSON('["bash","c-sharp-pro"]'), matrix.language) }}
+    continue-on-error: ${{ matrix.language == 'bash' }}
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
-        language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
+        include: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
