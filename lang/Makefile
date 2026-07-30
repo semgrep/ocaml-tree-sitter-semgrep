@@ -50,11 +50,8 @@ STAT_LANGUAGES = $(STAT_LANGUAGES1) $(STAT_LANGUAGES2)
 
 # Build and test each language. Does not run parsing stats (see 'stat:').
 #
-# The language list comes from scripts/list-languages (same source
-# .github/workflows/test-languages.yml uses for the CI matrix).
-#
-# This takes a while and is intended for local full-repo testing. If you're
-# working on a single language, better just run ./test-lang.
+# Takes a while: for a single language, run ./test-lang instead. The language
+# list is the same one .github/workflows/test-languages.yml uses for its matrix.
 #
 .PHONY: test
 test:
@@ -153,18 +150,11 @@ push:
 #	A=`git rev-parse --abbrev-ref HEAD` && git checkout main && git pull &&# git branch -D $$A
 
 
-# List of all language variants.
+# Every language variant, including several from one tree-sitter project (e.g.
+# typescript and tsx), and apex rather than sfapex.
 #
-# This includes all language variants e.g. typescript and tsx that may
-# come from the same tree-sitter project.
-# Here we list apex, and not sfapex
-#
-# Derived from lang/language-variants-*.
-#
-# After updating language-variants-*, run 'make links' and update the
-# list of languages in the release readme (/doc/release.md).
-# (nothing bad will happen if you forget, though)
-#
+# After editing language-variants-*, run 'make links' and update the language
+# list in the release readme (/doc/release.md) — nothing breaks if you forget.
 SUPPORTED_DIALECTS := $(shell cat language-variants-* | sort -u)
 
 # Print the language list for the release readme (/doc/release.md).

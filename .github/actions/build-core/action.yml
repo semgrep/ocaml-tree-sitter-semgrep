@@ -10,7 +10,8 @@ runs:
     - name: Rewrite SSH submodule URLs to HTTPS
       shell: bash
       run: git config --global url."https://github.com/".insteadOf "git@github.com:"
-    - run: git submodule update --init --recursive --depth 1
+    # --jobs: ~50 grammar submodules, cloned sequentially by default.
+    - run: git submodule update --init --recursive --depth 1 --jobs 8
       shell: bash
     - run: ./core/scripts/setup-node
       shell: bash
@@ -18,7 +19,6 @@ runs:
     # first save has every version. Use restore/save (not the combined
     # action) so a later step's failure still persists the cache.
     - id: ts-versions
-      # Single source of truth; shared key across the matrix.
       shell: bash
       run: echo "versions=$(./lang/scripts/ts-versions | tr '\n' '-')" >> "$GITHUB_OUTPUT"
     - id: ts-cache

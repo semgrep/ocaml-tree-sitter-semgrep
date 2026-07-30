@@ -184,9 +184,6 @@ jobs:
           AGENT_TOKEN_CAP: ${{ inputs.agent_token_cap }}
           AGENT_TURN_CAP: ${{ inputs.agent_turn_cap }}
           DRY_RUN: ${{ inputs.dry_run }}
-          # g++ can't compile the generated parser.c of C++-scanner grammars;
-          # see the same note in test-languages.yml.
-          CXX: clang++
         run: |
           # bash -e omits pipefail; without it `| tee` hides script failures.
           set -o pipefail

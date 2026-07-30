@@ -14,21 +14,15 @@ import argparse
 from pathlib import Path
 
 
-def list_languages(lang_dir: Path) -> list[str]:
-    """Return every standalone language with a semgrep-<lang> grammar dir."""
-    sg_src = lang_dir / "semgrep-grammars" / "src"
-    names = {p.name.removeprefix("semgrep-") for p in sg_src.glob("semgrep-*") if p.is_dir()}
-    return sorted(names)
-
-
 def main() -> int:
     """Print each standalone language on its own line."""
     argparse.ArgumentParser(
         description="Print each standalone language on its own line."
     ).parse_args()
-    lang_dir = Path(__file__).resolve().parent.parent
-    for lang in list_languages(lang_dir):
-        print(lang)
+    sg_src = Path(__file__).resolve().parent.parent / "semgrep-grammars" / "src"
+    for path in sorted(sg_src.glob("semgrep-*")):
+        if path.is_dir():
+            print(path.name.removeprefix("semgrep-"))
     return 0
 
 

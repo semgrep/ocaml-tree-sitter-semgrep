@@ -22,16 +22,10 @@ runs:
           core/_build
           core/bin
         key: core-${{ runner.os }}-${{ steps.cache-id.outputs.ocaml }}-${{ steps.cache-id.outputs.sha }}
-    # Cold cache: full setup (deps + build). Warm cache: deps only (opam
-    # switch is per-job; _build/bin are restored) then install into the switch.
-    - if: steps.core-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        opam exec -- make setup
-        opam exec -- make
-    - if: steps.core-cache.outputs.cache-hit == 'true'
-      shell: bash
-      run: opam install --deps-only -y ./core
+    # 'setup' is opam deps + build; the deps are always needed (the opam switch
+    # is per-job) and the build no-ops on a warm _build.
+    - shell: bash
+      run: opam exec -- make setup
     - shell: bash
       run: opam exec -- make install
     - if: always() && steps.core-cache.outputs.cache-hit != 'true'

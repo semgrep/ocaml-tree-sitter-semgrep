@@ -23,36 +23,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      # [{language, runner}, ...] — runner is JSON for runs-on (string or object)
-      matrix: ${{ steps.list.outputs.matrix }}
+      languages: ${{ steps.list.outputs.languages }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: list
         run: |
           set -euo pipefail
-          # Heavy langs (tree-sitter generate OOM on standard ~16GB runners)
-          # need org larger runners. Label is singular: ubuntu-latest-8-core.
-          larger='{"group":"Default Larger Runners","labels":"ubuntu-latest-8-core"}'
-          matrix=$(lang/scripts/list-languages | jq -R -s -c --arg larger "$larger" '
-            split("\n")
-            | map(select(length > 0))
-            | map({
-                language: .,
-                runner: (if . == "c-sharp-pro" then $larger else "\"ubuntu-latest\"" end)
-              })
-          ')
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "languages=$(lang/scripts/list-languages | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
 
   test-language:
     name: test-lang ${{ matrix.language }}
     needs: enumerate
-    runs-on: ${{ fromJSON(matrix.runner) }}
+    # c-sharp-pro OOMs on a standard ~16GB runner during 'tree-sitter generate',
+    # so it gets an org larger runner. Label is singular: ubuntu-latest-8-core.
+    runs-on: ${{ matrix.language == 'c-sharp-pro' && fromJSON('{"group":"Default Larger Runners","labels":"ubuntu-latest-8-core"}') || 'ubuntu-latest' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
-        include: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
+        language: ${{ fromJSON(needs.enumerate.outputs.languages) }}
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
@@ -65,14 +55,6 @@ jobs:
           ocaml-compiler: "5"
       - uses: ./.github/actions/build-core
       - name: test-lang ${{ matrix.language }}
-        env:
-          # Grammars with a C++ scanner make tree-sitter compile the generated
-          # parser.c as C++ too, and g++ rejects its C99 designated
-          # initializers ("non-trivial designated initializers not supported",
-          # "designator order ... does not match declaration order"). There is
-          # no g++ flag for either; clang++ accepts both. cc-rs (used by the
-          # tree-sitter CLI loader) picks the C++ compiler from $CXX.
-          CXX: clang++
         run: |
           set -euo pipefail
           eval "$(opam env)"
