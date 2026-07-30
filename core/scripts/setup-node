@@ -3,15 +3,6 @@
 # Install Node.js needed for tree-sitter grammar generation.
 #
 
-# Nothing to do where these already ship. On GitHub Actions runners node 22
-# lives in /usr/local/bin, which precedes apt's /usr/bin/node, so installing the
-# distro package costs ~70s per job and the result is never the node that runs.
-# (python3 is only installed by the apk branch below, hence checking both.)
-if command -v node > /dev/null 2>&1 && command -v python3 > /dev/null 2>&1; then
-  echo "node is already installed: $(command -v node) ($(node --version))"
-  exit 0
-fi
-
 cat >> ~/.bashrc <<"EOF"
 export PATH="$HOME/.node/bin:$PATH"
 export NODE_PATH="$HOME/.node/lib/node_modules:$NODE_PATH"

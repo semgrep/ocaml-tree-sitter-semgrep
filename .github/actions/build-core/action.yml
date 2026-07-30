@@ -17,10 +17,13 @@ runs:
     # Nothing under lang/, core/scripts or any prep script reads them.
     - run: git submodule update --init --depth 1 --jobs 8
       shell: bash
-    - run: ./core/scripts/setup-node
-      shell: bash
-    # No clang install step: the ubuntu runner images ship clang, so setting CXX
-    # is all that is needed and that happens in
+    # No node install step: the runner images ship node (v22, ahead of the v18
+    # apt would supply), and tree-sitter generate uses whatever is on PATH.
+    # core/scripts/setup-node stays for core/Dockerfile, whose
+    # ocaml/opam:debian-12 base has no node at all.
+    #
+    # No clang install step either: the images ship clang, so setting CXX is all
+    # that is needed and that happens in
     # lang/semgrep-grammars/src/Makefile.common (g++ rejects the designated
     # initializers in a generated parser.c). If clang++ is ever absent, that
     # Makefile stops with a message rather than silently falling back to g++.
