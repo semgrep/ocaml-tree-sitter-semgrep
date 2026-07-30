@@ -10,8 +10,12 @@ runs:
     - name: Rewrite SSH submodule URLs to HTTPS
       shell: bash
       run: git config --global url."https://github.com/".insteadOf "git@github.com:"
-    # --jobs: ~50 grammar submodules, cloned sequentially by default.
-    - run: git submodule update --init --recursive --depth 1 --jobs 8
+    # --jobs: ~50 grammar submodules, cloned sequentially by default. Not
+    # --recursive: the only nested submodules are tree-sitter-bash's copy of
+    # bash-it (plus its four bats test libraries) and two spare checkouts of
+    # tree-sitter itself under tree-sitter-dart/ and tree-sitter-hcl/fuzz/.
+    # Nothing under lang/, core/scripts or any prep script reads them.
+    - run: git submodule update --init --depth 1 --jobs 8
       shell: bash
     - run: ./core/scripts/setup-node
       shell: bash
