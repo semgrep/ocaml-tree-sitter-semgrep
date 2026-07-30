@@ -16,8 +16,9 @@ runs:
     - run: ./core/scripts/setup-node
       shell: bash
     # Makefile.common defaults CXX to clang++ (g++ rejects designated
-    # initializers in generated parser.c for scanner.cc grammars). GHA
-    # ubuntu images ship g++ only.
+    # initializers in generated parser.c for scanner.cc grammars). The GHA
+    # ubuntu images do ship clang++, so this is a no-op safety net for other
+    # runners -- not a dependency the matrix relies on.
     - name: Ensure clang++ is on PATH
       shell: bash
       run: |
