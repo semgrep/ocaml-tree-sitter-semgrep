@@ -34,6 +34,15 @@ jobs:
           # and `event_name == 'pull_request' && 0 || 1` would silently be 1 --
           # 0 is falsy in a GitHub Actions expression.
           fetch-depth: 0
+      # The reference graph lives inside the upstream grammars, so without them
+      # languages-for-paths cannot narrow and falls back to the full matrix.
+      # Done by hand rather than via checkout's submodules: input because the
+      # gosu and requirements submodules use SSH URLs, unusable in keyless CI.
+      - name: Check out grammars (for the reference graph)
+        run: |
+          set -euo pipefail
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --depth 1 --jobs 8
       - id: list
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

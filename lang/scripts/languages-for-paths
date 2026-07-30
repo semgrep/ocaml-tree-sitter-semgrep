@@ -80,6 +80,21 @@ def all_languages(src: Path) -> set[str]:
     return {p.name.removeprefix("semgrep-") for p in src.glob("semgrep-*") if p.is_dir()}
 
 
+def unpopulated_grammar_dirs(src: Path) -> list[str]:
+    """Upstream dirs with no checked-out content (submodule not initialised).
+
+    Edges live inside the upstream grammars, so an uninitialised submodule makes
+    the graph silently incomplete: without tree-sitter-solidity checked out,
+    nothing records that it reads tree-sitter-c, and a tree-sitter-c bump would
+    not test solidity. Callers must treat this as "cannot narrow".
+    """
+    def has_content(d: Path) -> bool:
+        # Dotfiles only (a stray .git) does not count: nothing to read edges from.
+        return any(p.name[0] != "." for p in d.iterdir())
+
+    return sorted(d.name for d in src.glob("tree-sitter-*") if d.is_dir() and not has_content(d))
+
+
 def main() -> int:
     """Print each language needing a test run on its own line."""
     argparse.ArgumentParser(
@@ -91,10 +106,19 @@ def main() -> int:
     paths = [line.strip() for line in sys.stdin if line.strip()]
     changed_dirs = {d for p in paths if (d := grammar_dir_of(p))}
     outside = [p for p in paths if grammar_dir_of(p) is None]
+    unpopulated = unpopulated_grammar_dirs(src)
 
-    if outside or not paths:
-        why = "no changed paths given" if not paths else f"shared path {outside[0]!r}"
-        print(f"languages-for-paths: testing everything ({why})", file=sys.stderr)
+    if not paths:
+        why = "no changed paths given"
+    elif outside:
+        why = f"shared path {outside[0]!r}"
+    elif unpopulated:
+        why = f"{len(unpopulated)} uninitialised submodule(s), e.g. {unpopulated[0]}"
+    else:
+        why = None
+
+    if why:
+        print(f"languages-for-paths: selecting everything ({why})", file=sys.stderr)
         languages = all_languages(src)
     else:
         languages = affected_languages(changed_dirs, src) & all_languages(src)
