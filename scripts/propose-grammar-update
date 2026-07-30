@@ -36,9 +36,7 @@ Modes:
       Bump <language> to its latest tag, regenerate snapshots, test, and
       emit a JSON result. With --open-pr, also create the PR; --dry-run
       prints the would-be PR instead of pushing. --language-agent dispatches
-      a Cursor agent: migrate-semgrep-scanner when Semgrep still has
-      scanner.cc while upstream has scanner.c (unlocking tree-sitter >= 0.24),
-      then fix-semgrep-grammar if test-lang still fails.
+      a Cursor agent with fix-semgrep-grammar if test-lang fails.
   propose-grammar-update <language> --release [--result FILE]
       Create a PR to semgrep-<lang>. semgrep-proprietary integration is left to
       the existing Cursor workflow on that repo.
@@ -58,6 +56,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import filecmp
 import json
 import os
 import re
@@ -164,7 +163,6 @@ class Target:
     tag: str | None = None
     skip_reason: str | None = None
     resolution_note: str | None = None
-    needs_scanner_migrate: bool = False
 
 
 @dataclass
@@ -323,7 +321,14 @@ def gitmodules_url(root: Path, submodule: Path) -> str | None:
 # Cap on newer-than-current tags examined per language.
 MAX_TAGS_EXAMINED = 4
 
-# tree-sitter >= 0.24 is known to break C++ external scanners (scanner.cc).
+# tree-sitter >= 0.24 breaks C++ external scanners (scanner.cc).
+#
+# Rationale: cap only when the *upstream tag* still ships src/scanner.cc.
+# Semgrep wrappers that use prep.common only symlink that file; after a bump
+# to a tag with scanner.c, prep removes the old link and creates scanner.c.
+# There is no remaining Semgrep-owned scanner.cc fork (ruby was the only one
+# and is already on scanner.c), so we do not detect wrapper .cc, uncap via
+# --language-agent, or ship a migrate-semgrep-scanner skill.
 _CPP_SCANNER_CEILING = Version.parse("0.24.0")
 _CPP_SCANNER_CEILING_STR = str(_CPP_SCANNER_CEILING)
 
@@ -457,34 +462,23 @@ def _upstream_has_cpp_scanner(fetched: FetchedSubmodule, tag: str) -> bool:
     return fetched.tag_has_path(tag, "src/scanner.cc")
 
 
-def _semgrep_has_cpp_scanner(root: Path, lang: LangAndWrapper) -> bool:
-    """True if the semgrep extension grammar keeps a C++ scanner.
-
-    Checked on the working tree (`semgrep-<wrapper>/src/scanner.cc`): the
-    extension lives in this repo, not in the upstream submodule tag. A stale
-    C++ fork here (e.g. ruby) still forces tree-sitter < 0.24 even when
-    upstream has already moved to `scanner.c`.
-    """
-    return (lang.wrapper_dir(root) / "src" / "scanner.cc").is_file()
-
-
-def _forked_scanner_c_drift_note(root: Path, lang: LangAndWrapper) -> str | None:
-    """Report (do not fix) when a force-tracked wrapper scanner.c differs from upstream.
-
-    # TODO: Semgrep wrappers that force-track src/scanner.c (kotlin, scala, …)
-    # can drift from tree-sitter-<lang>/src/scanner.c after upstream bumps.
-    # Do not auto-sync here until we have a tested migrate/rebase path for
-    # that case; only surface it for a human.
-    """
-    wrapper_scanner = lang.wrapper_dir(root) / "src" / "scanner.c"
-    if not wrapper_scanner.is_file():
-        return None
-    # Only care about force-tracked forks (prep.common symlinks are fine).
+def _is_git_tracked(root: Path, path: Path) -> bool:
+    """True if `path` is tracked by git (e.g. force-added under a gitignored dir)."""
     tracked = git_query(
-        ["git", "ls-files", "--", str(wrapper_scanner.relative_to(root))],
+        ["git", "ls-files", "--", str(path.relative_to(root))],
         cwd=root,
     ).stdout.strip()
-    if not tracked:
+    return bool(tracked)
+
+
+# Semgrep wrappers that force-track src/scanner.c (kotlin, scala, ruby, …) can
+# drift from tree-sitter-<lang>/src/scanner.c after upstream bumps. Do not
+# auto-sync here until we have a tested migrate/rebase path for that case;
+# only surface it for a human. Prep symlinks are ignored (not git-tracked).
+def _forked_scanner_c_drift_note(root: Path, lang: LangAndWrapper) -> str | None:
+    """Report (do not fix) when a force-tracked wrapper scanner.c differs from upstream."""
+    wrapper_scanner = lang.wrapper_dir(root) / "src" / "scanner.c"
+    if not wrapper_scanner.is_file() or wrapper_scanner.is_symlink():
         return None
     upstream = (
         root / "lang" / "semgrep-grammars" / "src"
@@ -493,7 +487,9 @@ def _forked_scanner_c_drift_note(root: Path, lang: LangAndWrapper) -> str | None
     # gomod and similar may use a different upstream dir name; best-effort.
     if not upstream.is_file():
         return None
-    if wrapper_scanner.read_bytes() == upstream.read_bytes():
+    if not _is_git_tracked(root, wrapper_scanner):
+        return None
+    if filecmp.cmp(wrapper_scanner, upstream, shallow=False):
         return None
     return (
         f"semgrep-{lang.wrapper}/src/scanner.c (force-tracked) differs from "
@@ -534,7 +530,6 @@ class VersionOk:
     tag: str
     ts_version: str
     note: str | None = None
-    needs_scanner_migrate: bool = False
 
 
 @dataclass(frozen=True)
@@ -562,59 +557,18 @@ def _pick_ts_version(
     return None
 
 
-def _version_note(
-    lang: LangAndWrapper, tag: str, chosen: Version, *,
-    upstream_cpp: bool, semgrep_cpp: bool,
-    floor: Version | None,
-    scanner_migrate: bool = False,
-) -> str | None:
-    """Advisory note when the chosen pin is constrained (C++ scanner, etc.)."""
-    if scanner_migrate:
-        return (
-            f"semgrep-{lang.wrapper}/src/scanner.cc is still C++ while upstream "
-            f"{tag} ships scanner.c; building with tree-sitter {chosen}. "
-            f"Language agent will run migrate-semgrep-scanner before regenerate/"
-            f"test-lang."
-        )
-    has_cpp = upstream_cpp or semgrep_cpp
-    if not has_cpp:
+def _version_note(chosen: Version, *, upstream_cpp: bool) -> str | None:
+    """Advisory note when the chosen pin is capped by an upstream C++ scanner."""
+    if not upstream_cpp:
         return None
-    if semgrep_cpp and not upstream_cpp:
-        # Upstream moved to scanner.c but our extension still has
-        # scanner.cc -- call that out so it isn't mistaken for an
-        # upstream constraint.
-        note = (
-            f"capped to {chosen}: semgrep-{lang.wrapper}/src/scanner.cc is "
-            f"still C++ while upstream {tag} has no scanner.cc; "
-            f"requires tree-sitter < {_CPP_SCANNER_CEILING_STR}. "
-            f"Port or replace the semgrep scanner (or move the "
-            f"ellipsis feature into grammar.js) to unlock newer "
-            f"tree-sitter."
-        )
-    else:
-        where = "upstream" if upstream_cpp else f"semgrep-{lang.wrapper}"
-        note = (
-            f"capped to {chosen}: C++ external scanner (scanner.cc) "
-            f"in {where} requires tree-sitter < {_CPP_SCANNER_CEILING_STR}"
-        )
-    # Stale semgrep .cc forces < 0.24 while upstream may declare >= 0.24;
-    # we ignored that floor when picking -- surface the conflict here.
-    if (
-        semgrep_cpp and not upstream_cpp and floor is not None
-        and chosen < floor
-    ):
-        note = (
-            f"{note} Upstream declares tree-sitter-cli >= {floor}, "
-            f"which conflicts with the C++ scanner ceiling; kept the "
-            f"ceiling."
-        )
-    return note
+    return (
+        f"capped to {chosen}: C++ external scanner (scanner.cc) "
+        f"in upstream requires tree-sitter < {_CPP_SCANNER_CEILING_STR}"
+    )
 
 
 def _evaluate_tag(
     fetched: FetchedSubmodule, tag: str, tree_sitter_versions: list[Version],
-    *, semgrep_cpp: bool, lang: LangAndWrapper,
-    ignore_semgrep_cpp_ceiling: bool = False,
 ) -> VersionOk | str:
     """Try one tag: return VersionOk on success, or a skip-reason string."""
     if _requires_abi15(fetched, tag):
@@ -623,64 +577,41 @@ def _evaluate_tag(
             f"this repo builds ABI 14 only"
         )
     upstream_cpp = _upstream_has_cpp_scanner(fetched, tag)
-    scanner_migrate = (
-        ignore_semgrep_cpp_ceiling
-        and semgrep_cpp
-        and not upstream_cpp
-        and fetched.tag_has_path(tag, "src/scanner.c")
-    )
-    # Ceiling: upstream C++ always caps. Stale Semgrep .cc caps unless the
-    # language agent will migrate the scanner for this bump.
-    has_cpp_ceiling = upstream_cpp or (semgrep_cpp and not scanner_migrate)
     floor_str = _declared_min_ts_version(fetched, tag)
     floor = Version.parse(floor_str) if floor_str else None
-    # Stale Semgrep .cc without migrate: ignore upstream floor so we can still
-    # pick under the < 0.24 ceiling. When migrating, honor the floor.
-    stale_semgrep_cc = semgrep_cpp and not upstream_cpp and not scanner_migrate
-    effective_floor = None if stale_semgrep_cc else floor
-    effective_ceiling = _CPP_SCANNER_CEILING if has_cpp_ceiling else None
+    ceiling = _CPP_SCANNER_CEILING if upstream_cpp else None
     chosen = _pick_ts_version(
-        tree_sitter_versions, floor=effective_floor, ceiling=effective_ceiling,
+        tree_sitter_versions, floor=floor, ceiling=ceiling,
     )
     if chosen is None:
         constraints = []
-        if has_cpp_ceiling:
+        if upstream_cpp:
             constraints.append(
                 f"C++ scanner (needs tree-sitter < {_CPP_SCANNER_CEILING_STR})"
             )
-        if effective_floor is not None:
+        if floor is not None:
             constraints.append(
-                f"upstream's declared minimum {effective_floor}"
+                f"upstream's declared minimum {floor}"
             )
         return (
             f"{tag}: no pinned tree-sitter version satisfies "
             + " and ".join(constraints)
         )
-    note = _version_note(
-        lang, tag, chosen,
-        upstream_cpp=upstream_cpp, semgrep_cpp=semgrep_cpp,
-        floor=floor, scanner_migrate=scanner_migrate,
-    )
-    return VersionOk(
-        tag, str(chosen), note=note, needs_scanner_migrate=scanner_migrate,
-    )
+    note = _version_note(chosen, upstream_cpp=upstream_cpp)
+    return VersionOk(tag, str(chosen), note=note)
 
 
-def resolve_tag_and_version(root: Path, submodule: Path, url: str,
+def resolve_tag_and_version(submodule: Path, url: str,
                             tree_sitter_versions: list[Version],
-                            old_sha: str, lang: LangAndWrapper,
-                            *, language_agent: bool = False) -> VersionResolution:
+                            old_sha: str) -> VersionResolution:
     """Pick the newest tag newer than `old_sha` this repo can build at ABI
     14, and the best pinned tree-sitter version to build it with.
 
     Walks newer stable tags (capped at MAX_TAGS_EXAMINED), skips ABI 15,
     and picks the highest pinned lang/languages-* version compatible with
-    C++-scanner constraints (upstream tag and/or semgrep-<wrapper>) and
-    upstream's declared tree-sitter-cli floor.
-
-    With `language_agent=True`, a stale Semgrep-only scanner.cc (upstream
-    already on scanner.c) does not apply the < 0.24 ceiling — the agent
-    runs migrate-semgrep-scanner before regenerate/test-lang.
+    an upstream C++ scanner ceiling (if any) and upstream's declared
+    tree-sitter-cli floor. Prep symlinks to upstream scanners are not a
+    separate constraint — see `_CPP_SCANNER_CEILING` rationale.
     """
     fetched = FetchedSubmodule.fetch(submodule)
     if fetched is None:
@@ -694,13 +625,10 @@ def resolve_tag_and_version(root: Path, submodule: Path, url: str,
             "already at (or ahead of) the newest available upstream tag",
         )
 
-    semgrep_cpp = _semgrep_has_cpp_scanner(root, lang)
     reasons: list[str] = []
     for tag in newer.tags[:MAX_TAGS_EXAMINED]:
         outcome = _evaluate_tag(
             fetched, tag, tree_sitter_versions,
-            semgrep_cpp=semgrep_cpp, lang=lang,
-            ignore_semgrep_cpp_ceiling=language_agent,
         )
         if isinstance(outcome, VersionOk):
             return outcome
@@ -724,15 +652,13 @@ def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
 
 
 def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[Version],
-                   *, deep: bool = True, language_agent: bool = False) -> Target:
+                   *, deep: bool = True) -> Target:
     """Resolve a `Target` for `lang` without mutating anything.
 
     `deep=True` (default -- the real propose flow) resolves both tag and
     tree-sitter version via `resolve_tag_and_version`. `deep=False` (the
     cheap `is_up_to_date` pre-filter, run across every language) resolves
     only the single latest tag via one `ls-remote`, reusing the current pin.
-    `language_agent` unlocks tree-sitter >= 0.24 when only a stale Semgrep
-    scanner.cc blocks the bump (migrate runs later in propose()).
     """
     submodule = ug.submodule_path(root, lang.language)
     url = gitmodules_url(root, submodule)
@@ -746,13 +672,11 @@ def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[
         skip_reason = f"'{lang.wrapper}' is not in any lang/languages-* file"
 
     tag = ts_version = resolution_note = None
-    needs_scanner_migrate = False
     if skip_reason is None and url:
         if deep:
             old_sha = submodule_head(submodule)
             resolution = resolve_tag_and_version(
-                root, submodule, url, tree_sitter_versions, old_sha, lang,
-                language_agent=language_agent,
+                submodule, url, tree_sitter_versions, old_sha,
             )
             if isinstance(resolution, VersionErr):
                 skip_reason = resolution.error
@@ -760,7 +684,6 @@ def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[
                 tag, ts_version, resolution_note = (
                     resolution.tag, resolution.ts_version, resolution.note,
                 )
-                needs_scanner_migrate = resolution.needs_scanner_migrate
         else:
             tag = latest_stable_tag(url)
             ts_version = current_ts_version
@@ -769,7 +692,6 @@ def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[
         lang=lang, submodule=submodule,
         ts_version=ts_version, url=url, tag=tag, skip_reason=skip_reason,
         resolution_note=resolution_note,
-        needs_scanner_migrate=needs_scanner_migrate,
     )
 
 
@@ -1100,20 +1022,6 @@ def open_pr(root: Path, target: Target, result: Result,
     return result
 
 
-def migrate_scanner_prompt(lang: LangAndWrapper, tag: str) -> str:
-    """Prompt for migrate-semgrep-scanner before regenerate/test-lang."""
-    return (
-        f"Use the `migrate-semgrep-scanner` skill for language `{lang.language}` "
-        f"(wrapper semgrep-{lang.wrapper}). Context: tree-sitter-{lang.language} "
-        f"was just bumped to {tag}; semgrep-{lang.wrapper}/src/scanner.cc is still "
-        f"C++ while upstream ships scanner.c, and we are building with tree-sitter "
-        f">= 0.24. Follow the skill's edit boundaries and exit contract exactly; "
-        f"do not commit, push, or open a PR — leave the working tree changed for "
-        f"the outer pipeline. Print the skill's final MIGRATE-SEMGREP-SCANNER "
-        f"status line."
-    )
-
-
 def language_agent_prompt(lang: LangAndWrapper, tag: str,
                         test_log: str) -> str:
     """Prompt that drives the `fix-semgrep-grammar` skill.
@@ -1148,16 +1056,10 @@ def _dispatch_language_agent(
         timeout_seconds=agent_timeout,
         token_cap=agent_token_cap, turn_cap=agent_turn_cap,
     )
-    # Sum across migrate + fix phases when both run.
-    result.agent_input_tokens = (
-        (result.agent_input_tokens or 0) + agent_result.input_tokens
-    )
-    result.agent_output_tokens = (
-        (result.agent_output_tokens or 0) + agent_result.output_tokens
-    )
-    result.agent_turns = (result.agent_turns or 0) + agent_result.turns
-    if agent_result.capped_reason:
-        result.agent_capped_reason = agent_result.capped_reason
+    result.agent_input_tokens = agent_result.input_tokens
+    result.agent_output_tokens = agent_result.output_tokens
+    result.agent_turns = agent_result.turns
+    result.agent_capped_reason = agent_result.capped_reason
 
 
 def propose(root: Path, target: Target, keep: bool = False,
@@ -1168,16 +1070,14 @@ def propose(root: Path, target: Target, keep: bool = False,
     """Run the full single-language propose flow; return a Result.
 
     Bumps to the latest tag, regenerates snapshots, runs test-lang, and
-    classifies the outcome. With `language_agent=True`:
-      - If `target.needs_scanner_migrate`, run migrate-semgrep-scanner after
-        the submodule bump and before regenerate/test-lang.
-      - On a test-lang failure, run fix-semgrep-grammar, then re-test.
-    With the default `language_agent=False` failures are reported as-is — no
-    Cursor agent is ever launched unless the caller opted in. With
-    `keep=True`, the work is done on the grammar-update branch (forked from
-    origin/main) and the validated tree is committed there for open_pr() to
-    push — no re-bump, no second agent run. With keep=False (classify-only),
-    the working tree is reset before returning.
+    classifies the outcome. With `language_agent=True`, on a test-lang
+    failure run fix-semgrep-grammar, then re-test. With the default
+    `language_agent=False` failures are reported as-is — no Cursor agent is
+    ever launched unless the caller opted in. With `keep=True`, the work is
+    done on the grammar-update branch (forked from origin/main) and the
+    validated tree is committed there for open_pr() to push — no re-bump, no
+    second agent run. With keep=False (classify-only), the working tree is
+    reset before returning.
     Does NOT create a PR — that's the caller's job under --open-pr.
     """
     lang = target.lang
@@ -1237,23 +1137,6 @@ def propose(root: Path, target: Target, keep: bool = False,
             result.status = STATUS_NO_OP
             step(f"already at {tag}; no-op")
             return result
-
-        if language_agent and target.needs_scanner_migrate:
-            step("dispatching migrate-semgrep-scanner (stale Semgrep scanner.cc)")
-            _dispatch_language_agent(
-                root, result, migrate_scanner_prompt(lang, tag),
-                label=f"{language}-migrate-scanner", verbose=verbose,
-                agent_timeout=agent_timeout, agent_token_cap=agent_token_cap,
-                agent_turn_cap=agent_turn_cap,
-            )
-            if _semgrep_has_cpp_scanner(root, lang):
-                result.status = STATUS_FAILED
-                result.detail = (
-                    "migrate-semgrep-scanner left semgrep-"
-                    f"{lang.wrapper}/src/scanner.cc in place"
-                )
-                step(result.detail)
-                return result
 
         drift = _forked_scanner_c_drift_note(root, lang)
         if drift:
@@ -1610,10 +1493,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--language-agent", action="store_true",
-        help="Dispatch a Cursor agent: migrate-semgrep-scanner when Semgrep "
-             "still has scanner.cc while upstream has scanner.c (also unlocks "
-             "tree-sitter >= 0.24 for that case); then fix-semgrep-grammar if "
-             "test-lang fails. OFF by default (needs CURSOR_API_KEY).",
+        help="Dispatch a Cursor agent with fix-semgrep-grammar if test-lang "
+             "fails. OFF by default (needs CURSOR_API_KEY).",
     )
     parser.add_argument(
         "--verbose", action="store_true",
@@ -1743,10 +1624,7 @@ def main() -> int:
 
         # Determine what to update the language to.
         lang = LangAndWrapper(language=args.language, wrapper=wrapper)
-        target = resolve_target(
-            root, lang, tree_sitter_versions,
-            language_agent=args.language_agent,
-        )
+        target = resolve_target(root, lang, tree_sitter_versions)
 
         if args.resolve_tag_only:
             if target.tag is None:
