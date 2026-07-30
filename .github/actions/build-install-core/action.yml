@@ -1,8 +1,18 @@
 name: Build and install ocaml-tree-sitter core
 description: >
   opam-deps + build + install of ocaml-tree-sitter core, with a core/_build
-  and core/bin cache keyed by OS, ocamlc version, and core tree SHA. Assumes
-  checkout and an OCaml/opam setup already ran.
+  and core/bin cache keyed by OS, ocamlc version, and core tree SHA.
+
+  Deliberately does NOT run setup-ocaml: each caller picks its own compiler
+  (ci.yml wants ocaml-variants+flambda, the language matrix wants "5"), and the
+  switch has to be set up once per job before this runs. Callers invoke
+  setup-ocaml themselves; this action assumes checkout and that setup are done.
+
+  Now that setup-ocaml caches the switch (save-opam-post-run), `make setup`
+  costs ~2s instead of ~120s here. What is left is `make install`, which must
+  run every time because the switch cache key covers the dependency set rather
+  than the core tree SHA, so a restored switch can hold a stale
+  ocaml-tree-sitter -- plus the core/_build cache that keeps dune incremental.
 runs:
   using: composite
   steps:

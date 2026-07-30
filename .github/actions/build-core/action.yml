@@ -15,19 +15,11 @@ runs:
       shell: bash
     - run: ./core/scripts/setup-node
       shell: bash
-    # Makefile.common defaults CXX to clang++ (g++ rejects designated
-    # initializers in generated parser.c for scanner.cc grammars). The GHA
-    # ubuntu images do ship clang++, so this is a no-op safety net for other
-    # runners -- not a dependency the matrix relies on.
-    - name: Ensure clang++ is on PATH
-      shell: bash
-      run: |
-        set -euo pipefail
-        if command -v clang++ >/dev/null 2>&1; then
-          exit 0
-        fi
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends clang
+    # No clang install step: the ubuntu runner images ship clang, so setting CXX
+    # is all that is needed and that happens in
+    # lang/semgrep-grammars/src/Makefile.common (g++ rejects the designated
+    # initializers in a generated parser.c). If clang++ is ever absent, that
+    # Makefile stops with a message rather than silently falling back to g++.
     # Tree-sitter pins shared across the matrix. Provision all pins so the
     # first save has every version. Use restore/save (not the combined
     # action) so a later step's failure still persists the cache.
