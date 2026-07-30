@@ -21,10 +21,6 @@ jobs:
 
       # ocp-indent (used by the pre-commit-ocaml hook) comes from opam.
       #
-      # Same pin as the other workflows: v3.4.3 does not declare
-      # save-opam-post-run, so the input below was silently dropped here too and
-      # this switch was never cached.
-      #
       # cache-prefix deliberately does NOT include hashFiles('core/*.opam'):
       # this job installs ocp-indent only, not core's dependencies, so it must
       # not share a cached switch with the workflows that build core.
