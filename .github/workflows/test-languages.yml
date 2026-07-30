@@ -4,7 +4,7 @@ name: Test languages
 # `test-language` job (.circleci/config.yml, removed in #627).
 #
 # For each language from lang/scripts/list-languages, runs
-# `./test-lang <lang>`. Failures are fatal except continue-on-error langs.
+# `./test-lang <lang>`. All failures are fatal.
 
 on:
   pull_request:
@@ -48,9 +48,6 @@ jobs:
     needs: enumerate
     runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 60
-    # Temporary allowlist while we unblock CI (LANG-579):
-    # - bash: C++ scanner.cc → g++ rejects designated initializers in parser.c
-    continue-on-error: ${{ matrix.language == 'bash' }}
     strategy:
       fail-fast: false
       max-parallel: 8
@@ -68,6 +65,14 @@ jobs:
           ocaml-compiler: "5"
       - uses: ./.github/actions/build-core
       - name: test-lang ${{ matrix.language }}
+        env:
+          # Grammars with a C++ scanner make tree-sitter compile the generated
+          # parser.c as C++ too, and g++ rejects its C99 designated
+          # initializers ("non-trivial designated initializers not supported",
+          # "designator order ... does not match declaration order"). There is
+          # no g++ flag for either; clang++ accepts both. cc-rs (used by the
+          # tree-sitter CLI loader) picks the C++ compiler from $CXX.
+          CXX: clang++
         run: |
           set -euo pipefail
           eval "$(opam env)"
