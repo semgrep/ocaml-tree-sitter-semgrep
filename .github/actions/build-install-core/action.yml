@@ -1,0 +1,46 @@
+name: Build and install ocaml-tree-sitter core
+description: >
+  opam-deps + build + install of ocaml-tree-sitter core, with a core/_build
+  and core/bin cache keyed by OS, ocamlc version, and core tree SHA.
+
+  Deliberately does NOT run setup-ocaml: each caller picks its own compiler, and the
+  switch has to be set up once per job before this runs. Callers invoke
+  setup-ocaml themselves; this action assumes checkout and that setup are done.
+
+  Now that setup-ocaml caches the switch (save-opam-post-run), making `make setup`
+  much faster. What is left is `make install`, which must
+  run every time because the switch cache key covers the dependency set rather
+  than the core tree SHA, so a restored switch could hold a stale
+  ocaml-tree-sitter -- plus the core/_build cache that keeps dune incremental.
+runs:
+  using: composite
+  steps:
+    # Include ocamlc version so flambda (ci.yml) and plain 5.x (language CI)
+    # do not share incompatible _build artifacts.
+    - id: cache-id
+      shell: bash
+      run: |
+        echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+        echo "ocaml=$(opam exec -- ocamlc -version)" >> "$GITHUB_OUTPUT"
+    - id: core-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        # _build for dune; bin/ for the promoted ocaml-tree-sitter binary
+        # (lang/ looks at core/bin, not _build).
+        path: |
+          core/_build
+          core/bin
+        key: core-${{ runner.os }}-${{ steps.cache-id.outputs.ocaml }}-${{ steps.cache-id.outputs.sha }}
+    # 'setup' is opam deps + build; the deps are always needed (the opam switch
+    # is per-job) and the build no-ops on a warm _build.
+    - shell: bash
+      run: opam exec -- make setup
+    - shell: bash
+      run: opam exec -- make install
+    - if: always() && steps.core-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          core/_build
+          core/bin
+        key: core-${{ runner.os }}-${{ steps.cache-id.outputs.ocaml }}-${{ steps.cache-id.outputs.sha }}

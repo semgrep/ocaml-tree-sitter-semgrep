@@ -20,9 +20,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # ocp-indent (used by the pre-commit-ocaml hook) comes from opam.
-      - uses: semgrep/setup-ocaml@c2ac55606cc5210616c16d57ce5b4ce80a957dde # v3.4.3
+      #
+      # cache-prefix deliberately does NOT include hashFiles('core/*.opam'):
+      # this job installs ocp-indent only, not core's dependencies, so it must
+      # not share a cached switch with the workflows that build core.
+      - uses: semgrep/setup-ocaml@a739c5405d73c42ef15a9dc995efc0f87396cc36
         with:
-          cache-prefix: v5
+          cache-prefix: v5-ocp-indent
           ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
           opam-pin: false
           save-opam-post-run: true

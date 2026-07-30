@@ -1,0 +1,42 @@
+name: Build ocaml-tree-sitter core
+description: >
+  Init submodules, provision every pinned tree-sitter version, and build +
+  install ocaml-tree-sitter core, with caching (LANG-625). Assumes checkout
+  and setup-ocaml already ran.
+runs:
+  using: composite
+  steps:
+    # SSH-only submodules (gosu, requirements) need HTTPS in keyless CI.
+    - name: Rewrite SSH submodule URLs to HTTPS
+      shell: bash
+      run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+    # --jobs: ~50 grammar submodules, cloned sequentially by default. Not
+    # --recursive: the only nested submodules are tree-sitter-bash's copy of
+    # bash-it and two spare checkouts of tree-sitter itself under 
+    # tree-sitter-dart/ and tree-sitter-hcl/fuzz/.
+    # Nothing under lang/, core/scripts or any prep script reads them.
+    - run: git submodule update --init --depth 1 --jobs 8
+      shell: bash
+    # NB the runner images ship node and clang. If clang++ is ever absent, the
+    # test-lang process stops with a message rather than silently falling back to g++.
+    
+    # Tree-sitter pins shared across the matrix. Provision all pins so the
+    # first save has every version. Use restore/save (not the combined
+    # action) so a later step's failure still persists the cache.
+    - id: ts-versions
+      shell: bash
+      run: echo "versions=$(./lang/scripts/ts-versions | tr '\n' '-')" >> "$GITHUB_OUTPUT"
+    - id: ts-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        # Semver installs only (tree-sitter-0.x.y) — not tree-sitter-out/repo.
+        path: core/tree-sitter-*.*.*
+        key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
+    - run: ./core/scripts/provision-tree-sitter-all
+      shell: bash
+    - if: steps.ts-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: core/tree-sitter-*.*.*
+        key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
+    - uses: ./.github/actions/build-install-core

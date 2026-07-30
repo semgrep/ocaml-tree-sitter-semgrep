@@ -12,6 +12,19 @@ LANG_SCRIPTS = $(PROJECT_ROOT)/lang/scripts
 NODE_PATH := $(PROJECT_ROOT)/lang/semgrep-grammars/src:$(NODE_PATH)
 export NODE_PATH
 
+# 'tree-sitter test' compiles the *generated* parser.c as C++ whenever the
+# grammar has a scanner.cc, and g++ rejects its C99 designated initializers
+# ("non-trivial designated initializers not supported", "designator order ...
+# does not match declaration order") with no flag to opt out; clang++ accepts
+# them. `?=` cannot work here: make predefines CXX, hence the origin test.
+ifeq ($(origin CXX),default)
+  ifeq ($(shell command -v clang++ >/dev/null 2>&1 && echo yes),)
+    $(error CXX defaults to clang++ (needed for scanner.cc grammars) but clang++ is not on PATH; install clang or set CXX)
+  endif
+  CXX := clang++
+endif
+export CXX
+
 # Per-grammar build. The tree-sitter binary comes from the version directory
 # that owns the grammar. ABI selection:
 #   - ABI 15 only when the grammar ships a tree-sitter.json AND ABI 15 is
