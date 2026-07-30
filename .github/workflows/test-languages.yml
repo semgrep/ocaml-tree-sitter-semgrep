@@ -3,8 +3,11 @@ name: Test languages
 # Per-language grammar build/test matrix. Replaces the former CircleCI
 # `test-language` job (.circleci/config.yml, removed in #627).
 #
-# For each language from lang/scripts/list-languages, runs
-# `./test-lang <lang>`. All failures are fatal.
+# For each language, runs `./test-lang <lang>`. All failures are fatal.
+#
+# On a pull request the matrix is narrowed to the languages the diff can affect
+# (lang/scripts/languages-for-paths); pushes to main and manual runs always test
+# everything, so main is never partially verified.
 
 on:
   pull_request:
@@ -26,14 +29,33 @@ jobs:
       languages: ${{ steps.list.outputs.languages }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Need the merge base to diff a pull request against its target.
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
       - id: list
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          echo "languages=$(lang/scripts/list-languages | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # ...HEAD (merge base) so unrelated commits on the target branch do
+            # not widen the matrix.
+            git diff --name-only "$BASE_SHA...HEAD" > /tmp/changed
+            wc -l < /tmp/changed | xargs echo "changed files:"
+            langs=$(lang/scripts/languages-for-paths < /tmp/changed)
+          else
+            langs=$(lang/scripts/list-languages)
+          fi
+          echo "selected $(echo "$langs" | grep -c . || true) language(s):"
+          echo "$langs"
+          echo "languages=$(echo "$langs" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
 
   test-language:
     name: test-lang ${{ matrix.language }}
     needs: enumerate
+    # An empty selection (e.g. a docs-only PR) would otherwise be an invalid
+    # matrix; skipping is accepted by the gate below.
+    if: needs.enumerate.outputs.languages != '[]'
     # c-sharp-pro OOMs on a standard ~16GB runner during 'tree-sitter generate',
     # so it gets an org larger runner. Label is singular: ubuntu-latest-8-core.
     runs-on: ${{ matrix.language == 'c-sharp-pro' && fromJSON('{"group":"Default Larger Runners","labels":"ubuntu-latest-8-core"}') || 'ubuntu-latest' }}
@@ -73,12 +95,21 @@ jobs:
   # Single required check for branch protection (matrix expands to many jobs).
   test-languages:
     name: Test languages
-    needs: test-language
+    needs: [enumerate, test-language]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: All languages passed
+      - name: All selected languages passed
         run: |
+          set -euo pipefail
           result="${{ needs.test-language.result }}"
+          selected='${{ needs.enumerate.outputs.languages }}'
+          echo "selected: $selected"
           echo "matrix result: $result"
-          test "$result" = "success"
+          # 'skipped' is only acceptable when nothing was selected -- otherwise a
+          # skipped matrix would silently pass this required check.
+          if [ "$result" = "skipped" ]; then
+            test "$selected" = "[]"
+          else
+            test "$result" = "success"
+          fi

@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+#
+# Print the languages that need testing given a list of changed file paths
+# (one per line on stdin, as produced by `git diff --name-only`).
+#
+# Fail-safe by design: anything this script does not understand means "test
+# everything". A change confined to grammar directories under
+# lang/semgrep-grammars/src is narrowed to the affected languages; any other
+# path (core/, lang/Makefile*, lang/scripts/, .github/, ...) can affect every
+# language, so the full list is printed.
+#
+# Narrowing follows the grammar reference graph rather than the directory name,
+# because grammars read each other: bumping tree-sitter-c must also test cpp
+# and solidity, and tree-sitter-c-sharp must also test c-sharp-pro. Edges are
+# read out of the grammars themselves (a "tree-sitter-<x>" token in a
+# grammar.js or prep) so the graph cannot drift from reality.
+#
+# Usage: git diff --name-only BASE...HEAD | languages-for-paths
+#
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+GRAMMARS_SUBDIR = "lang/semgrep-grammars/src"
+
+# A grammar dir that is tooling, not a grammar: appears in package.json
+# devDependencies of nearly every upstream grammar.
+NOT_A_GRAMMAR = {"cli"}
+
+GRAMMAR_REF = re.compile(r"tree-sitter-([a-z0-9_-]+)")
+
+
+def grammar_dir_of(path: str) -> str | None:
+    """Return the 'semgrep-x'/'tree-sitter-x' dir a repo path sits in, if any."""
+    parts = Path(path).parts
+    prefix = Path(GRAMMARS_SUBDIR).parts
+    if len(parts) <= len(prefix) or parts[: len(prefix)] != prefix:
+        return None
+    name = parts[len(prefix)]
+    return name if name.startswith(("semgrep-", "tree-sitter-")) else None
+
+
+def read_edges(src: Path) -> dict[str, set[str]]:
+    """Map 'tree-sitter-<x>' -> dirs whose grammar.js/prep reference it."""
+    readers = defaultdict(set)
+    for d in src.glob("*/"):
+        if not d.name.startswith(("semgrep-", "tree-sitter-")):
+            continue
+        for f in [*d.rglob("grammar.js"), *d.rglob("prep")]:
+            try:
+                text = f.read_text(errors="ignore")
+            except OSError:
+                continue
+            for ref in GRAMMAR_REF.findall(text):
+                if ref in NOT_A_GRAMMAR or f"tree-sitter-{ref}" == d.name:
+                    continue
+                readers[f"tree-sitter-{ref}"].add(d.name)
+    return readers
+
+
+def affected_languages(changed_dirs: set[str], src: Path) -> set[str]:
+    """Languages to test, following grammar references transitively."""
+    readers = read_edges(src)
+    seen, queue = set(), list(changed_dirs)
+    while queue:
+        d = queue.pop()
+        if d in seen:
+            continue
+        seen.add(d)
+        queue.extend(readers.get(d, set()) - seen)
+    # Only semgrep-<lang> dirs name a testable language.
+    return {d.removeprefix("semgrep-") for d in seen if d.startswith("semgrep-")}
+
+
+def all_languages(src: Path) -> set[str]:
+    return {p.name.removeprefix("semgrep-") for p in src.glob("semgrep-*") if p.is_dir()}
+
+
+def main() -> int:
+    """Print each language needing a test run on its own line."""
+    argparse.ArgumentParser(
+        description="Print the languages needing tests for the changed paths on stdin."
+    ).parse_args()
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    src = repo_root / GRAMMARS_SUBDIR
+
+    paths = [line.strip() for line in sys.stdin if line.strip()]
+    changed_dirs = {d for p in paths if (d := grammar_dir_of(p))}
+    outside = [p for p in paths if grammar_dir_of(p) is None]
+
+    if outside or not paths:
+        why = "no changed paths given" if not paths else f"shared path {outside[0]!r}"
+        print(f"languages-for-paths: testing everything ({why})", file=sys.stderr)
+        languages = all_languages(src)
+    else:
+        languages = affected_languages(changed_dirs, src) & all_languages(src)
+
+    for lang in sorted(languages):
+        print(lang)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
