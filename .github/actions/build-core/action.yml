@@ -14,18 +14,9 @@ runs:
       shell: bash
     - run: ./core/scripts/setup-node
       shell: bash
-    # Split caches: core/_build keyed by core SHA; tree-sitter pins shared.
-    # Provision all pins so the first save has every version. Use
-    # restore/save (not the combined action) so a later step's failure
-    # still persists the tree-sitter cache.
-    - id: core-sha
-      shell: bash
-      run: echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
-    - id: core-cache
-      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      with:
-        path: core/_build
-        key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+    # Tree-sitter pins shared across the matrix. Provision all pins so the
+    # first save has every version. Use restore/save (not the combined
+    # action) so a later step's failure still persists the cache.
     - id: ts-versions
       # Single source of truth; shared key across the matrix.
       shell: bash
@@ -43,14 +34,4 @@ runs:
       with:
         path: core/tree-sitter-*.*.*
         key: tree-sitter-${{ runner.os }}-${{ steps.ts-versions.outputs.versions }}
-    - run: opam exec -- make setup
-      shell: bash
-    - run: opam exec -- make
-      shell: bash
-    - run: opam exec -- make install
-      shell: bash
-    - if: always() && steps.core-cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      with:
-        path: core/_build
-        key: core-${{ runner.os }}-${{ steps.core-sha.outputs.sha }}
+    - uses: ./.github/actions/build-install-core

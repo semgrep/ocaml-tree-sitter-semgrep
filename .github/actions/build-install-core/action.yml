@@ -1,0 +1,43 @@
+name: Build and install ocaml-tree-sitter core
+description: >
+  opam-deps + build + install of ocaml-tree-sitter core, with a core/_build
+  and core/bin cache keyed by OS, ocamlc version, and core tree SHA. Assumes
+  checkout and an OCaml/opam setup already ran.
+runs:
+  using: composite
+  steps:
+    # Include ocamlc version so flambda (ci.yml) and plain 5.x (language CI)
+    # do not share incompatible _build artifacts.
+    - id: cache-id
+      shell: bash
+      run: |
+        echo "sha=$(git rev-parse HEAD:core)" >> "$GITHUB_OUTPUT"
+        echo "ocaml=$(opam exec -- ocamlc -version)" >> "$GITHUB_OUTPUT"
+    - id: core-cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        # _build for dune; bin/ for the promoted ocaml-tree-sitter binary
+        # (lang/ looks at core/bin, not _build).
+        path: |
+          core/_build
+          core/bin
+        key: core-${{ runner.os }}-${{ steps.cache-id.outputs.ocaml }}-${{ steps.cache-id.outputs.sha }}
+    # Cold cache: full setup (deps + build). Warm cache: deps only (opam
+    # switch is per-job; _build/bin are restored) then install into the switch.
+    - if: steps.core-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        opam exec -- make setup
+        opam exec -- make
+    - if: steps.core-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: opam install --deps-only -y ./core
+    - shell: bash
+      run: opam exec -- make install
+    - if: always() && steps.core-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          core/_build
+          core/bin
+        key: core-${{ runner.os }}-${{ steps.cache-id.outputs.ocaml }}-${{ steps.cache-id.outputs.sha }}

@@ -35,14 +35,7 @@ jobs:
           rustup default stable
           rustup update
 
-      - name: Install OCaml dependencies
-        run: opam install --deps-only -y ./core
-
-      - name: Build
-        run: opam exec -- make
-
-      - name: Install
-        run: opam exec -- make install
+      - uses: ./.github/actions/build-install-core
 
       - name: Test
         run: opam exec -- make test
