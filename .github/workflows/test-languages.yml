@@ -30,8 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Need the merge base to diff a pull request against its target.
-          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
+          # Unconditional: a pull request needs the merge base to diff against,
+          # and `event_name == 'pull_request' && 0 || 1` would silently be 1 --
+          # 0 is falsy in a GitHub Actions expression.
+          fetch-depth: 0
       - id: list
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -39,8 +41,12 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # ...HEAD (merge base) so unrelated commits on the target branch do
-            # not widen the matrix.
-            git diff --name-only "$BASE_SHA...HEAD" > /tmp/changed
+            # not widen the matrix. An unusable base is not fatal: an empty file
+            # makes languages-for-paths select everything.
+            if ! git diff --name-only "$BASE_SHA...HEAD" > /tmp/changed; then
+              echo "could not diff against $BASE_SHA; selecting everything" >&2
+              : > /tmp/changed
+            fi
             wc -l < /tmp/changed | xargs echo "changed files:"
             langs=$(lang/scripts/languages-for-paths < /tmp/changed)
           else
