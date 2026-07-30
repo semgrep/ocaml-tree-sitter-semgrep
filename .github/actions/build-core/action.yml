@@ -15,6 +15,18 @@ runs:
       shell: bash
     - run: ./core/scripts/setup-node
       shell: bash
+    # Makefile.common defaults CXX to clang++ (g++ rejects designated
+    # initializers in generated parser.c for scanner.cc grammars). GHA
+    # ubuntu images ship g++ only.
+    - name: Ensure clang++ is on PATH
+      shell: bash
+      run: |
+        set -euo pipefail
+        if command -v clang++ >/dev/null 2>&1; then
+          exit 0
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends clang
     # Tree-sitter pins shared across the matrix. Provision all pins so the
     # first save has every version. Use restore/save (not the combined
     # action) so a later step's failure still persists the cache.

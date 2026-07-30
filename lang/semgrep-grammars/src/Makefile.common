@@ -18,6 +18,9 @@ export NODE_PATH
 # does not match declaration order") with no flag to opt out; clang++ accepts
 # them. `?=` cannot work here: make predefines CXX, hence the origin test.
 ifeq ($(origin CXX),default)
+  ifeq ($(shell command -v clang++ >/dev/null 2>&1 && echo yes),)
+    $(error CXX defaults to clang++ (needed for scanner.cc grammars) but clang++ is not on PATH; install clang or set CXX)
+  endif
   CXX := clang++
 endif
 export CXX
