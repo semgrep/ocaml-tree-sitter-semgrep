@@ -132,13 +132,15 @@ jobs:
           fetch-depth: 0
       # Install OCaml + opam directly (the old returntocorp/ocaml image is
       # not pullable from Actions). setup-ocaml provides the toolchain the
-      # `make setup/make/make install` build needs. Fork + save-opam-post-run:
-      # see the note in test-languages.yml.
+      # `make setup/make/make install` build needs. Fork + save-opam-post-run,
+      # and inputs kept identical to ci.yml / test-languages.yml so all three
+      # share one cached switch: see the note in test-languages.yml.
       - uses: semgrep/setup-ocaml@a739c5405d73c42ef15a9dc995efc0f87396cc36
         with:
-          ocaml-compiler: "5"
+          cache-prefix: v5-${{ hashFiles('core/*.opam') }}
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
+          opam-pin: false
           save-opam-post-run: true
-          cache-prefix: v3-${{ hashFiles('core/*.opam') }}
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
@@ -268,9 +270,10 @@ jobs:
       - if: steps.gate.outputs.go == 'true'
         uses: semgrep/setup-ocaml@a739c5405d73c42ef15a9dc995efc0f87396cc36
         with:
-          ocaml-compiler: "5"
+          cache-prefix: v5-${{ hashFiles('core/*.opam') }}
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
+          opam-pin: false
           save-opam-post-run: true
-          cache-prefix: v3-${{ hashFiles('core/*.opam') }}
       - if: steps.gate.outputs.go == 'true'
         name: Set up GPG signing
         env:

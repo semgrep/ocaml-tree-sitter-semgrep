@@ -59,11 +59,18 @@ jobs:
       # stale switch forever.
       # Untagged: every semgrep/setup-ocaml release predates save-opam-post-run.
       # This is the same pin semgrep-proprietary uses.
+      #
+      # Keep these four inputs identical to ci.yml and propose-grammar-updates.
+      # One compiler across the repo means core is validated on the same OCaml
+      # the grammar matrix uses, and -- because the opam cache key is
+      # cache-prefix + toolchain -- all three workflows share one cached switch
+      # instead of each building its own.
       - uses: semgrep/setup-ocaml@a739c5405d73c42ef15a9dc995efc0f87396cc36
         with:
-          ocaml-compiler: "5"
+          cache-prefix: v5-${{ hashFiles('core/*.opam') }}
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda
+          opam-pin: false
           save-opam-post-run: true
-          cache-prefix: v3-${{ hashFiles('core/*.opam') }}
       - uses: ./.github/actions/build-core
       - name: test-lang ${{ matrix.language }}
         run: |
