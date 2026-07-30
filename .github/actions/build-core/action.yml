@@ -12,21 +12,14 @@ runs:
       run: git config --global url."https://github.com/".insteadOf "git@github.com:"
     # --jobs: ~50 grammar submodules, cloned sequentially by default. Not
     # --recursive: the only nested submodules are tree-sitter-bash's copy of
-    # bash-it (plus its four bats test libraries) and two spare checkouts of
-    # tree-sitter itself under tree-sitter-dart/ and tree-sitter-hcl/fuzz/.
+    # bash-it and two spare checkouts of tree-sitter itself under 
+    # tree-sitter-dart/ and tree-sitter-hcl/fuzz/.
     # Nothing under lang/, core/scripts or any prep script reads them.
     - run: git submodule update --init --depth 1 --jobs 8
       shell: bash
-    # No node install step: the runner images ship node (v22, ahead of the v18
-    # apt would supply), and tree-sitter generate uses whatever is on PATH.
-    # core/scripts/setup-node stays for core/Dockerfile, whose
-    # ocaml/opam:debian-12 base has no node at all.
-    #
-    # No clang install step either: the images ship clang, so setting CXX is all
-    # that is needed and that happens in
-    # lang/semgrep-grammars/src/Makefile.common (g++ rejects the designated
-    # initializers in a generated parser.c). If clang++ is ever absent, that
-    # Makefile stops with a message rather than silently falling back to g++.
+    # NB the runner images ship node and clang. If clang++ is ever absent, the
+    # test-lang process stops with a message rather than silently falling back to g++.
+    
     # Tree-sitter pins shared across the matrix. Provision all pins so the
     # first save has every version. Use restore/save (not the combined
     # action) so a later step's failure still persists the cache.
