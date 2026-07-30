@@ -49,10 +49,21 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       # Install OCaml + opam directly (the old returntocorp/ocaml CircleCI
-      # image is no longer pullable).
-      - uses: ocaml/setup-ocaml@e32b06a3e831ff2fbc6f08cf35be2085e3918014 # v3.6.1
+      # image is no longer pullable). Our fork is used for save-opam-post-run:
+      # upstream saves its opam cache right after installing the compiler, so
+      # the ~40 packages core/ depends on are never in it and every one of the
+      # 47 jobs reinstalls them (~120s each). Saving in the post step instead
+      # captures the switch after 'make setup' has populated it.
+      # cache-prefix carries the dependency set, because the action's own cache
+      # key does not: without it a dependency change would keep restoring the
+      # stale switch forever.
+      # Untagged: every semgrep/setup-ocaml release predates save-opam-post-run.
+      # This is the same pin semgrep-proprietary uses.
+      - uses: semgrep/setup-ocaml@a739c5405d73c42ef15a9dc995efc0f87396cc36
         with:
           ocaml-compiler: "5"
+          save-opam-post-run: true
+          cache-prefix: v3-${{ hashFiles('core/*.opam') }}
       - uses: ./.github/actions/build-core
       - name: test-lang ${{ matrix.language }}
         run: |

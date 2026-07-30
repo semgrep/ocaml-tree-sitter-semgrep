@@ -2,7 +2,7 @@ name: Build ocaml-tree-sitter core
 description: >
   Init submodules, provision every pinned tree-sitter version, and build +
   install ocaml-tree-sitter core, with caching (LANG-625). Assumes checkout
-  and ocaml/setup-ocaml already ran.
+  and setup-ocaml already ran.
 runs:
   using: composite
   steps:
