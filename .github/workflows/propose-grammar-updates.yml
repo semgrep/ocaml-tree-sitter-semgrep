@@ -54,6 +54,9 @@ on:
       notify_channel:
         description: "Test mode: Slack channel or member ID (e.g. U0123456789 for a DM) to send notifications to instead of #support-engine."
         required: false
+      base_branch:
+        description: "Test mode: fork the grammar-update branch from this branch instead of main, so a fix on a feature branch can be validated before merging. Blank = main."
+        required: false
 
 permissions:
   contents: write         # push grammar-update/* branches in THIS repo
@@ -189,9 +192,14 @@ jobs:
           AGENT_TOKEN_CAP: ${{ inputs.agent_token_cap }}
           AGENT_TURN_CAP: ${{ inputs.agent_turn_cap }}
           DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_BASE_BRANCH: ${{ inputs.base_branch }}
         run: |
           # bash -e omits pipefail; without it `| tee` hides script failures.
           set -o pipefail
+          # Blank (the default) leaves GRAMMAR_BASE_BRANCH unset so the
+          # script's own "main" default applies — an empty env var would
+          # fail its validation instead of falling back.
+          if [ -n "$INPUT_BASE_BRANCH" ]; then export GRAMMAR_BASE_BRANCH="$INPUT_BASE_BRANCH"; fi
           # opam exec puts the switch bin on PATH so the nested test-lang ->
           # make gen-c can find the `ocaml-tree-sitter` binary (installed by
           # `make install`). Without it: "ocaml-tree-sitter: command not found".
