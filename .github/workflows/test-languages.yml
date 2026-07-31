@@ -3,8 +3,11 @@ name: Test languages
 # Per-language grammar build/test matrix. Replaces the former CircleCI
 # `test-language` job (.circleci/config.yml, removed in #627).
 #
-# For each language from lang/scripts/list-languages, runs
-# `./test-lang <lang>`. All failures are fatal.
+# For each language, runs `./test-lang <lang>`. All failures are fatal.
+#
+# On a pull request the matrix is narrowed to the languages the diff can affect
+# (lang/scripts/languages-for-paths); pushes to main and manual runs always test
+# everything, so main is never partially verified.
 
 on:
   pull_request:
@@ -26,14 +29,50 @@ jobs:
       languages: ${{ steps.list.outputs.languages }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - id: list
+        with:
+          # Unconditional: a pull request needs the merge base to diff against,
+          # and `event_name == 'pull_request' && 0 || 1` would silently be 1 --
+          # 0 is falsy in a GitHub Actions expression.
+          fetch-depth: 0
+      # The reference graph lives inside the upstream grammars, so without them
+      # languages-for-paths cannot narrow and falls back to the full matrix.
+      # Done by hand rather than via checkout's submodules: input because the
+      # gosu and requirements submodules use SSH URLs, unusable in keyless CI.
+      - name: Check out grammars (for the reference graph)
         run: |
           set -euo pipefail
-          echo "languages=$(lang/scripts/list-languages | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --depth 1 --jobs 8
+      - id: list
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # ...HEAD (merge base) so unrelated commits on the target branch do
+            # not widen the matrix. An unusable base is not fatal: an empty file
+            # makes languages-for-paths select everything.
+            if ! git diff --name-only "$BASE_SHA...HEAD" > /tmp/changed; then
+              echo "could not diff against $BASE_SHA; selecting everything" >&2
+              : > /tmp/changed
+            fi
+            wc -l < /tmp/changed | xargs echo "changed files:"
+            langs=$(lang/scripts/languages-for-paths < /tmp/changed)
+          else
+            langs=$(lang/scripts/list-languages)
+          fi
+          echo "selected $(echo "$langs" | grep -c . || true) language(s):"
+          echo "$langs"
+          echo "languages=$(echo "$langs" | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
 
   test-language:
     name: test-lang ${{ matrix.language }}
     needs: enumerate
+    # Guard against an empty matrix JSON (invalid for strategy.matrix).
+    # languages-for-paths fail-opens to the full list for shared/docs paths, so
+    # [] is not expected in normal PR narrowing; the gate below still treats
+    # skipped+[] as the only acceptable skip.
+    if: needs.enumerate.outputs.languages != '[]'
     # c-sharp-pro OOMs on a standard ~16GB runner during 'tree-sitter generate',
     # so it gets an org larger runner. Label is singular: ubuntu-latest-8-core.
     runs-on: ${{ matrix.language == 'c-sharp-pro' && fromJSON('{"group":"Default Larger Runners","labels":"ubuntu-latest-8-core"}') || 'ubuntu-latest' }}
@@ -73,12 +112,21 @@ jobs:
   # Single required check for branch protection (matrix expands to many jobs).
   test-languages:
     name: Test languages
-    needs: test-language
+    needs: [enumerate, test-language]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: All languages passed
+      - name: All selected languages passed
         run: |
+          set -euo pipefail
           result="${{ needs.test-language.result }}"
+          selected='${{ needs.enumerate.outputs.languages }}'
+          echo "selected: $selected"
           echo "matrix result: $result"
-          test "$result" = "success"
+          # 'skipped' is only acceptable when nothing was selected -- otherwise a
+          # skipped matrix would silently pass this required check.
+          if [ "$result" = "skipped" ]; then
+            test "$selected" = "[]"
+          else
+            test "$result" = "success"
+          fi
