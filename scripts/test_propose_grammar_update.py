@@ -585,6 +585,25 @@ class TestLanguageAgent(unittest.TestCase):
         self.assertIn("v0.24.2", p)
         self.assertIn("do not commit", p)
         self.assertIn("FAIL log here", p)
+        self.assertIn("unattended", p)
+        self.assertNotIn("XPASS", p)
+
+    def test_prompt_hints_xpass_promotion(self):
+        # Synthetic parse-examples XPASS log — not tied to any real language
+        # fixtures (those move to test/ok/ when promoted).
+        log = (
+            "PASS: test/ok/hello.ext\n"
+            "XPASS: test/xfail/todo/was_broken.ext\n"
+            "\nunexpected results: 1 (fail: 0, xpass: 1)\n"
+            "  - 'test.out/xpass.list': parsing was expected to fail but succeeded\n"
+        )
+        p = pg.language_agent_prompt(
+            pg.LangAndWrapper("extlang", "extlang"), "v9.9.9", log
+        )
+        self.assertIn("XPASS", p)
+        self.assertIn("test/xfail/", p)
+        self.assertIn("test/ok/", p)
+        self.assertIn("promote", p.lower())
 
     def test_base_branch_default_and_override(self):
         import os

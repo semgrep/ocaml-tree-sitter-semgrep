@@ -928,13 +928,25 @@ def language_agent_prompt(lang: LangAndWrapper, tag: str,
     after a bump; the authoritative signal remains the caller's test-lang
     re-run afterward.
     """
+    xpass_hint = ""
+    if "XPASS:" in test_log or "xpass.list" in test_log:
+        # Expected-fail examples that now parse are improvements: the skill
+        # must promote them test/xfail/ → test/ok/ (not leave them xfail).
+        xpass_hint = (
+            " Note: the log shows XPASS (expected-fail examples that now "
+            "parse) — promote each listed path from test/xfail/ to test/ok/ "
+            "per the skill; that is an allowed improvement, not a weaken.\n"
+        )
     return (
         f"Use the `fix-semgrep-grammar` skill to make `test-lang {lang.language}` "
         f"pass. Context: the tree-sitter-{lang.language} submodule was just bumped "
-        f"to {tag} and test-lang now fails. Follow the skill's edit boundaries "
-        f"and exit contract exactly; do not commit, push, or open a PR — leave "
-        f"the working tree changed for the outer pipeline. Print the skill's "
-        f"final FIX-SEMGREP-GRAMMAR status line.\n\n"
+        f"to {tag} and test-lang now fails.{xpass_hint} This is an unattended "
+        f"pipeline run: do not ask for confirmation — if git status shows only "
+        f"ignored regenerable build/test artifacts, proceed; otherwise exit "
+        f"CANNOT_PROCEED. Follow the skill's edit boundaries and exit contract "
+        f"exactly; do not commit, push, or open a PR — leave the working tree "
+        f"changed for the outer pipeline. Print the skill's final "
+        f"FIX-SEMGREP-GRAMMAR status line.\n\n"
         f"Failing test-lang output:\n{tail(test_log, 60)}"
     )
 

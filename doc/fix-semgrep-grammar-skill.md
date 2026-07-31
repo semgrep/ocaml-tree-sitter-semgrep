@@ -12,10 +12,13 @@ until `test-lang <lang>` passes.
 
 ## Where it operates
 
-It edits only `lang/semgrep-grammars/src/semgrep-<lang>/grammar.js` and the
-semgrep-owned corpus files `.../test/corpus/*.txt`. It never touches the
-upstream submodule (including `scanner.c`), the `lang/languages-*` version
-pins, or the CST→AST / OCaml codegen, and it never commits or opens PRs.
+It edits only `lang/semgrep-grammars/src/semgrep-<lang>/grammar.js`, the
+semgrep-owned corpus files `.../test/corpus/*.txt`, and — when
+`parse-examples` reports XPASS — promoting those examples from
+`lang/<sublang>/test/xfail/` to `test/ok/` (an improvement: expected-fail
+tests that now pass). It never touches the upstream submodule (including
+`scanner.c`), the `lang/languages-*` version pins, or the CST→AST / OCaml
+codegen, and it never commits or opens PRs.
 
 ## Running it by hand
 
@@ -23,9 +26,11 @@ Give an agent the language and the skill:
 
     Use fix-semgrep-grammar to make test-lang javascript pass.
 
-Optionally add a tighter cap: `... pass, with max-iterations 5.` The skill
-asks for confirmation before letting `test-lang` run `git clean -dfX` over a
-dirty tree.
+Optionally add a tighter cap: `... pass, with max-iterations 5.` In interactive
+use the skill asks for confirmation before letting `test-lang` run
+`git clean -dfX` over non-ignored dirty paths; ignored regenerable build
+artifacts alone do not require confirmation (needed for unattended
+propose-grammar-update runs).
 
 ## Exit statuses
 

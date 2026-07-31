@@ -46,10 +46,21 @@ extension grammar and its tests.**
    using the sublanguage set from Inputs (`--ignored` matters: plain status
    misses ignored files). Every `test-lang` iteration runs `git clean -dfX`
    in each of these directories — force-deleting all git-ignored files, no
-   confirmation. That's normally regenerable build output, but don't assume:
-   if the status reports anything, **stop, list what would be deleted (noting
-   which files look machine-generated), and ask the user to confirm.** A
-   clean tree needs no confirmation.
+   confirmation.
+
+   Classify the porcelain lines:
+   - **Only `!!` (ignored) regenerable build/test output** — e.g. `src/`,
+     `ocaml-src/`, `test.out/`, `parse`, `parse-<lang>`, `grammar.js` /
+     `grammar-rev.js*` under `lang/<sublang>/`, `test.log`, corpus build
+     trees under `semgrep-<lang>/` — **proceed without asking.** A prior
+     `test-lang` (or the outer propose-grammar-update pipeline) always
+     leaves these; blocking on them makes unattended runs impossible.
+   - **Any non-ignored dirty/untracked path** (modified tracked files,
+     `??` sources, or ignored paths that look like real user data) —
+     **stop**, list what would be deleted, and ask the user to confirm.
+     If no one can answer (unattended / CI), exit `CANNOT_PROCEED` with
+     that list as the blocker.
+   - **Clean tree** — no confirmation needed.
 
 2. **Ensure the toolchain** (from the repo root). Pinned tree-sitter versions
    live side by side in `core/tree-sitter-<version>/`:
@@ -121,6 +132,7 @@ extension grammar and its tests.**
    | `tree-sitter generate` errors | grammar.js references a rule upstream renamed/removed, or the overrides create an unresolved conflict (the error names the rule) |
    | corpus test diff (expected vs actual S-expr) | expected tree ≠ actual — either a legitimate upstream change or a regression from your own earlier edit; step 7 decides which |
    | example in `test.out/fail.list` — entries are paths relative to `lang/<sublang>/test/ok/`; each CST dump is at `test.out/ok/<entry>.cst` (look for `!ERROR!`/`ERROR`) | a real source file no longer parses |
+   | example in `test.out/xpass.list` — entries are paths relative to `lang/<sublang>/test/xfail/`; each CST dump is at `test.out/xfail/<entry>.cst` | an expected-fail example now parses (XPASS) — an improvement; promote it to `test/ok/` |
    | Blank-node warning not in the baseline | a node your edit introduced or exposed produces no tokens — give it a named rule |
    | tree-sitter version/ABI errors (grammar needs a newer tree-sitter than the pin, ABI mismatch) | the `lang/languages-*` pin is stale, not a grammar bug — out of scope: `CANNOT_PROCEED`, reporting the version-list change needed |
 
@@ -163,6 +175,11 @@ extension grammar and its tests.**
   — **never** the `inherited` symlink (it points at the upstream corpus). If no
   semgrep-owned file exists yet, create `test/corpus/semgrep.txt`; match the
   inherited corpus's S-expression style (e.g. no field names).
+- `lang/<sublang>/test/{ok,xfail}/**` — **only** to promote XPASS examples:
+  `git mv` each `test/xfail/<path>` listed in `test.out/xpass.list` to
+  `test/ok/<path>` (same relative path; create parent dirs under `ok/` as
+  needed). Do not edit those files' contents; do not move anything the other
+  way.
 
 **Coverage invariant: every rule override you add or change must be exercised
 by at least one semgrep-owned corpus case, added or extended in the same
@@ -178,13 +195,15 @@ the `lang/languages-*` / `language-variants-*` version lists or the submodule
 pointer; anything in the CST→AST / OCaml codegen or the `semgrep` proprietary
 repo; the `inherited` corpus symlink.
 
-**Never weaken semgrep semantics or tests to go green.** Never delete, skip,
-or relocate a test (e.g. into `test/xfail/`); never delete a semgrep
-construct; never rewrite an expected corpus tree just to silence a failure —
-expected trees change only to reflect a *legitimate* upstream structural
-change. A case you cannot make pass with a legitimate grammar change is
-`CANNOT_PROCEED` (see Exit) — unless upstream deliberately dropped the syntax,
-in which case ask the user first (see the playbook's last entry).
+**Never weaken semgrep semantics or tests to go green.** Never delete or skip
+a test; never move a test *into* `test/xfail/` (demoting expectations); never
+delete a semgrep construct; never rewrite an expected corpus tree just to
+silence a failure — expected trees change only to reflect a *legitimate*
+upstream structural change. **Promoting** an XPASS from `test/xfail/` to
+`test/ok/` is required (it tightens expectations) — see the playbook. A case
+you cannot make pass with a legitimate grammar change is `CANNOT_PROCEED`
+(see Exit) — unless upstream deliberately dropped the syntax, in which case
+ask the user first (see the playbook's last entry).
 
 ## Fix playbook
 
@@ -226,6 +245,12 @@ Common shapes when an upstream bump breaks the extension:
   like `common/define-grammar.js`) → update the extension's
   `require(...)`/wrapping to the new entry point; the rule overrides themselves
   may need no change.
+- **XPASS** (`test.out/xpass.list`) — an example under `test/xfail/` now
+  parses. That is an improvement (from the bump or from your fix). For each
+  listed path, `git mv lang/<sublang>/test/xfail/<path>` →
+  `lang/<sublang>/test/ok/<path>` (preserve the relative path). Do not edit
+  the file. Do **not** leave it in `xfail` to keep the run green — an XPASS
+  left behind is still an unexpected result and fails `parse-examples`.
 - **Upstream deliberately dropped syntax**, so a `test/ok` example or corpus
   case is legitimately no longer parseable → do **not** move it to `xfail`,
   delete it, or rewrite it on your own: **warn the user, state exactly what
