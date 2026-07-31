@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+#
+# Print the grammar reference graph under lang/semgrep-grammars/src.
+# Edge discovery and invariants are documented in lang/grammar_dependencies.py.
+# With no args: every edge as "<tree-sitter-x>\t<reader-dir>".
+# With args: dirs that transitively depend on the given grammar dirs
+# (including the args themselves), one per line.
+#
+# Usage:
+#   grammar-dependencies
+#   grammar-dependencies tree-sitter-c semgrep-lua
+#
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from grammar_dependencies import readers, transitive_dependents  # noqa: E402
+
+
+def main() -> int:
+    """Print grammar dependency edges, or transitive dependents of the args."""
+    parser = argparse.ArgumentParser(
+        description="Print the grammar reference graph, or transitive dependents."
+    )
+    parser.add_argument(
+        "dirs",
+        nargs="*",
+        help="grammar dirs to expand; omit to dump every edge",
+    )
+    args = parser.parse_args()
+
+    if args.dirs:
+        for d in sorted(transitive_dependents(set(args.dirs))):
+            print(d)
+        return 0
+
+    for target, deps in sorted(readers().items()):
+        for dep in sorted(deps):
+            print(f"{target}\t{dep}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

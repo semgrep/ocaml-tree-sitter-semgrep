@@ -68,8 +68,10 @@ jobs:
   test-language:
     name: test-lang ${{ matrix.language }}
     needs: enumerate
-    # An empty selection (e.g. a docs-only PR) would otherwise be an invalid
-    # matrix; skipping is accepted by the gate below.
+    # Guard against an empty matrix JSON (invalid for strategy.matrix).
+    # languages-for-paths fail-opens to the full list for shared/docs paths, so
+    # [] is not expected in normal PR narrowing; the gate below still treats
+    # skipped+[] as the only acceptable skip.
     if: needs.enumerate.outputs.languages != '[]'
     # c-sharp-pro OOMs on a standard ~16GB runner during 'tree-sitter generate',
     # so it gets an org larger runner. Label is singular: ubuntu-latest-8-core.
