@@ -1,8 +1,7 @@
 #! /usr/bin/env bash
 #
 # Place the generated files into their own repo, to be used by an external
-# repo as a submodule. Rebuilds the extended semgrep-<lang> grammar first
-# (same prerequisite as test-lang) so gen-c has grammar.json to import.
+# repo as a submodule.
 #
 set -eu -o pipefail
 
@@ -10,10 +9,9 @@ prog_name=$(basename "$0")
 
 usage() {
   cat <<EOF
-Publish generated code to an external repository for a specific language.
+** This may be done only after running 'test-lang'. **
 
-Builds the extended semgrep-LANG grammar (prep + tree-sitter generate) so
-gen-c can import grammar.json, then publishes ocaml-src to semgrep-LANG.
+Publish generated code to an external repository for a specific language.
 
 Sublanguages defined in the same tree-sitter-LANG project are considered
 different at this stage, e.g. 'tree-sitter-typescript' provides grammars
@@ -224,22 +222,6 @@ if [[ "$make_new" != true ]]; then
 else
   branch="${branch_arg:-main}"
 fi
-
-# gen-c needs grammar.json from the extended grammar; build it first (as
-# test-lang does). Dialects share a wrapper project (tsx → semgrep-typescript).
-case "$lang" in
-  typescript|tsx) wrapper=typescript ;;
-  php|php-only) wrapper=php ;;
-  apex) wrapper=sfapex ;;
-  *) wrapper=$lang ;;
-esac
-ext_proj="semgrep-grammars/src/semgrep-$wrapper"
-if [[ ! -d "$ext_proj" ]]; then
-  error "Missing extended grammar project $ext_proj"
-fi
-echo "Building the extended parser semgrep-$wrapper."
-make -C "$ext_proj" clean
-make -C "$ext_proj"
 
 # Copy the files that we find.
 #

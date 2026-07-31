@@ -1286,7 +1286,7 @@ def open_downstream_pr(dialect: str, branch: str, tag: str,
         return
     existing = git_query(
         ["gh", "pr", "list", "--repo", repo, "--head", branch,
-         "--state", "all", "--json", "number", "-q", ".[0].number"],
+         "--state", "all", "--json", "number", "-q", ".[0].number // empty"],
         cwd=Path.cwd(),
     ).stdout.strip()
     if existing:
@@ -1303,6 +1303,32 @@ def open_downstream_pr(dialect: str, branch: str, tag: str,
     )
 
 
+def build_extended_grammar(lang: LangAndWrapper,
+                           root: Path) -> subprocess.CompletedProcess:
+    """Build semgrep-<wrapper> so `lang/release`'s gen-c has grammar.json to import.
+
+    Same prerequisite `test-lang` builds before testing. Dialects (tsx,
+    php-only, apex) share one wrapper project, so this runs once per
+    target rather than once per dialect inside `lang/release`.
+    """
+    wrapper_dir = lang.wrapper_dir(root)
+    if not wrapper_dir.is_dir():
+        return subprocess.CompletedProcess(
+            args=["make", "-C", str(wrapper_dir)], returncode=1, stdout="",
+            stderr=f"Missing extended grammar project {wrapper_dir}\n")
+    log(f"Building the extended parser semgrep-{lang.wrapper}.")
+    r = None
+    for cmd in (["make", "clean"], ["make"]):
+        log(f"$ {' '.join(cmd)}  (in {wrapper_dir})")
+        r = subprocess.run(cmd, cwd=wrapper_dir, text=True,
+                           capture_output=True, check=False)
+        sys.stderr.write(r.stdout)
+        sys.stderr.write(r.stderr)
+        if r.returncode != 0:
+            return r
+    return r
+
+
 def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
                        tag: str, *, dry_run: bool) -> subprocess.CompletedProcess:
     """Release the generated parser to each semgrep-<dialect> repo, via PR.
@@ -1314,7 +1340,9 @@ def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
     the downstream repos, gated behind --release, --dry-run safe.
     """
     lang_dir = root / "lang"
-    last = None
+    last = build_extended_grammar(lang, root)
+    if last.returncode != 0:
+        return last
     for dialect in release_dialects(lang):
         cmd = ["./release", dialect, "--branch", branch]
         if dry_run:
@@ -1330,7 +1358,7 @@ def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
         if last.returncode != 0:
             return last
         open_downstream_pr(dialect, branch, tag, dry_run=dry_run)
-    return last  # type: ignore[return-value]
+    return last
 
 
 ###############################################################################

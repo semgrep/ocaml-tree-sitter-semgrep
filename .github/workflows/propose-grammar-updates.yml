@@ -398,14 +398,11 @@ jobs:
       - name: Render summary
         run: uv run --script scripts/propose-grammar-update --summarize results >> "$GITHUB_STEP_SUMMARY"
 
-  # Slack notification (LANG-604): pages #support-engine when any job fails,
-  # posts a success note (with PR links) when update PRs were opened, and a
-  # quiet "nothing to do" heartbeat otherwise. Job-level results
-  # are the authoritative failure signal for the alert header; the per-language
-  # table comes from result artifacts, which integrate overwrites on release
-  # failure so a green propose + failed release shows as `failed`, not
-  # leftover `updated`. The message carries only job statuses, PR links and
-  # the status table + a run link — never grammar source or logs.
+  # Slack notification (LANG-604): pages #support-engine on failure, notes
+  # opened PRs on success, else a quiet heartbeat. Status table reads result
+  # artifacts, which integrate overwrites on release failure so a green
+  # propose doesn't leave a stale `updated` row. Never includes grammar
+  # source or logs.
   notify:
     name: Notify Slack
     needs: [enumerate, propose, integrate]

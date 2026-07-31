@@ -25,6 +25,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import unittest
 import unittest.mock
@@ -265,6 +266,84 @@ class TestReleaseDialects(unittest.TestCase):
             self.assertEqual(
                 pg.release_dialects(pg.LangAndWrapper("php", "php")), ["php"]
             )
+
+
+class TestOpenDownstreamPr(unittest.TestCase):
+    """`.[0].number` alone is the string "null" (truthy) on an empty `gh pr
+    list` array — without `// empty`, every release looks like a dup PR."""
+
+    def test_creates_pr_when_none_exists(self):
+        # `git_query` is real jq semantics elsewhere, so pin the actual filter
+        # string here rather than mocking it away — `.[0].number` without the
+        # `// empty` fallback prints the literal text "null" for `[]`, and
+        # that non-empty string reads as "PR exists" in Python.
+        list_calls, create_calls = [], []
+
+        def fake_git_query(cmd, cwd):
+            list_calls.append(cmd)
+            jq_expr = cmd[cmd.index("-q") + 1]
+            stdout = subprocess.run(
+                ["jq", "-r", jq_expr], input="[]", text=True,
+                capture_output=True,
+            ).stdout
+            return unittest.mock.Mock(stdout=stdout)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                pg, "git_query", fake_git_query))
+            stack.enter_context(unittest.mock.patch.object(
+                pg, "run_quiet", lambda cmd, cwd: create_calls.append(cmd)))
+            pg.open_downstream_pr("elixir", "grammar-update/elixir/v0.3.5",
+                                 "v0.3.5", dry_run=False)
+        self.assertEqual(len(list_calls), 1)
+        self.assertEqual(len(create_calls), 1)
+        self.assertIn("create", create_calls[0])
+
+    def test_skips_when_pr_already_exists(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                pg, "git_query", return_value=unittest.mock.Mock(stdout="42")))
+            run_quiet_mock = stack.enter_context(
+                unittest.mock.patch.object(pg, "run_quiet"))
+            pg.open_downstream_pr("elixir", "grammar-update/elixir/v0.3.5",
+                                 "v0.3.5", dry_run=False)
+        run_quiet_mock.assert_not_called()
+
+
+class TestBuildExtendedGrammar(unittest.TestCase):
+    """`lang/release`'s gen-c needs semgrep-<wrapper> built first (LANG-579)."""
+
+    def test_missing_wrapper_dir_fails_without_running_make(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            result = pg.build_extended_grammar(
+                pg.LangAndWrapper("elixir", "elixir"), root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing extended grammar project", result.stderr)
+
+    def _make_wrapper_dir(self, root: Path, *, build_ok: bool) -> None:
+        wrapper_dir = root / "lang" / "semgrep-grammars" / "src" / "semgrep-elixir"
+        wrapper_dir.mkdir(parents=True)
+        exit_code = 0 if build_ok else 1
+        # `build` first so bare `make` (no target) runs it, not `clean`.
+        (wrapper_dir / "Makefile").write_text(
+            f"build:\n\texit {exit_code}\nclean:\n\ttrue\n")
+
+    def test_runs_clean_then_build(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            self._make_wrapper_dir(root, build_ok=True)
+            result = pg.build_extended_grammar(
+                pg.LangAndWrapper("elixir", "elixir"), root)
+        self.assertEqual(result.returncode, 0)
+
+    def test_build_failure_is_reported(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            self._make_wrapper_dir(root, build_ok=False)
+            result = pg.build_extended_grammar(
+                pg.LangAndWrapper("elixir", "elixir"), root)
+        self.assertNotEqual(result.returncode, 0)
 
 
 class TestProposeFailurePath(unittest.TestCase):
