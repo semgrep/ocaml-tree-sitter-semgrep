@@ -81,7 +81,6 @@ _UPDATE_GRAMMAR_PATH = _SCRIPT_DIR / "update-grammar"
 
 
 def _load_update_grammar() -> Any:
-    """Load `scripts/update-grammar` as an importable module."""
     loader = SourceFileLoader("update_grammar", str(_UPDATE_GRAMMAR_PATH))
     spec = spec_from_loader("update_grammar", loader)
     module = module_from_spec(spec)
@@ -97,7 +96,6 @@ _TS_VERSIONS_PATH = _SCRIPT_DIR.parent / "lang" / "ts_versions.py"
 
 
 def _load_ts_versions() -> Any:
-    """Load `lang/ts_versions.py` as an importable module."""
     loader = SourceFileLoader("ts_versions", str(_TS_VERSIONS_PATH))
     spec = spec_from_loader("ts_versions", loader)
     module = module_from_spec(spec)
@@ -206,7 +204,6 @@ class Result:
 ###############################################################################
 
 def log(msg: str) -> None:
-    """Print a human-facing progress line to stderr (stdout is for JSON)."""
     print(msg, file=sys.stderr)
 
 
@@ -230,24 +227,14 @@ def _retry_index_lock(
 
 
 def git_query(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
-    """Run a read-only git query quietly (no command echo, never raises).
-
-    `update-grammar`'s `run` echoes every command to stderr, which is
-    noise for the many read-only probes here. Use this for queries;
-    reserve `ug.run` for mutating steps where live output is wanted.
-    """
+    # Silently query git; reserve ug.run for mutations with live output.
     return subprocess.run(
         cmd, cwd=cwd, text=True, capture_output=True, check=False,
     )
 
 
 def run_quiet(cmd: list[str], cwd: Path) -> None:
-    """Run a mutating command, mirroring its output to STDERR, raising on error.
-
-    stdout is the Result JSON line — keep git/gh off it. Child stderr is
-    merged into stdout at capture so the re-emitted log keeps interleaving.
-    Retries on index.lock; else raises.
-    """
+    # Mutate with output to stderr (stdout reserved for JSON).
     log(f"$ {' '.join(cmd)}  (in {cwd})")
 
     def once() -> subprocess.CompletedProcess:
@@ -263,12 +250,7 @@ def run_quiet(cmd: list[str], cwd: Path) -> None:
 
 @dataclass(frozen=True, order=True, init=False)
 class Version:
-    """Comparable dotted version (optional leading ``v``).
-
-    Enough for tree-sitter pins and stable release tags — not a PEP 440
-    implementation. ``Version.parse("v0.25.0")`` compares equal to
-    ``Version.parse("0.25.0")``; ``str`` always drops a leading ``v``.
-    """
+    # Comparable dotted version; parses v-prefixed tags and removes leading v in str().
     parts: tuple[int, ...]
 
     def __init__(self, parts: tuple[int, ...]) -> None:
@@ -287,15 +269,7 @@ class Version:
 
 
 def gitmodules_url(root: Path, submodule: Path) -> str | None:
-    """Return the upstream URL for `submodule`, rewritten to HTTPS.
-
-    `.gitmodules` sections are keyed inconsistently (e.g. java's section is
-    `submodule.lang/tree-sitter-java` while its path is the standard
-    `lang/semgrep-grammars/src/tree-sitter-java`), so we match on the
-    `path` value rather than the section name. SSH URLs (gosu,
-    requirements) are rewritten to HTTPS so `git ls-remote` works without
-    keys in CI.
-    """
+    # Match on path (keys are inconsistent), rewrite SSH→HTTPS for CI.
     rel = submodule.relative_to(root).as_posix()
     result = git_query(
         ["git", "config", "-f", ".gitmodules", "--get-regexp", r"\.path$"],
@@ -420,9 +394,7 @@ class FetchedSubmodule:
 
 
 def _list_stable_tags(url: str) -> list[str]:
-    """Return every stable release tag at `url`, sorted newest first."""
-    # Patterns narrow the listing server-side; `_STABLE_TAG_RE` still drops
-    # prereleases (v1.0.0-rc1) that globs can't exclude.
+    # Patterns filter server-side; regex still drops prerelease tags.
     result = git_query(
         ["git", "ls-remote", "--tags", "--refs", url,
          "refs/tags/v[0-9]*", "refs/tags/[0-9]*"],
@@ -435,8 +407,7 @@ def _list_stable_tags(url: str) -> list[str]:
         for line in result.stdout.splitlines()
         if "refs/tags/" in line
     ]
-    # We still need to filter here, because the above pattern
-    # does not filter pre-release tags.
+    # Filter prerelease tags that patterns missed.
     stable = [t for t in tags if _STABLE_TAG_RE.match(t)]
     return sorted(stable, key=Version.parse, reverse=True)
 
@@ -448,22 +419,16 @@ def latest_stable_tag(url: str) -> str | None:
 
 
 def _requires_abi15(fetched: FetchedSubmodule, tag: str) -> bool:
-    """True if the grammar at `tag` declares a top-level `reserved:` field.
-
-    Best-effort text check on `grammar.js` -- misses `reserved` declared
-    only in a shared/required module; test-lang is the authoritative check.
-    """
+    # Text check for reserved: field; test-lang is authoritative.
     text = fetched.read_tag_file(tag, "grammar.js")
     return bool(text and _RESERVED_FIELD_RE.search(text))
 
 
 def _upstream_has_cpp_scanner(fetched: FetchedSubmodule, tag: str) -> bool:
-    """True if upstream at `tag` ships a C++ external scanner (`src/scanner.cc`)."""
     return fetched.tag_has_path(tag, "src/scanner.cc")
 
 
 def _is_git_tracked(root: Path, path: Path) -> bool:
-    """True if `path` is tracked by git (e.g. force-added under a gitignored dir)."""
     tracked = git_query(
         ["git", "ls-files", "--", str(path.relative_to(root))],
         cwd=root,
@@ -476,7 +441,7 @@ def _is_git_tracked(root: Path, path: Path) -> bool:
 # auto-sync here until we have a tested migrate/rebase path for that case;
 # only surface it for a human. Prep symlinks are ignored (not git-tracked).
 def _forked_scanner_c_drift_note(root: Path, lang: LangAndWrapper) -> str | None:
-    """Report (do not fix) when a force-tracked wrapper scanner.c differs from upstream."""
+    # Report drift in force-tracked scanner.c (don't auto-fix).
     wrapper_scanner = lang.wrapper_dir(root) / "src" / "scanner.c"
     if not wrapper_scanner.is_file() or wrapper_scanner.is_symlink():
         return None
@@ -500,11 +465,7 @@ def _forked_scanner_c_drift_note(root: Path, lang: LangAndWrapper) -> str | None
 
 
 def _declared_min_ts_version(fetched: FetchedSubmodule, tag: str) -> str | None:
-    """Return upstream's declared minimum tree-sitter-cli version at `tag`.
-
-    Parsed from package.json's devDependencies/peerDependencies. None if
-    undeclared, unparseable, or package.json is absent.
-    """
+    # Parse minimum tree-sitter version from package.json devDependencies/peerDependencies.
     text = fetched.read_tag_file(tag, "package.json")
     if not text:
         return None
@@ -544,10 +505,7 @@ VersionResolution = VersionOk | VersionErr
 def _pick_ts_version(
     versions: list[Version], *, floor: Version | None, ceiling: Version | None,
 ) -> Version | None:
-    """Return the newest fitting pinned version, or None if nothing fits.
-
-    `versions` must already be parsed `Version`s, newest-first.
-    """
+    # Versions must be pre-parsed and sorted newest-first.
     for v in versions:
         if ceiling is not None and not v < ceiling:
             continue
@@ -558,7 +516,6 @@ def _pick_ts_version(
 
 
 def _version_note(chosen: Version, *, upstream_cpp: bool) -> str | None:
-    """Advisory note when the chosen pin is capped by an upstream C++ scanner."""
     if not upstream_cpp:
         return None
     return (
@@ -570,7 +527,6 @@ def _version_note(chosen: Version, *, upstream_cpp: bool) -> str | None:
 def _evaluate_tag(
     fetched: FetchedSubmodule, tag: str, tree_sitter_versions: list[Version],
 ) -> VersionOk | str:
-    """Try one tag: return VersionOk on success, or a skip-reason string."""
     if _requires_abi15(fetched, tag):
         return (
             f"{tag}: requires ABI 15 (declares 'reserved:'); "
@@ -604,15 +560,7 @@ def _evaluate_tag(
 def resolve_tag_and_version(submodule: Path, url: str,
                             tree_sitter_versions: list[Version],
                             old_sha: str) -> VersionResolution:
-    """Pick the newest tag newer than `old_sha` this repo can build at ABI
-    14, and the best pinned tree-sitter version to build it with.
-
-    Walks newer stable tags (capped at MAX_TAGS_EXAMINED), skips ABI 15,
-    and picks the highest pinned lang/languages-* version compatible with
-    an upstream C++ scanner ceiling (if any) and upstream's declared
-    tree-sitter-cli floor. Prep symlinks to upstream scanners are not a
-    separate constraint — see `_CPP_SCANNER_CEILING` rationale.
-    """
+    # Pick newest compatible tag and tree-sitter version; skip ABI 15.
     fetched = FetchedSubmodule.fetch(submodule)
     if fetched is None:
         return VersionErr("could not fetch tags from submodule")
@@ -639,11 +587,7 @@ def resolve_tag_and_version(submodule: Path, url: str,
 
 
 def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
-    """Return the tree-sitter version `lang.wrapper` is listed under, or None.
-
-    Scans each `lang/languages-<version>` file for the wrapper name. A
-    language appears in exactly one; returns that version string.
-    """
+    # Find which lang/languages-<version> file lists this wrapper.
     version_files = ug.discover_version_files(root, "languages")
     for version, path in version_files.items():
         if lang.wrapper in ug.read_languages_entries(path):
@@ -653,19 +597,10 @@ def language_ts_version(root: Path, lang: LangAndWrapper) -> str | None:
 
 def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[Version],
                    *, deep: bool = True) -> Target:
-    """Resolve a `Target` for `lang` without mutating anything.
-
-    `deep=True` (default -- the real propose flow) resolves both tag and
-    tree-sitter version via `resolve_tag_and_version`. `deep=False` (the
-    cheap `is_up_to_date` pre-filter, run across every language) resolves
-    only the single latest tag via one `ls-remote`, reusing the current pin.
-    """
+    # deep=True: full resolution; deep=False: cheap pre-filter (tag only).
     submodule = ug.submodule_path(root, lang.language)
     url = gitmodules_url(root, submodule)
-    # Languages absent from every languages-* file (e.g. gomod, a "pro"
-    # package handled outside the standard version scheme) aren't
-    # proposable via this flow; surface that as skip_reason rather than
-    # dying, so callers can record it and move on.
+    # Languages not in languages-* files (e.g. gomod) are not proposable.
     current_ts_version = language_ts_version(root, lang)
     skip_reason = None
     if current_ts_version is None:
@@ -696,29 +631,18 @@ def resolve_target(root: Path, lang: LangAndWrapper, tree_sitter_versions: list[
 
 
 def submodule_head(submodule: Path) -> str:
-    """Return the submodule's current HEAD SHA."""
     return git_query(["git", "rev-parse", "HEAD"], cwd=submodule).stdout.strip()
 
 
 def recorded_submodule_sha(root: Path, submodule: Path) -> str | None:
-    """Return the submodule SHA recorded in the outer repo's index (HEAD).
-
-    Reads the committed gitlink via `git ls-tree` — no submodule checkout
-    needed, so this is cheap enough for the enumerate pre-filter.
-    """
+    # Read committed gitlink SHA via git ls-tree.
     rel = submodule.relative_to(root).as_posix()
     out = git_query(["git", "ls-tree", "HEAD", rel], cwd=root).stdout.split()
     return out[2] if len(out) >= 3 else None
 
 
 def tag_commit_sha(url: str, tag: str) -> str | None:
-    """Resolve `tag` to a commit SHA on the remote (peeling annotated tags).
-
-    ls-remote sorts output by refname, so the plain tag ref comes before
-    its peeled `^{}` line — and for annotated tags the plain ref is the
-    tag OBJECT, which would never match a gitlink commit SHA. Prefer the
-    peeled line; lightweight tags have no peeled line, so fall back.
-    """
+    # Peel annotated tags (prefer ^{} line); fall back to plain ref for lightweight tags.
     out = git_query(
         ["git", "ls-remote", url, f"refs/tags/{tag}^{{}}", f"refs/tags/{tag}"],
         cwd=Path.cwd(),
@@ -737,12 +661,7 @@ def tag_commit_sha(url: str, tag: str) -> str | None:
 
 
 def is_up_to_date(root: Path, lang: LangAndWrapper) -> bool | None:
-    """True if `lang`'s submodule is already at its latest stable tag.
-
-    Cheap: reads the recorded gitlink + a remote ls-remote, no build/checkout.
-    Returns None if it can't be determined (no tag / no url) so callers can
-    fall back to attempting the bump rather than wrongly skipping.
-    """
+    # Cheap check: recorded SHA vs latest tag. None if undeterminable.
     target = resolve_target(root, lang, tree_sitter_versions=[], deep=False)
     if target.skip_reason or target.tag is None or not target.url:
         return None
@@ -755,11 +674,7 @@ def is_up_to_date(root: Path, lang: LangAndWrapper) -> bool | None:
 
 @contextlib.contextmanager
 def _stdout_to_stderr():
-    """Redirect fd 1 to fd 2 temporarily.
-
-    update-grammar's `run()` inherits stdout for subprocesses it doesn't
-    capture; this script's stdout must stay a single JSON line.
-    """
+    # Redirect stdout to stderr so JSON stays pure.
     sys.stdout.flush()
     saved_fd = os.dup(1)
     try:
@@ -772,7 +687,6 @@ def _stdout_to_stderr():
 
 
 def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
-    """Provision `ts_version`'s tree-sitter CLI and put it first on PATH."""
     with _stdout_to_stderr():
         ug.ensure_tree_sitter_version(root, ts_version)
     bin_dir = root / "core" / f"tree-sitter-{ts_version}" / "bin"
@@ -783,12 +697,7 @@ def ensure_ts_version_on_path(root: Path, ts_version: str) -> None:
 
 def run_update_grammar(lang: LangAndWrapper, ts_version: str, tag: str,
                        root: Path) -> subprocess.CompletedProcess:
-    """Bump `language` to `tag` via `update-grammar --skip-release`.
-
-    Subprocessed (not imported) so a failure is isolated from this
-    process and so we capture its combined output for the PR body / log.
-    --skip-release guarantees nothing is pushed to semgrep-<lang>.
-    """
+    # Subprocessed so failures don't crash this process; --skip-release prevents pushes.
     return subprocess.run(
         [str(_UPDATE_GRAMMAR_PATH), lang.language, ts_version,
          "--ref", tag, "--skip-release"],
@@ -797,21 +706,7 @@ def run_update_grammar(lang: LangAndWrapper, ts_version: str, tag: str,
 
 
 def regenerate_snapshots(root: Path, lang: LangAndWrapper, ts_version: str) -> None:
-    """Regenerate corpus snapshots for every grammar in the wrapper.
-
-    A grammar bump almost always churns parse trees, so the committed
-    corpus snapshots go stale. `tree-sitter test --update` rewrites them
-    from the new parser. Runs in each dir containing a grammar.js (the
-    base grammar plus any sub-grammars). Requires
-    `core/tree-sitter-<version>/bin` on PATH (`ensure_ts_version_on_path`,
-    called by main(), guarantees this).
-    Every grammar.js under a wrapper is expected to be pinned to the same
-    `ts_version` the wrapper was just bumped to; a sub-dialect pinned to a
-    different one is a real inconsistency that must be reported, not
-    silently tested against the wrong tree-sitter CLI. `:error` tests are
-    left untouched by --update; if any still fail, the later test-lang
-    re-run catches it.
-    """
+    # Regenerate snapshots for all grammar.js files; enforce consistent ts_version pins.
     wrapper_path = lang.wrapper_dir(root)
     grammar_dirs = {p.parent for p in wrapper_path.rglob("grammar.js")}
     for gdir in sorted(grammar_dirs):
@@ -822,14 +717,11 @@ def regenerate_snapshots(root: Path, lang: LangAndWrapper, ts_version: str) -> N
                 f"was bumped to {ts_version}; a sub-dialect diverging from "
                 f"its wrapper's tree-sitter version is not supported"
             )
-        # check=False: --update exits non-zero on :error tests it can't
-        # update; that's expected and handled by the authoritative
-        # test-lang re-run.
+        # --update exits non-zero on :error tests; test-lang re-run is authoritative.
         git_query(["tree-sitter", "test", "--update"], cwd=gdir)
 
 
 def corpus_diff(root: Path, lang: LangAndWrapper) -> str:
-    """Return the working-tree diff of the wrapper's corpus snapshots."""
     return git_query(
         ["git", "diff", "--", str(lang.wrapper_dir(root) / "test" / "corpus")],
         cwd=root,
@@ -837,7 +729,6 @@ def corpus_diff(root: Path, lang: LangAndWrapper) -> str:
 
 
 def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProcess:
-    """Run `./test-lang <language>` for the authoritative pass/fail."""
     return subprocess.run(
         ["./test-lang", lang.language], cwd=root / "lang",
         text=True, capture_output=True, check=False,
@@ -845,18 +736,11 @@ def run_test_lang(lang: LangAndWrapper, root: Path) -> subprocess.CompletedProce
 
 
 def _git_reset_step(cmd: list[str], cwd: Path) -> None:
-    """Best-effort reset step: retry index.lock, else no-op like git_query."""
     _retry_index_lock(lambda: git_query(cmd, cwd), lambda r: r.stderr)
 
 
 def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
-    """Undo every mutation, so a failure never leaks into the next run.
-
-    Mirrors what `update-grammar` leaves behind on a failed run: a
-    detached/bumped submodule, edited languages-* files, deleted/regenerated
-    parser.c, and regenerated snapshots. Restores the submodule to
-    `old_sha` and the outer tree to HEAD.
-    """
+    # Undo all mutations on failure; restore submodule to old_sha, outer tree to HEAD.
     _git_reset_step(["git", "restore", "--staged", "."], root)
     _git_reset_step(["git", "checkout", "--", "lang"], root)
     _git_reset_step(["git", "checkout", old_sha], submodule)
@@ -865,18 +749,11 @@ def reset_language_state(root: Path, submodule: Path, old_sha: str) -> None:
 
 
 def tail(text: str, lines: int = 40) -> str:
-    """Return the last `lines` lines of `text`."""
     return "\n".join(text.splitlines()[-lines:])
 
 
 def base_branch() -> str:
-    """Branch the grammar-update PR is opened against / forked from.
-
-    The grammar bump must sit on a CLEAN base (just the bump), not on
-    whatever branch CI happens to be checked out on. Defaults to `main`;
-    override with GRAMMAR_BASE_BRANCH (e.g. `develop`). Validated so an
-    env-injected value can't smuggle git options or ref tricks.
-    """
+    # Override with GRAMMAR_BASE_BRANCH; validated to block git option injection.
     base = os.environ.get("GRAMMAR_BASE_BRANCH", "main")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", base):
         ug.die(f"invalid GRAMMAR_BASE_BRANCH: {base!r}")
@@ -884,20 +761,12 @@ def base_branch() -> str:
 
 
 def branch_name(lang: LangAndWrapper, tag: str) -> str:
-    """Branch for a lang+tag proposal.
-
-    Keyed on the exact tag (not the CI user) so re-runs on the same
-    schedule are idempotent and a new upstream tag yields a new branch.
-    """
+    # Keyed on tag for idempotent re-runs.
     return f"grammar-update/{lang.language}/{tag}"
 
 
 def proposal_exists(root: Path, branch: str) -> bool:
-    """True if a branch (local or on origin) already exists for this proposal.
-
-    Cheap pre-check so a re-run doesn't rebuild/re-PR an in-flight update.
-    Checks origin (the durable signal) and any local branch.
-    """
+    # Check remote (durable signal) and local branches.
     remote = git_query(
         ["git", "ls-remote", "--heads", "origin", branch], cwd=root,
     ).stdout.strip()
@@ -911,11 +780,7 @@ def proposal_exists(root: Path, branch: str) -> bool:
 
 
 def existing_proposal(root: Path, target: Target) -> Result | None:
-    """Result for an already-proposed lang+tag, or None if there is none.
-
-    Runs before the expensive build so a re-run on an in-flight proposal
-    costs seconds, not a full bump/test cycle.
-    """
+    # Cheap pre-check before expensive build.
     if target.tag is None:
         return None
     branch = branch_name(target.lang, target.tag)
@@ -927,13 +792,11 @@ def existing_proposal(root: Path, target: Target) -> Result | None:
 
 
 def compare_url(url: str, old_sha: str, new_tag: str) -> str:
-    """GitHub compare link old_sha...new_tag for the upstream repo."""
     base = url.removesuffix(".git")
     return f"{base}/compare/{old_sha}...{new_tag}"
 
 
 def pr_body(result: Result, url: str) -> str:
-    """Build the PR description from a propose() result."""
     old, new, tag = result.old_sha, result.new_sha, result.new_tag
     diff = result.corpus_diff.strip()
     diff_section = (
@@ -978,12 +841,7 @@ AGENT_ADAPTED_LABEL = "agent-adapted-tests"
 
 def open_pr(root: Path, target: Target, result: Result,
             dry_run: bool) -> Result:
-    """Push the branch propose(keep=True) built and open a PR for it.
-
-    The validated commit already exists on `grammar-update/<lang>/<tag>`
-    (created + committed by propose in keep mode) — here we only push it and
-    open the PR.
-    """
+    # Push validated branch and open PR.
     lang, tag = target.lang, result.new_tag
     base = base_branch()
     branch = result.branch or branch_name(lang, tag)
@@ -994,20 +852,17 @@ def open_pr(root: Path, target: Target, result: Result,
     if dry_run:
         log(f"\n=== would push branch: {branch}")
         log(f"=== would create PR (base {base}): {title}\n")
-        log(body)  # stderr: stdout must stay JSON-pure for the artifact
+        log(body)
         result.status = "dry-run"
         return result
 
     run_quiet(["git", "push", "origin", branch], cwd=root)
     create = ["gh", "pr", "create", "--title", title, "--body", body,
               "--base", base, "--head", branch]
-    # Flag PRs where the skill adapted test expectations so reviewers look closely.
     if result.tests_adapted:
         ensure_label(origin_repo(), AGENT_ADAPTED_LABEL)
         create += ["--label", AGENT_ADAPTED_LABEL]
-    # Captured (not run_quiet) so the new PR's URL — gh prints it as the last
-    # stdout line — lands in the result JSON for the Slack success message.
-    # Output is still mirrored to stderr to keep stdout JSON-pure.
+    # Captured for PR URL in result JSON; mirrored to stderr for log.
     log(f"$ {' '.join(create)}  (in {root})")
     created = subprocess.run(create, cwd=root, text=True,
                              capture_output=True, check=False)
@@ -1024,16 +879,7 @@ def open_pr(root: Path, target: Target, result: Result,
 
 def language_agent_prompt(lang: LangAndWrapper, tag: str,
                         test_log: str) -> str:
-    """Prompt that drives the `fix-semgrep-grammar` skill.
-
-    That skill (`.agents/skills/fix-semgrep-grammar/SKILL.md`, from #619) is
-    the purpose-built tool for repairing the semgrep extension grammar +
-    corpus after an upstream tree-sitter bump: it has its own bounded loop,
-    strict edit boundaries, coverage invariant, and machine-readable exit
-    statuses (FIX-SEMGREP-GRAMMAR: SUCCESS | CANNOT_PROCEED | ITERATION_LIMIT).
-    We invoke it rather than hand-rolling the fix logic; the authoritative
-    signal remains the test-lang RE-RUN the caller does afterward.
-    """
+    # Prompt for fix-semgrep-grammar skill; authoritative signal is caller's test-lang re-run.
     return (
         f"Use the `fix-semgrep-grammar` skill to make `test-lang {lang.language}` "
         f"pass. Context: the tree-sitter-{lang.language} submodule was just bumped "
@@ -1050,7 +896,6 @@ def _dispatch_language_agent(
     verbose: bool, agent_timeout: float,
     agent_token_cap: int | None, agent_turn_cap: int | None,
 ) -> None:
-    """Run the Cursor language agent and accumulate usage onto `result`."""
     agent_result = run_language_agent(
         root, prompt, label=label, verbose=verbose,
         timeout_seconds=agent_timeout,
@@ -1067,19 +912,8 @@ def propose(root: Path, target: Target, keep: bool = False,
             agent_timeout: float = 1500.0,
             agent_token_cap: int | None = DEFAULT_AGENT_TOKEN_CAP,
             agent_turn_cap: int | None = DEFAULT_AGENT_TURN_CAP) -> Result:
-    """Run the full single-language propose flow; return a Result.
-
-    Bumps to the latest tag, regenerates snapshots, runs test-lang, and
-    classifies the outcome. With `language_agent=True`, on a test-lang
-    failure run fix-semgrep-grammar, then re-test. With the default
-    `language_agent=False` failures are reported as-is — no Cursor agent is
-    ever launched unless the caller opted in. With `keep=True`, the work is
-    done on the grammar-update branch (forked from origin/main) and the
-    validated tree is committed there for open_pr() to push — no re-bump, no
-    second agent run. With keep=False (classify-only), the working tree is
-    reset before returning.
-    Does NOT create a PR — that's the caller's job under --open-pr.
-    """
+    # Bump, regenerate snapshots, test. With language_agent, fix failures via skill then re-test.
+    # keep=True: commit to branch for open_pr(); keep=False: reset on return. No PR creation.
     lang = target.lang
     language = lang.language
     step = lambda msg: log(f"[{language}] {msg}")
@@ -1262,13 +1096,7 @@ def ensure_label(repo: str, label: str) -> None:
 
 
 def release_dialects(lang: LangAndWrapper) -> list[str]:
-    """Dialects to release for a language, filtered to existing repos.
-
-    `lang/release` operates per dialect (typescript -> [typescript, tsx],
-    php -> [php, php-only]), but only dialects with a real
-    semgrep-<dialect> repo can be released. Falls back to the language
-    itself.
-    """
+    # Filter dialects to existing repos; fall back to language name if none exist.
     dialects = ug.LANGUAGE_VARIANTS.get(lang.wrapper, [lang.language])
     existing = [d for d in dialects if downstream_repo_exists(d)]
     return existing or [lang.language]
@@ -1276,12 +1104,7 @@ def release_dialects(lang: LangAndWrapper) -> list[str]:
 
 def open_downstream_pr(dialect: str, branch: str, tag: str,
                        *, dry_run: bool) -> None:
-    """Open a PR on semgrep-<dialect> for the released branch (idempotent).
-
-    The default branch is protected (requires PRs), so the generated-parser
-    change lands via review, not a dangling branch. Skips if a PR for the
-    branch already exists.
-    """
+    # Open PR on protected branch; skip if exists.
     repo = f"{github_org()}/semgrep-{dialect}"
     if dry_run:
         log(f"[dry run] would open PR on {repo} for {branch}")
@@ -1307,14 +1130,7 @@ def open_downstream_pr(dialect: str, branch: str, tag: str,
 
 def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
                        tag: str, *, dry_run: bool) -> subprocess.CompletedProcess:
-    """Release the generated parser to each semgrep-<dialect> repo, via PR.
-
-    For each dialect: `lang/release <dialect> --branch <branch>` pushes the
-    generated parser to that branch, then open a PR (branch -> default) so
-    it merges through review — the default branch is PR-protected, so a
-    direct push isn't possible anyway. This is the only step that touches
-    the downstream repos, gated behind --release, --dry-run safe.
-    """
+    # Release parser via lang/release per dialect; only step touching downstream repos.
     lang_dir = root / "lang"
     last = None
     for dialect in release_dialects(lang):
@@ -1322,8 +1138,7 @@ def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
         if dry_run:
             cmd.append("--dry-run")
         log(f"$ {' '.join(cmd)}  (in {lang_dir})")
-        # Capture (don't inherit) so release's verbose output goes to our
-        # log/stderr and never pollutes the JSON we print to stdout.
+        # Capture so release output goes to stderr, not JSON stdout.
         last = subprocess.run(
             cmd, cwd=lang_dir, text=True, capture_output=True, check=False,
         )
@@ -1341,14 +1156,7 @@ def release_downstream(root: Path, lang: LangAndWrapper, branch: str,
 
 
 def list_languages(root: Path, as_json: bool, updatable_only: bool = False) -> None:
-    """Print proposable languages (sorted).
-
-    With `updatable_only`, emit only languages whose recorded submodule SHA
-    differs from their latest stable tag — the cheap pre-filter that keeps
-    up-to-date languages out of the expensive build matrix entirely.
-    Languages whose status can't be cheaply determined are INCLUDED (so the
-    full flow decides, rather than wrongly skipping them).
-    """
+    # With updatable_only: cheap pre-filter for languages behind latest tag.
     valid = ug.discover_valid_languages(root)
     names = sorted(valid)
     if updatable_only:
@@ -1371,13 +1179,11 @@ _RESULT_FILENAME_RE = re.compile(r"^result-(.+)\.json$")
 
 
 def language_from_result_path(path: Path) -> str | None:
-    """Best-effort language name from a `result-<lang>.json` artifact path."""
     m = _RESULT_FILENAME_RE.match(path.name)
     return m.group(1) if m else None
 
 
 def load_result_row(path: Path) -> dict[str, Any]:
-    """Load one result artifact; empty/invalid files become a failed row."""
     fallback_lang = language_from_result_path(path) or path.stem
     try:
         text = path.read_text().strip()
@@ -1410,21 +1216,15 @@ def _is_valid_result_file(path: Path) -> bool:
     return isinstance(data, dict) and bool(data.get("language")) and bool(data.get("status"))
 
 
+
 def ensure_result_file(path: Path) -> None:
-    """CI fallback: if `path` isn't a valid result-<lang>.json (missing or
-    corrupt because propose crashed before writing it), replace it with a
-    failed row via `load_result_row` so summarize/Slack still see the
-    language instead of a silently dropped artifact.
-    """
+    # CI fallback: rewrite missing/corrupt artifacts as failed rows.
     if not _is_valid_result_file(path):
         path.write_text(json.dumps(load_result_row(path)) + "\n")
 
 
 def summarize(results_dir: Path) -> None:
-    """Render a markdown table from per-language result JSON files.
-
-    Empty/corrupt artifacts become failed rows (not omitted).
-    """
+    # Render markdown table; empty/corrupt artifacts become failed rows.
     rows = [load_result_row(path) for path in sorted(results_dir.rglob("*.json"))]
 
     by_status: dict[str, list[dict[str, Any]]] = {}
@@ -1447,13 +1247,11 @@ def summarize(results_dir: Path) -> None:
                 f"{(r.get('old_sha') or '')[:8]} → {r.get('new_tag') or ''}"
                 if status == STATUS_UPDATED else ""
             )
-            # Slack/code-block tables break on raw pipes/newlines in cells.
             detail = str(detail).replace("|", "\\|").replace("\n", " ")
             print(f"| {r['language']} | {icon.get(status, '')} {status} | {detail} |")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI args."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("language", nargs="?", help="Language to propose an update for.")
     parser.add_argument(
@@ -1541,16 +1339,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def run_release(root: Path, target: Target, dry_run: bool,
                 result_file: str | None = None) -> int:
-    """Downstream hand-off: release the validated parser to semgrep-<lang>.
-
-    Checks out the grammar-update/<lang>/<tag> branch the propose job built
-    and validated (rather than re-bumping) and releases its generated parser
-    to the same branch on semgrep-<lang> via PR. With `result_file`, the
-    tag/branch come from the propose job's result artifact — the exact ones
-    test-lang validated; without it (manual runs) the tag is re-resolved
-    live, and a stale branch name fails loudly on the fetch (no silent
-    wrong-version release).
-    """
+    # Downstream hand-off: release validated parser to semgrep-<lang> via PR.
     language, wrapper = target.lang.language, target.lang.wrapper
     if result_file:
         res = Result.from_file(Path(result_file))
@@ -1562,11 +1351,7 @@ def run_release(root: Path, target: Target, dry_run: bool,
     if tag is None or branch is None:
         ug.die(f"{language}: no validated tag/branch; nothing to release.")
 
-    # Check out the exact branch the propose job built + validated (submodule
-    # bump + any skill-adapted tests are committed there). Do NOT re-bump —
-    # that could pull different content than what test-lang actually
-    # validated. `lang/release` regenerates the OCaml sources from this tree
-    # via its own `make gen`.
+    # Don't re-bump; use exact validated branch. lang/release regenerates OCaml sources.
     run_quiet(["git", "fetch", "origin", branch], cwd=root)
     run_quiet(["git", "checkout", branch], cwd=root)
     run_quiet(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
@@ -1584,7 +1369,6 @@ def run_release(root: Path, target: Target, dry_run: bool,
 
 
 def main() -> int:
-    """Drive a single-language proposal; see module docstring."""
     root = ug.repo_root()
     args = parse_args()
 
@@ -1603,9 +1387,8 @@ def main() -> int:
     if not args.language:
         ug.die("a language is required (or use --list-languages).")
 
-    # Emit failed Result JSON on any crash below (language already known).
     try:
-        # Parse once here; _pick_ts_version compares these directly.
+        # Parse once; _pick_ts_version compares these directly.
         tree_sitter_versions = sorted(
             (Version.parse(v) for v in ug.discover_version_files(root, "languages")),
             reverse=True,
@@ -1617,8 +1400,7 @@ def main() -> int:
         valid = ug.discover_valid_languages(root)
         wrapper = ug.validate_language(args.language, valid)
 
-        # Before network work; skipped for --resolve-tag-only, which never
-        # provisions anything. target.ts_version may be None and skip ensure_*.
+        # Before network work; --resolve-tag-only skips provisioning.
         if not args.resolve_tag_only:
             ug.require_provision_script(root)
 
@@ -1633,23 +1415,17 @@ def main() -> int:
             print(target.tag)
             return 0
 
-        # Every path below this point can shell out to test-lang/release/
-        # update-grammar, each of which invokes a bare `tree-sitter`. Put the
-        # right one on PATH once, globally, before any of them run.
+        # Every path below shells out to test-lang/release/update-grammar; set PATH once.
         if target.ts_version:
             ensure_ts_version_on_path(root, target.ts_version)
 
         if args.release:
             return run_release(root, target, args.dry_run, result_file=args.result)
 
-        # Before any propose() mutation: require the SDK only when opted in.
         if args.language_agent:
             ensure_cursor_sdk()
 
-        # keep=True (do the work on the PR branch, commit it) only for a real
-        # --open-pr run; --dry-run and classify-only leave the tree reset.
-        # In keep mode, bail cheaply if this lang+tag was already proposed
-        # (dry runs still exercise the full pipeline on purpose).
+        # keep=True: PR mode, commit on branch. keep=False: reset. Bail cheaply if already proposed.
         keep = args.open_pr and not args.dry_run
         result = existing_proposal(root, target) if keep else None
         if result is None:
@@ -1658,15 +1434,13 @@ def main() -> int:
                              agent_token_cap=cap_or_none(args.agent_token_cap),
                              agent_turn_cap=cap_or_none(args.agent_turn_cap))
 
-        # Only a green, real update is worth a PR. Everything else (no-op,
-        # no-tags, failed) is reported as-is for the workflow summary.
+        # Only green updates get PRs; others reported for workflow summary.
         if (args.open_pr or args.dry_run) and result.status == STATUS_UPDATED:
             result = open_pr(root, target, result, dry_run=args.dry_run)
 
         print(result.to_json())
         return 0 if result.status != STATUS_FAILED else 1
     except SystemExit as e:
-        # ug.die raises SystemExit(str); Exception won't catch it.
         if e.code in (0, None):
             raise
         detail = e.code if isinstance(e.code, str) else f"unexpected error: SystemExit: {e.code}"
@@ -1689,6 +1463,7 @@ def cli() -> None:
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(130)
+
 
 
 if __name__ == "__main__":
