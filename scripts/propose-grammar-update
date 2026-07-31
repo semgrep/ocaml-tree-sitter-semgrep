@@ -125,10 +125,13 @@ from cursor_agent_runner import (  # noqa: E402
 
 # Result statuses, in the JSON contract emitted on stdout:
 #   updated  - submodule moved to a newer tag and test-lang passed
+#              (after integrate: release to semgrep-<lang> also succeeded)
 #   no-op    - already at the latest tag
 #   no-tags  - upstream has no parseable stable release tag
 #   exists   - a branch/PR already exists for this lang+tag
-#   failed   - bump/test-lang failed, or an unexpected crash / ug.die
+#   failed   - bump/test-lang/release failed, or an unexpected crash / ug.die
+# The integrate job overwrites the propose artifact on failure so Slack /
+# summary never keep a stale `updated` row after a release failure.
 STATUS_UPDATED = "updated"
 STATUS_NO_OP = "no-op"
 STATUS_NO_TAGS = "no-tags"
@@ -1548,6 +1551,10 @@ def run_release(root: Path, target: Target, dry_run: bool,
     test-lang validated; without it (manual runs) the tag is re-resolved
     live, and a stale branch name fails loudly on the fetch (no silent
     wrong-version release).
+
+    Always emits a Result JSON line on stdout (same contract as propose) so
+    the workflow can overwrite the propose artifact and Slack/summary see
+    release failures as `failed`, not leftover `updated`.
     """
     language, wrapper = target.lang.language, target.lang.wrapper
     if result_file:
@@ -1557,27 +1564,42 @@ def run_release(root: Path, target: Target, dry_run: bool,
     else:
         tag = target.tag
         branch = branch_name(target.lang, tag) if tag else None
-    if tag is None or branch is None:
-        ug.die(f"{language}: no validated tag/branch; nothing to release.")
+        res = Result(language=language, new_tag=tag, branch=branch,
+                     ts_version=target.ts_version)
 
-    # Check out the exact branch the propose job built + validated (submodule
-    # bump + any skill-adapted tests are committed there). Do NOT re-bump —
-    # that could pull different content than what test-lang actually
-    # validated. `lang/release` regenerates the OCaml sources from this tree
-    # via its own `make gen`.
+    def _fail(detail: str) -> int:
+        res.status = STATUS_FAILED
+        res.detail = detail
+        log(detail)
+        print(res.to_json())
+        return 1
+
+    if tag is None or branch is None:
+        return _fail(f"{language}: no validated tag/branch; nothing to release.")
+
+    # Check out the exact branch the propose job built + validated
+    # (submodule bump + any skill-adapted tests are committed there).
+    # Do NOT re-bump — that could pull different content than what
+    # test-lang actually validated. `lang/release` regenerates the
+    # OCaml sources from this tree via its own `make gen`.
     run_quiet(["git", "fetch", "origin", branch], cwd=root)
     run_quiet(["git", "checkout", branch], cwd=root)
-    run_quiet(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
-               "--", str(target.submodule.relative_to(root))], cwd=root)
+    run_quiet(
+        ["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
+         "--", str(target.submodule.relative_to(root))],
+        cwd=root,
+    )
 
     rel = release_downstream(root, target.lang, branch, tag, dry_run=dry_run)
     if rel is not None and rel.returncode != 0:
-        ug.die(f"{language}: lang/release failed.")
+        return _fail(f"{language}: lang/release failed.")
 
     log(f"{language}: released to semgrep-{wrapper} branch {branch} "
         f"(PR opened per dialect).")
-    print(json.dumps({"language": language, "new_tag": tag,
-                      "branch": branch, "released": not dry_run}))
+    res.status = STATUS_UPDATED
+    res.branch = branch
+    res.new_tag = tag
+    print(res.to_json())
     return 0
 
 

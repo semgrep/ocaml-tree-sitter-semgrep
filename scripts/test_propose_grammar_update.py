@@ -527,6 +527,42 @@ class TestEnsureResultFile(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text())["language"], "ruby")
 
 
+class TestRunReleaseResultJson(unittest.TestCase):
+    """--release must emit the same Result JSON contract as propose."""
+
+    def test_failure_emits_failed_result_preserving_fields(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            sub = root / "lang" / "semgrep-grammars" / "src" / "tree-sitter-r"
+            sub.mkdir(parents=True)
+            target = pg.Target(
+                lang=pg.LangAndWrapper(language="r", wrapper="r"),
+                submodule=sub, tag="v1.3.0", ts_version="0.26.3",
+            )
+            result_path = root / "result-r.json"
+            result_path.write_text(pg.Result(
+                language="r", status=pg.STATUS_UPDATED, new_tag="v1.3.0",
+                branch="grammar-update/r/v1.3.0",
+                pr_url="https://example.com/pr/1",
+            ).to_json())
+            buf = io.StringIO()
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "run_quiet", return_value=None))
+                stack.enter_context(unittest.mock.patch.object(
+                    pg, "release_downstream",
+                    return_value=unittest.mock.Mock(returncode=1)))
+                stack.enter_context(contextlib.redirect_stdout(buf))
+                stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+                rc = pg.run_release(root, target, dry_run=False,
+                                    result_file=str(result_path))
+            data = json.loads(buf.getvalue())
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["status"], pg.STATUS_FAILED)
+        self.assertIn("lang/release failed", data["detail"])
+        self.assertEqual(data["pr_url"], "https://example.com/pr/1")
+
+
 ###############################################################################
 # Review-and-adapt agent (on test-lang failure) #
 ###############################################################################
