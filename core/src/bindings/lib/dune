@@ -25,10 +25,17 @@
  (targets c_flags.sexp c_library_flags.sexp)
  (deps (:tree-sitter-prefix %{project_root}/tree-sitter-out))
  (action
+  ; Neutralize PKG_CONFIG_SYSROOT_DIR for this query: on Windows the mingw
+  ; pkg-config otherwise prepends its sysroot to tree-sitter.pc's absolute C:/
+  ; include/lib paths, producing a broken "-I<sysroot>C:/..." fragment that hides
+  ; <tree_sitter/api.h>. Empty sysroot = no prepend; a no-op elsewhere.
   (setenv
-   PKG_CONFIG_PATH
-   "%{tree-sitter-prefix}/lib/pkgconfig:%{env:PKG_CONFIG_PATH=}"
-   (run ./config/discover.exe))))
+   PKG_CONFIG_SYSROOT_DIR
+   ""
+   (setenv
+    PKG_CONFIG_PATH
+    "%{tree-sitter-prefix}/lib/pkgconfig:%{env:PKG_CONFIG_PATH=}"
+    (run ./config/discover.exe)))))
 
 ; atdgen preprocessing for json support
 
