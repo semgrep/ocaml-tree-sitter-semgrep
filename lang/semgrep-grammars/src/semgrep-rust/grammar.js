@@ -73,6 +73,26 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    // Match arm ellipsis: 'match $X { ... }', 'match $X { ..., $P => $E }',
+    // 'match $X { $P => $E, ... }'.
+    // The base grammar splits arms into match_arm (comma-terminated unless
+    // the value ends with a block) and last_match_arm (comma optional,
+    // aliased back to match_arm in match_block). A sole '...' before '}'
+    // derives via last_match_arm, so both rules need the alternative.
+    // The comma split keeps the parse deterministic: an ellipsis arm
+    // followed by ',' is a match_arm, an ellipsis arm followed by '}' is a
+    // last_match_arm. Not supported: '{ ..., }' (ellipsis arm with a
+    // trailing comma as the final arm).
+    match_arm: ($, previous) => choice(
+      previous,
+      seq($.ellipsis, ','),
+    ),
+
+    last_match_arm: ($, previous) => choice(
+      previous,
+      $.ellipsis,
+    ),
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(
