@@ -23,6 +23,9 @@ _build
 # for tree-sitter >= 0.19.3
 Cargo.toml
 bindings/
+# but keep the hand-written OCaml bindings library (not a generate product)
+!/core/src/bindings/
+!/core/src/bindings/**
 
 # tree-sitter-cli download
 /downloads/
