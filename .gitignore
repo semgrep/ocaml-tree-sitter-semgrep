@@ -21,8 +21,11 @@ _build
 
 # products of 'tree-sitter generate' without '--no-bindings'
 # for tree-sitter >= 0.19.3
+# Do not use a bare 'bindings/' — that also matches core/src/bindings
+# (the hand-written OCaml tree-sitter C API library), which dockerignore
+# then excludes from the build context.
 Cargo.toml
-bindings/
+/lang/**/bindings/
 
 # tree-sitter-cli download
 /downloads/
