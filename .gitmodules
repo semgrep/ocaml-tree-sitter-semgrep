@@ -120,13 +120,13 @@
 	url = https://github.com/camdencheek/tree-sitter-go-mod.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-requirements"]
 	path = lang/semgrep-grammars/src/tree-sitter-requirements
-	url = git@github.com:tree-sitter-grammars/tree-sitter-requirements.git
+	url = https://github.com/tree-sitter-grammars/tree-sitter-requirements.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-dart"]
 	path = lang/semgrep-grammars/src/tree-sitter-dart
 	url = https://github.com/UserNobody14/tree-sitter-dart.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-gosu"]
 	path = lang/semgrep-grammars/src/tree-sitter-gosu
-	url = git@github.com:tarides/tree-sitter-gosu.git
+	url = https://github.com/tarides/tree-sitter-gosu.git
 [submodule "lang/semgrep-grammars/src/tree-sitter-fga"]
 	path = lang/semgrep-grammars/src/tree-sitter-fga
 	url = https://github.com/semgrep/tree-sitter-fga.git
