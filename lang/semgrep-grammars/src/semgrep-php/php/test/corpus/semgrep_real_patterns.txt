@@ -1,0 +1,712 @@
+========================
+SQL Injection Pattern from Semgrep Rules
+========================
+
+<?php
+$qb->where(..., $SINK, ...);
+$query->add(..., $SINK, ...);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (argument
+          (semgrep_ellipsis))
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis)))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (argument
+          (semgrep_ellipsis))
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis))))))
+
+========================
+Laravel Query Builder Pattern
+========================
+
+<?php
+$Q = $X->createQueryBuilder();
+...
+$Q->where($SINK);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (semgrep_metavariable))
+      (member_call_expression
+        (name
+          (semgrep_metavariable))
+        (name)
+        (arguments))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (member_call_expression
+      (name
+        (semgrep_metavariable))
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))))))
+
+========================
+Route Handler Pattern
+========================
+
+<?php
+Route::$METHOD($ROUTENAME, function(..., $ARG, ...) {
+  ...
+});
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (scoped_call_expression
+      (name)
+      (name
+        (semgrep_metavariable))
+      (arguments
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (anonymous_function
+            (formal_parameters
+              (simple_parameter
+                (semgrep_ellipsis))
+              (simple_parameter
+                (variable_name
+                  (semgrep_metavariable)))
+              (simple_parameter
+                (semgrep_ellipsis)))
+            (compound_statement
+              (semgrep_ellipsis))))))))
+
+========================
+User Input Taint Pattern
+========================
+
+<?php
+$tainted = $_GET[$KEY];
+...
+dangerous_sink($tainted);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (subscript_expression
+        (variable_name
+          (name))
+        (semgrep_metavariable))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Database Query Chain Pattern
+========================
+
+<?php
+$DB->...->query($SQL)->...->execute();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (semgrep_ellipsis_method_chain
+        (member_call_expression
+          (semgrep_ellipsis_method_chain
+            (name
+              (semgrep_metavariable)))
+          (name)
+          (arguments
+            (argument
+              (semgrep_metavariable)))))
+      (name)
+      (arguments))))
+
+========================
+Sensitive Function in Condition
+========================
+
+<?php
+if (<... assert($USERINPUT) ...>) {
+  ...
+}
+
+---
+
+(program
+  (php_tag)
+  (if_statement
+    (parenthesized_expression
+      (deep_expression
+        (function_call_expression
+          (name)
+          (arguments
+            (argument
+              (semgrep_metavariable))))))
+    (compound_statement
+      (semgrep_ellipsis))))
+
+========================
+Dynamic Class Instantiation
+========================
+
+<?php
+$class = $_GET['class'];
+...
+$obj = new $class(...);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (subscript_expression
+        (variable_name
+          (name))
+        (string
+          (string_content)))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (object_creation_expression
+        (variable_name
+          (name))
+        (arguments
+          (variadic_placeholder))))))
+
+========================
+XSS Output Pattern
+========================
+
+<?php
+echo <... $_GET[$KEY] ...>;
+
+---
+
+(program
+  (php_tag)
+  (echo_statement
+    (deep_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (semgrep_metavariable)))))
+
+========================
+Session Manipulation Pattern
+========================
+
+<?php
+$_SESSION[$_GET[$KEY]] = $VALUE;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (subscript_expression
+        (variable_name
+          (name))
+        (subscript_expression
+          (variable_name
+            (name))
+          (semgrep_metavariable)))
+      (semgrep_metavariable))))
+
+========================
+Command Injection with Concatenation
+========================
+
+<?php
+$cmd = "command " . $_GET['arg'];
+...
+exec($cmd);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (encapsed_string
+          (string_content))
+        (subscript_expression
+          (variable_name
+            (name))
+          (string
+            (string_content))))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Callback Taint Pattern
+========================
+
+<?php
+call_user_func($_GET['func'], ...);
+array_map($_POST['callback'], $DATA);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (semgrep_ellipsis)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (argument
+          (semgrep_metavariable))))))
+
+========================
+File Inclusion Pattern
+========================
+
+<?php
+$file = $_GET['file'];
+...
+include($file);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (subscript_expression
+        (variable_name
+          (name))
+        (string
+          (string_content)))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (include_expression
+      (parenthesized_expression
+        (variable_name
+          (name))))))
+
+========================
+SSRF with URL Building
+========================
+
+<?php
+$url = "http://" . $_GET['host'] . "/api";
+...
+file_get_contents($url);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (binary_expression
+          (encapsed_string
+            (string_content))
+          (subscript_expression
+            (variable_name
+              (name))
+            (string
+              (string_content))))
+        (encapsed_string
+          (string_content)))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Type Confusion Pattern
+========================
+
+<?php
+function process($TYPE, $VALUE) {
+  ...
+  $$TYPE = $VALUE;
+  ...
+}
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    (name)
+    (formal_parameters
+      (simple_parameter
+        (variable_name
+          (semgrep_metavariable)))
+      (simple_parameter
+        (variable_name
+          (semgrep_metavariable))))
+    (compound_statement
+      (semgrep_ellipsis)
+      (expression_statement
+        (assignment_expression
+          (variable_name
+            (name
+              (semgrep_metavariable)))
+          (semgrep_metavariable)))
+      (semgrep_ellipsis))))
+
+========================
+Sanitizer Pattern
+========================
+
+<?php
+$safe = htmlentities($TAINTED);
+dangerous_output($safe);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (semgrep_metavariable))))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+API Endpoint Pattern
+========================
+
+<?php
+$app->$METHOD('/path', function($request) {
+  $id = $request->input($PARAM);
+  ...
+  return $DB->find($id);
+});
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name
+        (semgrep_metavariable))
+      (arguments
+        (argument
+          (string
+            (string_content)))
+        (argument
+          (anonymous_function
+            (formal_parameters
+              (simple_parameter
+                (variable_name
+                  (name))))
+            (compound_statement
+              (expression_statement
+                (assignment_expression
+                  (variable_name
+                    (name))
+                  (member_call_expression
+                    (variable_name
+                      (name))
+                    (name)
+                    (arguments
+                      (argument
+                        (semgrep_metavariable))))))
+              (semgrep_ellipsis)
+              (return_statement
+                (member_call_expression
+                  (name
+                    (semgrep_metavariable))
+                  (name)
+                  (arguments
+                    (argument
+                      (variable_name
+                        (name)))))))))))))
+
+========================
+Cryptographic Weakness Pattern
+========================
+
+<?php
+$key = md5($PASSWORD);
+...
+$encrypted = encrypt($DATA, $key);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (semgrep_metavariable))))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (semgrep_metavariable))
+          (argument
+            (variable_name
+              (name))))))))
+
+========================
+Open Redirect Pattern
+========================
+
+<?php
+$next = $_GET['redirect'];
+...
+header('Location: ' . $next);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (subscript_expression
+        (variable_name
+          (name))
+        (string
+          (string_content)))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (binary_expression
+            (string
+              (string_content))
+            (variable_name
+              (name))))))))
+
+========================
+Authentication Bypass Pattern
+========================
+
+<?php
+if ($USER->isAdmin() || <... $BYPASS ...>) {
+  ...
+  privileged_action();
+  ...
+}
+
+---
+
+(program
+  (php_tag)
+  (if_statement
+    (parenthesized_expression
+      (binary_expression
+        (member_call_expression
+          (name
+            (semgrep_metavariable))
+          (name)
+          (arguments))
+        (deep_expression
+          (semgrep_metavariable))))
+    (compound_statement
+      (semgrep_ellipsis)
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments)))
+      (semgrep_ellipsis))))
+
+========================
+Unsafe Deserialization Pattern
+========================
+
+<?php
+$data = unserialize($_COOKIE[$KEY]);
+...
+process($data);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (argument
+            (subscript_expression
+              (variable_name
+                (name))
+              (semgrep_metavariable)))))))
+  (semgrep_ellipsis)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (variable_name
+            (name)))))))
+
+========================
+Complex Method Chain with Ellipsis
+========================
+
+<?php
+$result = $service
+  ->...
+  ->query($SQL)
+  ->...
+  ->execute();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_call_expression
+        (semgrep_ellipsis_method_chain
+          (member_call_expression
+            (semgrep_ellipsis_method_chain
+              (variable_name
+                (name)))
+            (name)
+            (arguments
+              (argument
+                (semgrep_metavariable)))))
+        (name)
+        (arguments)))))
+
+========================
+Prepared Statement Pattern Safe Usage
+========================
+
+<?php
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$ID]);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (member_call_expression
+        (variable_name
+          (name))
+        (name)
+        (arguments
+          (argument
+            (encapsed_string
+              (string_content)))))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (argument
+          (array_creation_expression
+            (array_element_initializer
+              (semgrep_metavariable))))))))

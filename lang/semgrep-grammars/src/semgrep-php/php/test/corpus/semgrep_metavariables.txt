@@ -1,0 +1,367 @@
+========================
+Metavariable in Function Call
+========================
+
+<?php
+call_user_func($FUNC);
+exec($CMD);
+eval($CODE);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Method Chain
+========================
+
+<?php
+$db->...->where($SINK);
+$obj->...->execute();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_call_expression
+      (semgrep_ellipsis_method_chain
+        (variable_name
+          (name)))
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable)))))
+  (expression_statement
+    (member_call_expression
+      (semgrep_ellipsis_method_chain
+        (variable_name
+          (name)))
+      (name)
+      (arguments))))
+
+========================
+Ellipsis in Arguments
+========================
+
+<?php
+a($X, ..., $Y);
+b(..., $LAST);
+c($FIRST, ..., $LAST);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis))
+        (argument
+          (semgrep_metavariable)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_ellipsis))
+        (argument
+          (semgrep_metavariable)))))
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (argument
+          (semgrep_metavariable))
+        (argument
+          (semgrep_ellipsis))
+        (argument
+          (semgrep_metavariable))))))
+
+========================
+Metavariable in String Concatenation
+========================
+
+<?php
+$sql = "SELECT * FROM " . $TABLE;
+$url = "http://" . $HOST . "/api";
+echo "User: " . $USER;
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (encapsed_string
+          (string_content))
+        (semgrep_metavariable))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (binary_expression
+        (binary_expression
+          (encapsed_string
+            (string_content))
+          (semgrep_metavariable))
+        (encapsed_string
+          (string_content)))))
+  (echo_statement
+    (binary_expression
+      (encapsed_string
+        (string_content))
+      (semgrep_metavariable))))
+
+========================
+Deep Expression Metavariable
+========================
+
+<?php
+$result = some_func($...ARGS);
+new $CLASS($...ARGS);
+$obj->method($...PARAMS);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (function_call_expression
+        (name)
+        (arguments
+          (semgrep_ellipsis_metavariable)))))
+  (expression_statement
+    (object_creation_expression
+      (name
+        (semgrep_metavariable))
+      (arguments
+        (semgrep_ellipsis_metavariable))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (semgrep_ellipsis_metavariable)))))
+
+========================
+Typed Metavariable
+========================
+
+<?php
+function test(string $NAME, int $COUNT) {
+  return $NAME . $COUNT;
+}
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    (name)
+    (formal_parameters
+      (simple_parameter
+        (primitive_type)
+        (variable_name
+          (semgrep_metavariable)))
+      (simple_parameter
+        (primitive_type)
+        (variable_name
+          (semgrep_metavariable))))
+    (compound_statement
+      (return_statement
+        (binary_expression
+          (semgrep_metavariable)
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Array
+========================
+
+<?php
+$array = [$FIRST, ..., $LAST];
+$data = array($X, ..., $Y);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (array_creation_expression
+        (array_element_initializer
+          (semgrep_metavariable))
+        (array_element_initializer
+          (semgrep_ellipsis))
+        (array_element_initializer
+          (semgrep_metavariable)))))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (array_creation_expression
+        (array_element_initializer
+          (semgrep_metavariable))
+        (array_element_initializer
+          (semgrep_ellipsis))
+        (array_element_initializer
+          (semgrep_metavariable))))))
+
+========================
+Ellipsis in Statement List
+========================
+
+<?php
+function example() {
+  setup();
+  ...
+  execute();
+}
+
+---
+
+(program
+  (php_tag)
+  (function_definition
+    (name)
+    (formal_parameters)
+    (compound_statement
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments)))
+      (semgrep_ellipsis)
+      (expression_statement
+        (function_call_expression
+          (name)
+          (arguments))))))
+
+========================
+Metavariable as Class Name
+========================
+
+<?php
+new $CLASS();
+$instance = new $CLASSNAME($arg1, $arg2);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (object_creation_expression
+      (name
+        (semgrep_metavariable))
+      (arguments)))
+  (expression_statement
+    (assignment_expression
+      (variable_name
+        (name))
+      (object_creation_expression
+        (name
+          (semgrep_metavariable))
+        (arguments
+          (argument
+            (variable_name
+              (name)))
+          (argument
+            (variable_name
+              (name))))))))
+
+========================
+Metavariable in Property Access
+========================
+
+<?php
+$obj->$PROPERTY;
+$this->$FIELD = $value;
+$instance->$METHOD();
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (member_access_expression
+      (variable_name
+        (name))
+      (name
+        (semgrep_metavariable))))
+  (expression_statement
+    (assignment_expression
+      (member_access_expression
+        (variable_name
+          (name))
+        (name
+          (semgrep_metavariable)))
+      (variable_name
+        (name))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name
+        (semgrep_metavariable))
+      (arguments))))
+
+========================
+Named Ellipsis Metavariable
+========================
+
+<?php
+function_call($...ARGS);
+$obj->method($...PARAMS);
+array($...ITEMS);
+
+---
+
+(program
+  (php_tag)
+  (expression_statement
+    (function_call_expression
+      (name)
+      (arguments
+        (semgrep_ellipsis_metavariable))))
+  (expression_statement
+    (member_call_expression
+      (variable_name
+        (name))
+      (name)
+      (arguments
+        (semgrep_ellipsis_metavariable))))
+  (expression_statement
+    (array_creation_expression
+      (array_element_initializer
+        (semgrep_ellipsis_metavariable)))))
