@@ -73,6 +73,37 @@ module.exports = grammar(standard_grammar, {
       );
     },
 
+    // Allow Semgrep ellipsis inside tuple patterns: `let ($X, ...) = $E;`
+    tuple_pattern: ($, previous) => seq(
+      '(',
+      sepBy(',', choice($._pattern, $.closure_expression, $.ellipsis)),
+      optional(','),
+      ')',
+    ),
+
+    // Allow Semgrep ellipsis inside use lists: `use foo::{...};`
+    use_list: ($, previous) => seq(
+      '{',
+      sepBy(',', choice($._use_clause, $.ellipsis)),
+      optional(','),
+      '}',
+    ),
+
+    // Allow Semgrep ellipsis and bare `..` rest in struct expressions:
+    //   `Foo { x: 1, ... }` and `Foo { x, .. }`.
+    field_initializer_list: ($, previous) => seq(
+      '{',
+      sepBy(',', choice(
+        $.shorthand_field_initializer,
+        $.field_initializer,
+        $.base_field_initializer,
+        $.ellipsis,
+        '..',
+      )),
+      optional(','),
+      '}',
+    ),
+
     // Expression ellipsis
     _expression: ($, previous) => {
       return choice(

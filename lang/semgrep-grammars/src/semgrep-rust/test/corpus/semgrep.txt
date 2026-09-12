@@ -328,3 +328,93 @@ $...X;
 (source_file
   (expression_statement
     (identifier)))
+
+================================================================================
+Ellipsis in tuple pattern
+================================================================================
+
+__SEMGREP_STATEMENT
+let ($X, ...) = e;
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_statement
+    (let_declaration
+      (tuple_pattern
+        (identifier)
+        (ellipsis))
+      (identifier))))
+
+================================================================================
+Ellipsis in use list
+================================================================================
+
+use foo::{...};
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (use_declaration
+    (scoped_use_list
+      (identifier)
+      (use_list
+        (ellipsis)))))
+
+================================================================================
+Bare rest in struct expression
+================================================================================
+
+__SEMGREP_EXPRESSION
+Foo { x, .. }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (shorthand_field_initializer
+          (identifier))))))
+
+================================================================================
+Ellipsis in struct expression
+================================================================================
+
+__SEMGREP_EXPRESSION
+Foo { x: 1, ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (field_identifier)
+          (integer_literal))
+        (ellipsis)))))
+
+================================================================================
+Nested struct expression with rest
+================================================================================
+
+__SEMGREP_EXPRESSION
+Foo { bar: Baz { x, .. }, .. }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (field_identifier)
+          (struct_expression
+            (type_identifier)
+            (field_initializer_list
+              (shorthand_field_initializer
+                (identifier)))))))))
