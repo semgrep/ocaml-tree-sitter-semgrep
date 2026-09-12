@@ -154,3 +154,278 @@ function foo(..., @Bar(...) $X, ...) { ... }
     (statement_block
       (expression_statement
         (semgrep_expression_ellipsis)))))
+
+==================================
+Standalone decorator (LANG-477)
+==================================
+
+__SEMGREP_EXPRESSION @DEC
+
+---
+
+(program
+  (semgrep_expression
+    (semgrep_pattern
+      (decorator
+        (identifier)))))
+
+==================================
+Standalone decorator call (LANG-477)
+==================================
+
+__SEMGREP_EXPRESSION @DEC()
+
+---
+
+(program
+  (semgrep_expression
+    (semgrep_pattern
+      (decorator
+        (call_expression
+          (identifier)
+          (arguments))))))
+
+==================================
+Standalone decorator with ellipsis args (LANG-477)
+==================================
+
+__SEMGREP_EXPRESSION @DEC(...)
+
+---
+
+(program
+  (semgrep_expression
+    (semgrep_pattern
+      (decorator
+        (call_expression
+          (identifier)
+          (arguments
+            (semgrep_expression_ellipsis)))))))
+
+==================================
+Type alias RHS ellipsis (LANG-489)
+==================================
+
+type T = ...
+
+---
+
+(program
+  (type_alias_declaration
+    (type_identifier)
+    (semgrep_ellipsis)))
+
+==================================
+Type annotation ellipsis (LANG-489)
+==================================
+
+let X: ...
+
+---
+
+(program
+  (lexical_declaration
+    (variable_declarator
+      (identifier)
+      (type_annotation
+        (semgrep_ellipsis)))))
+
+==================================
+Conditional type with ellipsis (LANG-489)
+==================================
+
+type T = X extends Y ? ... : ...
+
+---
+
+(program
+  (type_alias_declaration
+    (type_identifier)
+    (conditional_type
+      (type_identifier)
+      (type_identifier)
+      (semgrep_ellipsis)
+      (semgrep_ellipsis))))
+
+==================================
+Type predicate (LANG-489)
+==================================
+
+__SEMGREP_EXPRESSION X is T
+
+---
+
+(program
+  (semgrep_expression
+    (semgrep_pattern
+      (type_predicate
+        (identifier)
+        (type_identifier)))))
+
+==================================
+Interface body ellipsis (LANG-500)
+==================================
+
+interface I { ... }
+
+---
+
+(program
+  (interface_declaration
+    (type_identifier)
+    (interface_body
+      (semgrep_ellipsis))))
+
+==================================
+Interface body with member and ellipsis (LANG-500)
+==================================
+
+interface I { foo(): T; ... }
+
+---
+
+(program
+  (interface_declaration
+    (type_identifier)
+    (interface_body
+      (method_signature
+        (property_identifier)
+        (formal_parameters)
+        (type_annotation
+          (type_identifier)))
+      (semgrep_ellipsis))))
+
+==================================
+Interface extends with ellipsis body (LANG-500)
+==================================
+
+interface I extends B { ... }
+
+---
+
+(program
+  (interface_declaration
+    (type_identifier)
+    (extends_type_clause
+      (type_identifier))
+    (interface_body
+      (semgrep_ellipsis))))
+
+==================================
+Object type literal ellipsis (LANG-500)
+==================================
+
+type T = { ... }
+
+---
+
+(program
+  (type_alias_declaration
+    (type_identifier)
+    (object_type
+      (semgrep_ellipsis))))
+
+==================================
+Object type literal with member and ellipsis (LANG-500)
+==================================
+
+type T = { K: V; ... }
+
+---
+
+(program
+  (type_alias_declaration
+    (type_identifier)
+    (object_type
+      (property_signature
+        (property_identifier)
+        (type_annotation
+          (type_identifier)))
+      (semgrep_ellipsis))))
+
+==================================
+Empty enum body ellipsis (LANG-502)
+==================================
+
+enum E { ... }
+
+---
+
+(program
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (semgrep_ellipsis))))
+
+==================================
+Enum body with member and ellipsis (LANG-502)
+==================================
+
+enum E { A, ... }
+
+---
+
+(program
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (property_identifier)
+      (semgrep_ellipsis))))
+
+==================================
+Mapped type value ellipsis (LANG-504)
+==================================
+
+type T<X> = { [K in keyof X]: ... }
+
+---
+
+(program
+  (type_alias_declaration
+    (type_identifier)
+    (type_parameters
+      (type_parameter
+        (type_identifier)))
+    (object_type
+      (index_signature
+        (mapped_type_clause
+          (type_identifier)
+          (index_type_query
+            (type_identifier)))
+        (type_annotation
+          (semgrep_ellipsis))))))
+
+==================================
+Type-parameter ellipsis on function (LANG-504)
+==================================
+
+function F<...>(X) { }
+
+---
+
+(program
+  (function_declaration
+    (identifier)
+    (type_parameters
+      (semgrep_ellipsis))
+    (formal_parameters
+      (required_parameter
+        (identifier)))
+    (statement_block)))
+
+==================================
+Type-parameter ellipsis on class (LANG-504)
+==================================
+
+class C<$T, ...> { }
+
+---
+
+(program
+  (class_declaration
+    (type_identifier)
+    (type_parameters
+      (type_parameter
+        (type_identifier))
+      (semgrep_ellipsis))
+    (class_body)))
