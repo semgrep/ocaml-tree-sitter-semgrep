@@ -162,6 +162,83 @@ struct $FOO {
         (ellipsis)))))
 
 ================================================================================
+Ellipsis for match arms
+================================================================================
+
+__SEMGREP_EXPRESSION
+match $X { ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (match_expression
+      (identifier)
+      (match_block
+        (match_arm
+          (ellipsis))))))
+
+================================================================================
+Leading ellipsis before a match arm
+================================================================================
+
+__SEMGREP_EXPRESSION
+match $X { ..., $P => $E }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (match_expression
+      (identifier)
+      (match_block
+        (match_arm
+          (ellipsis))
+        (match_arm
+          (match_pattern
+            (identifier))
+          (identifier))))))
+
+================================================================================
+Trailing ellipsis after a match arm
+================================================================================
+
+__SEMGREP_EXPRESSION
+match $X { $P => $E, ... }
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (semgrep_expression
+    (match_expression
+      (identifier)
+      (match_block
+        (match_arm
+          (match_pattern
+            (identifier))
+          (identifier))
+        (match_arm
+          (ellipsis))))))
+
+================================================================================
+Match arm ellipsis in statement position
+================================================================================
+
+match $X {
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (expression_statement
+    (match_expression
+      (identifier)
+      (match_block
+        (match_arm
+          (ellipsis))))))
+
+================================================================================
 Deep expression ellipsis
 ================================================================================
 
