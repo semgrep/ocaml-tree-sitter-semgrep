@@ -141,7 +141,7 @@ parameter.
 
 ### Adding a new language
 
-See [How to add support for a new language](https://semgrep.dev/docs/contributing/adding-a-language/).
+Please refer to [How to add support for a new language](https://semgrep.dev/docs/contributing/adding-a-language/) (deprecated).
 
 Documentation
 --
