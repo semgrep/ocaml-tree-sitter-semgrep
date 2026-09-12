@@ -538,3 +538,99 @@ try { ... }
     (partial_try_statement
       (block
         (semgrep_ellipsis)))))
+
+================================================================================
+Ellipsis between switch arrow rules (LANG-466)
+================================================================================
+
+switch ($X) {
+  case $C -> $E;
+  ...
+}
+
+--------------------------------------------------------------------------------
+
+(program
+  (switch_expression
+    (parenthesized_expression
+      (identifier))
+    (switch_block
+      (switch_rule
+        (switch_label
+          (identifier))
+        (expression_statement
+          (identifier)))
+      (semgrep_ellipsis))))
+
+================================================================================
+Ellipsis and named ellipsis in enum body (LANG-467)
+================================================================================
+
+enum $E { $A, $B, ...; }
+
+--------------------------------------------------------------------------------
+
+(program
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (enum_constant
+        (identifier))
+      (enum_constant
+        (identifier))
+      (semgrep_ellipsis)
+      (enum_body_declarations))))
+
+================================================================================
+Named ellipsis as enum constants list (LANG-467)
+================================================================================
+
+enum $E { $...CONSTS; ... }
+
+--------------------------------------------------------------------------------
+
+(program
+  (enum_declaration
+    (identifier)
+    (enum_body
+      (semgrep_named_ellipsis)
+      (enum_body_declarations
+        (semgrep_ellipsis)))))
+
+================================================================================
+Named ellipsis in annotation argument list (LANG-469)
+================================================================================
+
+@$ANN(value = "x", $...PROPS) class C {}
+
+--------------------------------------------------------------------------------
+
+(program
+  (class_declaration
+    (modifiers
+      (annotation
+        (identifier)
+        (annotation_argument_list
+          (element_value_pair
+            (identifier)
+            (string_literal
+              (string_fragment)))
+          (element_value_pair
+            (semgrep_named_ellipsis)))))
+    (identifier)
+    (class_body)))
+
+================================================================================
+Named ellipsis in @interface body (LANG-469)
+================================================================================
+
+@interface $A { $...ELEMENTS }
+
+--------------------------------------------------------------------------------
+
+(program
+  (annotation_type_declaration
+    (identifier)
+    (annotation_type_body
+      (annotation_type_element_declaration
+        (semgrep_named_ellipsis)))))
