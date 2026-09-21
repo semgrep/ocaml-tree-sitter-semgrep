@@ -34,6 +34,7 @@ STAT_LANGUAGES2 = \
   gosu \
   lua \
   move-on-sui \
+  objc \
   ocaml \
   php \
   powershell \
